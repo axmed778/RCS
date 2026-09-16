@@ -1,7 +1,8 @@
 # RCS — Domain Model
 
-**Status:** Draft v1 — reconciled against `PROJECT.md` (PROJECT SPEC v1). Design only: no schema, no
-migrations, no code.
+**Status:** **Domain Model v1 — approved / stable.** Reconciled against `PROJECT.md` (PROJECT SPEC v1);
+decisions C-1, C-2 and C-3 accepted and recorded in §12.2. Design only: no schema, no migrations, no
+code. Structural changes from here require a decision record.
 **Target database:** PostgreSQL
 **Scope:** Fully local / on-premise LAN case management and interagency workflow system for a municipal urban-planning department (~13 users).
 
@@ -12,7 +13,7 @@ migrations, no code.
 The authoritative source of truth for this document is **`/docs/PROJECT.md` (PROJECT SPEC v1)**.
 This model has been **reconciled against it field by field** — see
 [12. Conformance to PROJECT.md v1](#12-conformance-to-projectmd-v1), which records every mapping, every
-deliberate refinement, and the three points that need a product-owner confirmation.
+deliberate refinement, and the three decisions (C-1, C-2, C-3) that the product owner has now confirmed.
 
 Where this document and `PROJECT.md` ever disagree, **`PROJECT.md` wins** and this document is the one
 that must change.
@@ -246,9 +247,11 @@ identity.
 `id`, `username` (unique, login identity), `employee_number` (nullable, unique),
 `full_name`, `display_name`, `job_title`, `email_internal`, `phone_internal`,
 `status` (`ACTIVE` | `SUSPENDED` | `DEACTIVATED`),
-`auth_source` (`LOCAL` | `DIRECTORY`) and `directory_identifier` (nullable) — identity mapping only, so
-that either local accounts or an existing internal Active Directory can back the same `user` row
-(`PROJECT.md` §14); no external or cloud identity provider is representable,
+`auth_source` (`LOCAL` | `ACTIVE_DIRECTORY`) and `directory_identifier` (nullable) — **identity mapping
+only**, so that either local accounts or an existing internal Active Directory can back the same `user`
+row (`PROJECT.md` §14). No AD integration is designed or implied here; this is a domain/infrastructure
+compatibility requirement so that adopting AD later is a configuration and authentication change, not a
+domain change. No external or cloud identity provider is representable,
 `deactivated_at`, `deactivated_by_user_id`, `deactivation_reason_note`,
 `created_at`, `created_by_user_id`.
 
@@ -332,10 +335,18 @@ rows point at the case, with a **partial unique index on `final_result(case_id) 
 
 **`last_activity_at` — the one authorised cache column.** `PROJECT.md` §19 requires *"Recently updated
 Cases"* and *"Cases with no activity for N days"*. Deriving that from every child table on every
-dashboard query is wasteful, and deriving it from `audit_event` would make a business list depend on the
-accountability log. So `case.last_activity_at` is written on any business write within the case scope,
-is never editable by users, and is **rebuildable at any time** from `audit_event.recorded_at` grouped by
-`case_id`. It is a cache, not a status. What counts as "activity" is **OQ-13**.
+dashboard query is wasteful. So this column exists, under three explicit conditions:
+
+1. **It is not authoritative business history.** No business rule, no lifecycle transition and no
+   closure check may read it. Losing it must cost nothing but a recomputation.
+2. **It is rebuildable** at any time from the activity/audit record (`audit_event.recorded_at` grouped
+   by `case_id`, restricted to whichever actions the eventual definition counts).
+3. **It is never user-editable.**
+
+**What counts as "activity" is deliberately left open (OQ-13).** It is a workflow/dashboard question,
+not a domain one, and answering it arbitrarily now would bake a guess into a column that reporting will
+later depend on. Because the value is rebuildable by definition, fixing the rule later is a
+recomputation — not a migration and not a data loss. Until then no production rule is assumed.
 
 **Owns.** `assignment`, `case_state_change`, `request`, `requirement`, `correspondence`,
 `internal_record`, `final_result`, `case_access_grant` rows.
@@ -397,6 +408,12 @@ mutable "responsible employee" foreign key in the model.
 **Purpose.** One **official communication event** — a letter that left the department or arrived at
 it. It is the registry-level record of the paper, not of the obligation.
 
+**Correspondence vs Request (decision C-1).** A `correspondence` is *the official letter*. A `request`
+is *a logical request or work item transmitted by* that letter. One letter may carry several requests,
+and one incoming letter may carry several responses. The two concepts are never merged and the link is
+always held from the `request` / `response` side — never as a single `related_request_id` column here,
+which would cap a letter at one work item. See §2.9 and §2.10.
+
 **Key fields.**
 `id`, `case_id` (owning case; `NOT NULL` in V1 — see **OQ-10**), `direction` (`IN` | `OUT`), `correspondence_kind_id` →
 `correspondence_kind` (`INITIATING` | `OUTGOING_REQUEST` | `INCOMING_RESPONSE` | `REMINDER` |
@@ -421,12 +438,12 @@ it. It is the registry-level record of the paper, not of the obligation.
 - `sent_at` required once `status = 'SENT'`; `received_at` required once `status = 'RECEIVED'`.
 - A letter is **withdrawn** (we recalled it) or **superseded** (a corrected letter replaced it) — never
   edited into a different letter and never deleted.
-- **On `PROJECT.md` §5.3's "related Request ID":** that relationship exists, but it is held from the
-  other side — `request.dispatch_correspondence_id` for outgoing letters and `response.request_id` for
-  incoming ones. Holding it here as a single column would cap a letter at one request and make the
-  common "one letter, two requests" case unrepresentable. Every question the spec's field is meant to
-  answer ("which request does this letter belong to?") is answerable, and now with the correct
-  multiplicity. Flagged for confirmation as **C-1** in §12.
+- **On `PROJECT.md` §5.3's "related Request ID":** the relationship exists but is held from the other
+  side — `request.dispatch_correspondence_id` for outgoing letters, `response.request_id` +
+  `response.correspondence_id` for incoming ones. Every question that field is meant to answer
+  ("which requests does this letter carry?", "which letter carried this request?") is answerable, with
+  the correct multiplicity. **Confirmed as decision C-1 (§12.2); no `related_request_id` column exists
+  on `correspondence`.**
 
 **Should `correspondence` be M:N with `case`, or keep one primary case relation?**
 
@@ -484,9 +501,14 @@ withdrawal/void who-when-why triples,
   spawn a request in someone else's dossier).
 - `dispatch_correspondence_id IS NOT NULL ⟹` that correspondence has `direction = 'OUT'` and
   `recipient_organization_id = request.target_organization_id` and the same `case_id`.
-- **N:1 to the dispatch letter is intentional.** Two requests to the same authority may share one
-  letter. Deadlines and statuses stay on the request, so each tracked item can be answered and closed
-  independently even though one envelope carried both.
+- **N:1 to the dispatch letter is intentional (decision C-1, accepted).** `correspondence` is the
+  **official communication** — the letter that was signed, numbered and sent. `request` is a **logical
+  request / work item carried inside** that communication. One outgoing letter to an authority may ask
+  for a utility map, for information about existing infrastructure, and for an official opinion on
+  restrictions: that is **three** requests in **one** letter, each with its own deadline, its own
+  status, its own responses and possibly its own requirements. The ordinary case is still one letter →
+  one request, and **the model must not depend on that**. Future UI and workflow logic will depend on
+  this distinction, so it is stated here rather than left implicit.
 - `status = 'SENT'` requires a dispatch correspondence with a `sent_at`.
 - **No responsible-employee column** — see §2.7. `PROJECT.md` §5.4 lists a responsible employee on the
   Request; it is represented by a request-scoped `assignment` row, falling back to the case's
@@ -513,13 +535,12 @@ same request over time are normal and expected.
 
 **Key fields.**
 `id`, `request_id` **NOT NULL**, `correspondence_id` **NOT NULL** (the incoming letter carrying it),
-`response_type_id` → `response_type` — seeded with the eight classifications of `PROJECT.md` §5.5:
-(`APPROVAL` | `REJECTION` | `CONDITIONAL` | `INFORMATION_REQUEST` | `ADDITIONAL_REQUIREMENT` |
-`OPINION` | `CLARIFICATION` | `OTHER`), plus four operational codes the workflow needs
-(`ACKNOWLEDGEMENT` | `REVISION` | `ADDITIONAL_DOCUMENT` | `DEADLINE_EXTENSION`) — it is a lookup table
-precisely so the vocabulary can grow,
-`response_outcome_id` → `response_outcome` (`POSITIVE` | `NEGATIVE` | `CONDITIONAL` | `INFORMATIONAL` |
-`REFUSED` | `NOT_APPLICABLE`) — **optional second axis**, see the note below,
+`response_type_id` **NOT NULL** → `response_type` — **what kind of communication was received**.
+Seeded: (`OPINION` | `CLARIFICATION` | `INFORMATION_REQUEST` | `ADDITIONAL_REQUIREMENT` |
+`INFORMATION` | `OTHER`), plus three operational codes the workflow needs
+(`ACKNOWLEDGEMENT` | `ADDITIONAL_DOCUMENT` | `DEADLINE_EXTENSION`),
+`response_outcome_id` **NOT NULL** → `response_outcome` — **what the result of that communication was**.
+Seeded: (`APPROVED` | `REJECTED` | `CONDITIONAL` | `NOT_APPLICABLE` | `UNDETERMINED`),
 `is_conclusive boolean NOT NULL` — does this answer discharge the request?
 (defaulted from `response_type.is_conclusive_default`, stored on the row because it drives lifecycle),
 `summary` (the clerk's structured reading of the letter; **not** a copy of the letter),
@@ -528,23 +549,49 @@ precisely so the vocabulary can grow,
 `status` (`ACTIVE` | `SUPERSEDED` | `VOID`), `void_reason_id`, `void_note`, `voided_by_user_id`,
 `voided_at`.
 
-**Why two classification columns.** `PROJECT.md` §5.5's list mixes two different axes: *Approval*,
-*Rejection* and *Conditional* describe the **outcome** of the answer, while *Opinion*, *Clarification*,
-*Information request* and *Additional requirement* describe the **kind of act**. Keeping one column
-would force a clerk registering "a conditional opinion" to throw half the fact away. So
-`response_type` carries the spec's vocabulary verbatim and `response_outcome` records the outcome axis
-when it applies:
+**Two dimensions, never one (decision C-2, accepted).** *What kind of communication arrived* and *what
+it decided* are different facts, and a single mixed field destroys one of them. `PROJECT.md` §5.5's
+list mixes both axes — *Approval*, *Rejection* and *Conditional* are outcomes; *Opinion*,
+*Clarification*, *Information request* and *Additional requirement* are kinds of act — so the model
+separates them and every value of §5.5 is still representable:
 
-| `PROJECT.md` §5.5 classification | `response_type` | typical `response_outcome` | `is_conclusive` |
-|---|---|---|---|
-| Approval | `APPROVAL` | `POSITIVE` | true |
-| Rejection | `REJECTION` | `NEGATIVE` / `REFUSED` | true |
-| Conditional | `CONDITIONAL` | `CONDITIONAL` | usually false — conditions become requirements |
-| Information request | `INFORMATION_REQUEST` | `INFORMATIONAL` | false |
-| Additional requirement | `ADDITIONAL_REQUIREMENT` | `CONDITIONAL` | false |
-| Opinion | `OPINION` | `POSITIVE` / `NEGATIVE` / `CONDITIONAL` | true when it is the authority's final opinion |
-| Clarification | `CLARIFICATION` | `INFORMATIONAL` | false |
-| Other | `OTHER` | any | recorded explicitly |
+| `PROJECT.md` §5.5 value | `response_type` | `response_outcome` |
+|---|---|---|
+| Approval | `OPINION` (or the type of act that carried it) | `APPROVED` |
+| Rejection | `OPINION` (or the type of act that carried it) | `REJECTED` |
+| Conditional | `OPINION` / `ADDITIONAL_REQUIREMENT` | `CONDITIONAL` |
+| Information request | `INFORMATION_REQUEST` | `NOT_APPLICABLE` |
+| Additional requirement | `ADDITIONAL_REQUIREMENT` | `CONDITIONAL` |
+| Opinion | `OPINION` | `APPROVED` / `REJECTED` / `CONDITIONAL` |
+| Clarification | `CLARIFICATION` | `NOT_APPLICABLE` |
+| Other | `OTHER` | any, including `UNDETERMINED` |
+
+The combinations the decision requires are therefore natural, not special cases:
+`OPINION + CONDITIONAL`, `CLARIFICATION + NOT_APPLICABLE`, `INFORMATION + NOT_APPLICABLE`,
+`ADDITIONAL_REQUIREMENT + CONDITIONAL`.
+
+**An informational letter is not forced to carry a verdict.** Both columns are `NOT NULL`, but the
+outcome vocabulary contains two explicit non-verdicts, and they mean different things:
+
+- **`NOT_APPLICABLE`** — this communication was never going to decide anything (a clarification, an
+  acknowledgement, a covering letter transmitting a map). The absence of a verdict is the correct,
+  final answer.
+- **`UNDETERMINED`** — a verdict was expected but is not yet established: the letter is ambiguous, or
+  the clerk has registered the letter before it has been read properly.
+
+Modelling both as explicit values rather than as `NULL` is deliberate: `NULL` would conflate "no
+decision was due" with "we do not know yet", and the two drive different follow-up work. A dashboard
+can legitimately list `UNDETERMINED` responses as needing attention; it must never list
+`NOT_APPLICABLE` ones.
+
+**Supersession is structural, not a type.** There is no `REVISION` type code. A revised opinion is a
+new `response` with `response_type = OPINION` and `supersedes_response_id` pointing at the earlier
+row — the relationship carries the fact, so it cannot disagree with a label. Likewise, there is **no
+`ResponseVersion` entity** (decision C-2, reaffirmed; rationale in §5.3).
+
+Vocabularies live in lookup tables precisely so they can be refined during workflow design without a
+migration. What may **not** change without revisiting this document is the *separation* of the two
+axes.
 
 **Owns.** `requirement` rows it raises.
 **References.** `request`, `correspondence`, itself (supersession), lookups, `user`.
@@ -608,22 +655,24 @@ requirement becomes irrelevant because another authority's opinion removes the n
 marked VOID with a reason."* The dividing line is therefore **whether the obligation still applies**,
 not whether it was ever genuine.
 
-| | `WAIVED` | `VOID` |
-|---|---|---|
-| Does the obligation still apply? | **Yes** — it applies, and an authorised person **releases** us from it. | **No** — it no longer applies (or never did). |
-| What ended it? | A **decision**: someone with the authority to do so decides it need not be satisfied. | **Irrelevance**: a later opinion removed the need, the source response was superseded or voided, or it was recorded in error. |
-| Who may do it | Chief or Head (`PROJECT.md` §12). | Chief or Head (`PROJECT.md` §12). |
-| Required metadata | `waiver_authorised_by_user_id`, `waiver_reason_id`, `resolution_note` — accountability is the point. | `void_reason_id`, `voided_by_user_id`, `resolution_note`, and `void_source_response_id` when a specific later response caused it — traceability is the point. |
-| Counts as an obligation in statistics? | **Yes** — it was owed and released. | **Depends on `void_reason`**, not on the state: `NO_LONGER_REQUIRED` / `SUPERSEDED_BY_OPINION` are real business outcomes and are reported; `DATA_ENTRY_ERROR` / `DUPLICATE` are corrections and are excluded. |
-| Evidence | None needed; the justification *is* the waiver. | None; any attached evidence stays linked but proves nothing. |
+| | `FULFILLED` | `WAIVED` | `VOID` | `FAILED` |
+|---|---|---|---|---|
+| Did the obligation apply? | **Yes** | **Yes** | **No** — not any more, or never | **Yes** |
+| Was it satisfied? | **Yes** | No — we were **released** from it | Not applicable | **No** — and it could not be |
+| What ended it | Evidence accepted | An **authorised decision** to proceed without it | **Irrelevance**: a later authority response removed the need, the source response was superseded or voided, the workflow branch disappeared, or it was created by mistake | The authority refused, or it proved genuinely unobtainable |
+| Required metadata | `resolved_at`, `resolved_by_user_id`, ≥1 `ACTIVE` evidence row | `waiver_authorised_by_user_id`, `waiver_reason_id`, `resolution_note` | `void_reason_id`, `voided_by_user_id`, `resolution_note`, plus `void_source_response_id` when a specific later response caused it | `failure_reason_note`, `resolved_by_user_id` |
+| Who may do it | Any assigned worker | Chief or Head (`PROJECT.md` §12) | Chief or Head (`PROJECT.md` §12) | Chief or Head records it |
+| Counts as an obligation in statistics? | Yes | **Yes** — it was owed and released | **Depends on `void_reason`, not on the state**: `NO_LONGER_REQUIRED` / `SUPERSEDED_BY_RESPONSE` / `BRANCH_REMOVED` are real business outcomes and are reported; `DATA_ENTRY_ERROR` / `DUPLICATE` are corrections and are excluded | Yes — and it is the one that should shape a negative or partial result |
+| Typical effect on the case | Branch continues | Branch continues | Branch disappears | Branch is blocked or the result turns negative |
 
-A reason is **mandatory** for both, and neither may be applied silently — every transition writes an
-`audit_event` (`PROJECT.md` §15 lists "Requirement waived" as an audited action).
+The four are **mutually exclusive and none may stand in for another**. In particular a requirement that
+became irrelevant must **never** be recorded as `FULFILLED` to clear the board (`PROJECT.md` §5.6), and
+`FAILED` must never be softened into `WAIVED` — nobody released us from a `FAILED` requirement, which is
+exactly why it has to be visible when the final result is decided.
 
-`FAILED` is a third terminal state and is neither: the requirement was real, was **not** released, and
-could **not** be satisfied (the authority refused, or the deadline passed with no path forward). It is
-the state that legitimately drives a negative or partial final result, so it must not be blurred into
-`WAIVED`.
+A reason is **mandatory** for `WAIVED`, `VOID` and `FAILED` alike, and none of the three may be applied
+silently — every transition writes an `audit_event` (`PROJECT.md` §15 lists "Requirement waived" as an
+audited action).
 
 ### 2.12 `requirement_evidence`
 
@@ -685,8 +734,9 @@ revision.
 key, so two documents may share a filename without conflict),
 `content_hash` **NOT NULL** + `hash_algorithm` (`SHA256` default) — **the storage address**,
 `storage_volume_code` (which configured storage root, so the root can be moved without rewriting rows),
-`stored_relative_path` (the content-addressed path, `ab/cd/<sha256>`, derived from `content_hash` and
-stored so a future layout change does not require recomputing history),
+`stored_relative_path` (the content-addressed path, `sha256/ab/cd/<full_hash>` — algorithm-prefixed so a
+future hash change does not collide with existing objects — derived from `content_hash` and stored so a
+layout change does not require recomputing history),
 `byte_size bigint`, `mime_type`, `page_count` (nullable),
 `document_date date` (the date printed on the file, if any — business time),
 `uploaded_at`, `uploaded_by_user_id` (system time + actor),
@@ -701,15 +751,28 @@ stored so a future layout change does not require recomputing history),
 - A version row is **never updated** except for its status transition and integrity-check timestamp.
   A corrected file is a **new version**, so the original remains retrievable.
 - `UNIQUE (document_id, version_no)`.
-- `UNIQUE (document_id, content_hash)` — re-uploading identical bytes to the same document does **not**
-  create a new version. This is what makes the atomic upload sequence of `PROJECT.md` §22
+- `UNIQUE (document_id, content_hash)` — re-uploading identical bytes **to the same logical document**
+  does not create a new version. This is what makes the atomic upload sequence of `PROJECT.md` §22
   (temp → hash → verify → move → commit metadata → audit) safe to retry: a retry converges on the same
-  row instead of creating a duplicate.
-- **Content addressing means bytes can be shared.** Two `document_version` rows with the same
-  `content_hash` (the same map filed under two documents) point at **one** file. Therefore: withdrawing
-  or superseding a version must never touch the stored object, and any future cleanup must be
-  reference-counted across all versions sharing that hash. Getting this wrong deletes a file that
-  another case still relies on.
+  row instead of creating a phantom version 2.
+  **The constraint is scoped to `document_id` on purpose.** Two *different* documents may legitimately
+  reference identical bytes — the same map filed as an attachment of an incoming letter and as an annex
+  issued by another authority — and nothing here prevents that. What the constraint forbids is only the
+  same document holding the same bytes twice.
+- **Content addressing means bytes are shared. Five consequences, all mandatory:**
+  1. Identical file bytes **resolve to the same physical stored object** — one file at
+     `sha256/ab/cd/<full_hash>`, however many records point at it.
+  2. **Logical `document_version` records stay distinct even when their bytes are identical.** Two
+     versions under two different documents, each with its own `original_filename`, uploader, upload
+     time, status and history, are two rows — not one. The hash is the storage address, never the
+     business identity.
+  3. **Physical removal must never be triggered by a business action.** Withdrawing, superseding or
+     unlinking one `document_version` says nothing about whether the object may go.
+  4. **Any physical cleanup must first prove that no `document_version` — active or historical — still
+     references that hash.** Historical rows count: they are exactly what the audit trail relies on.
+  5. **Business-level withdrawal and physical garbage collection are separate concepts** with separate
+     rules, separate triggers and separate authorisation. They must never be implemented as one
+     operation. (Whether physical cleanup is ever permitted at all is **OQ-9**.)
 - At most one `ACTIVE` version per document at a time → partial unique index on
   `document_version(document_id) WHERE status = 'ACTIVE'`. Superseded and withdrawn versions remain,
   with their bytes.
@@ -839,9 +902,13 @@ All lookups share the same shape: `id`, `code` (unique, stable, uppercase), `lab
 deleted.**
 
 `organization_type`, `case_type`, `closure_type`, `correspondence_kind`, `delivery_method`,
-`response_type` (+ `is_conclusive_default boolean`), `response_outcome`, `requirement_origin_type`,
+`response_type` (+ `is_conclusive_default boolean`), `response_outcome` (+ `is_verdict boolean`, false
+for `NOT_APPLICABLE` and `UNDETERMINED`), `requirement_origin_type`,
 `deadline_basis`, `assignment_role`, `assignment_end_reason`, `document_kind`, `document_link_role`,
-`decision_type`, `internal_record_type`, `void_reason`, `withdrawal_reason`, `waiver_reason`.
+`decision_type`, `internal_record_type`, `withdrawal_reason`, `waiver_reason`, and
+`void_reason` — seeded `NO_LONGER_REQUIRED` | `SUPERSEDED_BY_RESPONSE` | `BRANCH_REMOVED` |
+`DATA_ENTRY_ERROR` | `DUPLICATE`, each carrying `counts_as_business_outcome boolean` so reporting can
+separate a real workflow outcome from a correction without reading free text.
 
 ### 2.20 `case_access_grant`
 
@@ -860,6 +927,11 @@ auditable),
 
 **References.** `case`, `user` ×3.
 **Invariants.**
+- **This is not a permission matrix and must never become one.** A grant carries **no per-action
+  rights**: it does not say what the user may *do*, only that a restricted case is visible to them.
+  Every business action permission continues to come from the role/authorization model
+  (`PERMISSIONS.md`). If a future requirement asks for per-case *action* rights, that is a new design
+  decision requiring an ADR — not an extra column here.
 - Grants are **revoked, never deleted**, so "who could see this restricted case in April?" stays
   answerable.
 - A grant is meaningless on a non-restricted case and must not be used to *withhold* access — it only
@@ -1062,7 +1134,7 @@ erDiagram
         text employee_number UK
         text full_name
         text job_title
-        text auth_source "LOCAL or DIRECTORY"
+        text auth_source "LOCAL or ACTIVE_DIRECTORY"
         text directory_identifier
         text status "ACTIVE SUSPENDED DEACTIVATED"
         timestamptz deactivated_at
@@ -1182,8 +1254,8 @@ erDiagram
         uuid id PK
         uuid request_id FK
         uuid correspondence_id FK "one letter may carry several responses"
-        uuid response_type_id FK
-        uuid response_outcome_id FK
+        uuid response_type_id FK "kind of communication received"
+        uuid response_outcome_id FK "what it decided - separate axis"
         boolean is_conclusive "drives request closure"
         text summary
         date response_date
@@ -1244,7 +1316,7 @@ erDiagram
         text content_hash "SHA-256 content address"
         text hash_algorithm
         text storage_volume_code
-        text stored_relative_path "derived ab/cd/sha256 on the filesystem"
+        text stored_relative_path "derived sha256/ab/cd/hash on the filesystem"
         bigint byte_size
         text mime_type
         date document_date
@@ -1433,16 +1505,18 @@ Reasoning:
 
 How each case in the brief is represented:
 
-| Situation | Representation |
-|---|---|
-| First response | `response` #1, `response_type = INITIAL`, `is_conclusive` as appropriate |
-| Acknowledgement of receipt | `response` with `response_type = ACKNOWLEDGEMENT`, `is_conclusive = false` |
-| Clarification asked/given | `response` with `response_type = CLARIFICATION`, new row, old row untouched |
-| Revised response | new `response` row with `supersedes_response_id` → old row; old row becomes `SUPERSEDED` (not deleted, not edited) |
-| Additional document only | `response` with `response_type = ADDITIONAL_DOCUMENT`; the file is a `document` linked to that response's correspondence |
-| Final opinion | `response` with `response_type = FINAL_OPINION`, `is_conclusive = true` — the trigger for `ANSWERED` |
-| Superseded response | the old row, `status = SUPERSEDED`, still queryable, still the source of any requirements it raised |
-| Clerical mistake at data entry | `status = VOID` + who/when/why, then a corrected new row; never an in-place rewrite of business facts |
+| Situation | `response_type` | `response_outcome` | Other |
+|---|---|---|---|
+| First substantive answer | the kind of act that arrived (`OPINION`, `INFORMATION`, …) | as decided | `is_conclusive` as appropriate |
+| Acknowledgement of receipt | `ACKNOWLEDGEMENT` | `NOT_APPLICABLE` | `is_conclusive = false` |
+| Clarification asked or given | `CLARIFICATION` | `NOT_APPLICABLE` | new row; the old row is untouched |
+| Additional document only | `ADDITIONAL_DOCUMENT` | `NOT_APPLICABLE` | the file is a `document` linked to that response's correspondence |
+| Conditions imposed | `ADDITIONAL_REQUIREMENT` | `CONDITIONAL` | raises one or more `requirement` rows |
+| Final opinion | `OPINION` | `APPROVED` / `REJECTED` / `CONDITIONAL` | `is_conclusive = true` — the trigger for `ANSWERED` |
+| **Revised response** | the kind of act of the *new* letter | as newly decided | new row with `supersedes_response_id` → old row; the old row becomes `SUPERSEDED`, not deleted, not edited. **There is no `REVISION` type** — supersession is the relationship, not a label |
+| Superseded response | unchanged | unchanged | the old row, `status = SUPERSEDED`, still queryable, still the source of any requirements it raised |
+| Letter registered but not yet read | as far as known, else `OTHER` | `UNDETERMINED` | flags follow-up work; distinct from `NOT_APPLICABLE` |
+| Clerical mistake at data entry | — | — | `status = VOID` + who/when/why, then a corrected new row; never an in-place rewrite of business facts |
 
 The only writable columns after insert are the status transition and its who/when/why triple, and every
 one of those writes produces an `audit_event` with `before_state`/`after_state`.
@@ -1552,21 +1626,21 @@ Case `C-2026/114` — requester: *Applicant Org*; department = the `is_own_organ
 | 5 | `request` **REQ-A** | `case_id=C-2026/114`, `target_organization_id=Architecture Authority`, **`source_requirement_id=NULL` (top-level)**, `dispatch_correspondence_id=K-OUT-010`, `due_at=2026-03-26`, `status=SENT` |
 | 6 | `request` **REQ-R** (parallel branch) | `target_organization_id=Roads Authority`, `source_requirement_id=NULL`, `dispatch_correspondence_id=K-OUT-011`, `status=SENT` |
 | 7 | `correspondence` **K-IN-020** | `direction=IN`, `kind=INCOMING_RESPONSE`, `sender=Architecture Authority`, `parent_correspondence_id=K-OUT-010`, `received_at=2026-03-20` |
-| 8 | `response` **RSP-A1** | `request_id=REQ-A`, `correspondence_id=K-IN-020`, `response_type=CLARIFICATION`, `outcome=CONDITIONAL`, **`is_conclusive=false`**, `status=ACTIVE` |
+| 8 | `response` **RSP-A1** | `request_id=REQ-A`, `correspondence_id=K-IN-020`, `response_type=ADDITIONAL_REQUIREMENT`, `response_outcome=CONDITIONAL`, **`is_conclusive=false`**, `status=ACTIVE` |
 | 9 | `requirement` **REQ'T-1** | `case_id=C-2026/114`, `origin_type=RESPONSE`, **`source_response_id=RSP-A1`**, `raised_by_organization_id=Architecture Authority`, `addressed_to_organization_id=Utility Authority`, `title='Utility communication map'`, `is_blocking=true`, `due_at=2026-04-10`, `status=OPEN` |
 | 10 | `correspondence` **K-OUT-030** | `direction=OUT`, `kind=OUTGOING_REQUEST`, `recipient=Utility Authority`, `sent_at=2026-03-23` |
 | 11 | `request` **REQ-U** (child) | `case_id=C-2026/114`, `target_organization_id=Utility Authority`, **`source_requirement_id=REQ'T-1`**, `dispatch_correspondence_id=K-OUT-030`, `status=SENT` → `REQ'T-1.status=IN_PROGRESS` |
 | 12 | `correspondence` **K-IN-040** | `direction=IN`, `sender=Utility Authority`, `parent_correspondence_id=K-OUT-030`, `received_at=2026-04-02` |
 | 13 | `document` **DOC-MAP** + `document_version` v1 | `document_kind=MAP`, `issuing_organization_id=Utility Authority`, `content_hash=…`, `uploaded_by=Worker 1` |
 | 14 | `document_link` L1 | `document_id=DOC-MAP`, `correspondence_id=K-IN-040`, `role=ATTACHMENT`, **`is_origin=true`** |
-| 15 | `response` **RSP-U1** | `request_id=REQ-U`, `correspondence_id=K-IN-040`, `response_type=FINAL_OPINION`, `outcome=POSITIVE`, **`is_conclusive=true`** |
+| 15 | `response` **RSP-U1** | `request_id=REQ-U`, `correspondence_id=K-IN-040`, `response_type=INFORMATION`, `response_outcome=NOT_APPLICABLE` (the map *is* the answer; no verdict was due), **`is_conclusive=true`** |
 | 16 | `requirement_evidence` E1 | `requirement_id=REQ'T-1`, `evidence_type=RESPONSE`, `response_id=RSP-U1`, `is_primary=true` |
 | 17 | `requirement_evidence` E2 | `requirement_id=REQ'T-1`, `evidence_type=DOCUMENT`, `document_id=DOC-MAP`, **`document_version_id=v1` (pinned)** |
 | 18 | `REQ'T-1` | `status=FULFILLED`, `resolved_at=2026-04-03`, `resolved_by_user_id=Worker 1` |
 | 19 | `REQ-U` | `status=ANSWERED → CLOSED` (its own responses raised no requirements) |
 | 20 | `correspondence` **K-OUT-050** | `direction=OUT`, `kind=INFORMATIONAL`, `recipient=Architecture Authority`, `parent_correspondence_id=K-OUT-010` |
 | 21 | `document_link` L2 | `document_id=DOC-MAP` (**the same document — the file is not copied**), `correspondence_id=K-OUT-050`, `role=ANNEX`, `is_origin=false` |
-| 22 | `correspondence` **K-IN-060** + `response` **RSP-A2** | `request_id=REQ-A`, `response_type=FINAL_OPINION`, `outcome=POSITIVE`, `is_conclusive=true` |
+| 22 | `correspondence` **K-IN-060** + `response` **RSP-A2** | `request_id=REQ-A`, `response_type=OPINION`, `response_outcome=APPROVED`, `is_conclusive=true` |
 | 23 | `REQ-A` | `status=ANSWERED`; closure permitted because `REQ'T-1` is terminal → `CLOSED` |
 | 24 | `final_result` **FR-1** | `case_id=C-2026/114`, `decision_type=APPROVAL`, `decided_by=Chief`, `approved_by=Head`, `status=ISSUED`, `dispatch_correspondence_id=K-OUT-070` |
 | 25 | `case` | `lifecycle_state=CLOSED`, `closure_type=COMPLETED_POSITIVE` |
@@ -1684,9 +1758,10 @@ The Utility Authority sends a corrected map. Two facts must both be true afterwa
 force, and the old map is still retrievable as what was relied on earlier.
 
 - **If the correction arrives as a new letter** (the normal case): a new `correspondence`, a new
-  `response` on the same request (`response_type = REVISION`, `supersedes_response_id` → the old
-  response), and a **new `document_version` (v2)** on the same `document` if it is genuinely the same
-  artefact re-issued — otherwise a new `document` entirely. v1 becomes `SUPERSEDED`; its bytes stay.
+  `response` on the same request carrying the kind of act the new letter is, with
+  `supersedes_response_id` → the old response, and a **new `document_version` (v2)** on the same
+  `document` if it is genuinely the same artefact re-issued — otherwise a new `document` entirely. v1
+  becomes `SUPERSEDED`; its bytes stay.
 - **Evidence stays honest**: `requirement_evidence` E2 pinned `document_version_id = v1`, so the record
   still says *"this requirement was closed on the strength of v1"*. A caseworker who accepts v2 as the
   new proof adds a second evidence row; they do not rewrite the first.
@@ -1696,17 +1771,22 @@ force, and the old map is still retrievable as what was relied on earlier.
 ### 7.6 Storage split
 
 `metadata → PostgreSQL`, `bytes → local filesystem`, exactly as `PROJECT.md` §6 requires. Files are
-**content-addressed by SHA-256**: the stored object lives at `<volume>/ab/cd/<sha256>`, so the hash *is*
-the address and the original filename is pure metadata — two documents may carry the same filename
-without colliding. `storage_volume_code` keeps the root relocatable by configuration without an
+**content-addressed by SHA-256**: the stored object lives at `<volume>/sha256/ab/cd/<full_hash>`, so the
+hash *is* the address and the original filename is pure metadata — two documents may carry the same
+filename without colliding. `storage_volume_code` keeps the root relocatable by configuration without an
 `UPDATE` across history. `content_hash` makes the two halves verifiable against each other
 (`integrity_checked_at`), and it is what `audit_event.document_hash` records for upload and download
 events. No `bytea`, no large objects, no base64 columns.
 
-Two consequences worth stating plainly, because both are easy to get wrong later: identical bytes
-uploaded twice resolve to **one** stored object, so file removal can never be per-version; and a
-retried upload (`PROJECT.md` §22) converges on the same `(document_id, content_hash)` row rather than
-creating a phantom version 2.
+Three consequences worth stating plainly, because all three are easy to get wrong later:
+
+- identical bytes resolve to **one** stored object, so file removal can never be decided per-version —
+  the full list of consequences is in §2.14 and must be read before any cleanup job is written;
+- **business withdrawal and physical garbage collection are separate concepts** — withdrawing a version
+  changes its status and nothing on disk;
+- a retried upload (`PROJECT.md` §22) converges on the same `(document_id, content_hash)` row rather
+  than creating a phantom version 2, while two *different* documents may still legitimately share the
+  same bytes.
 
 ---
 
@@ -1721,7 +1801,7 @@ What the design guarantees, and the mechanism that guarantees it.
 | **Old assignments** | `assignment` is temporal (`valid_from`/`valid_until`); reassignment closes a row and inserts another; an `EXCLUDE` constraint enforces non-overlap rather than allowing an in-place update | "Who was responsible on 12 April?" is a single range query; nobody's past responsibility is erased by a handover |
 | **Withdrawn records** | Every entity has a withdrawal/void state with a **who/when/why triple** (`*_at`, `*_by_user_id`, `*_reason_id`, `*_note`) instead of a delete | A recalled letter, a retracted piece of evidence and a mistaken request all remain visible, with the reason attached |
 | **Superseded correspondence** | `supersedes_correspondence_id` + `status = SUPERSEDED`; `registry_number` is never reused | The registry stays continuous; a corrected letter does not silently overwrite the one the authority actually received first |
-| **Requirements that were released** | `WAIVED` (with authoriser) and `FAILED` are distinct terminal states from `VOID`; only `VOID` is excluded from business statistics | Released obligations remain part of the history of the case, with the name of whoever released them |
+| **Requirements that were released or unmet** | `WAIVED` (with authoriser), `FAILED` (with reason) and `VOID` (with `void_reason` and, where applicable, `void_source_response_id`) are four distinct terminal states with `FULFILLED`; what a report excludes is driven by `void_reason.counts_as_business_outcome`, never by the state alone (§2.11) | Released and unmet obligations stay part of the case's history, with the name of whoever released them and the later response that made a requirement irrelevant |
 | **Identity of people** | Users are `DEACTIVATED`, never deleted; `audit_event` additionally stores `actor_username_snapshot`, `actor_display_name_snapshot` and `actor_roles_snapshot` | Renaming or deactivating a user cannot retroactively change who did what, or in what capacity |
 | **Master data over time** | Organizations are deactivated, not deleted; renames create `organization_alias` rows; lookup rows are deactivated with `valid_from`/`valid_to` | Historical letters keep resolving to the party and vocabulary that existed at the time |
 | **Business vs system time** | `occurred_at` and `recorded_at` families are separate columns (§1.4) | Back-dated registration is representable honestly: the letter is dated 2 March, we learned of it on 3 March, we recorded it on 4 March |
@@ -1831,44 +1911,70 @@ column rather than something buried in free text.
 **Azerbaijani and Russian naming variations.** This is the reason `organization_alias` exists as a
 first-class table rather than a text column: an authority written three ways, or transliterated between
 scripts, is one organization with several alias rows (`alias_type` covers `FORMER_NAME`,
-`ABBREVIATION`, `TRANSLITERATION`, `MISSPELLING`). An `alias_language` column is added so a search can
-be biased toward the user's language. The matching technique itself (normalisation, collation, trigram
-or full-text indexing) is an implementation choice and is deliberately not fixed here — but the model
-must not make it impossible, which is why no organization name is ever stored as free text on a
-transaction row.
+`ABBREVIATION`, `TRANSLITERATION`, `MISSPELLING`) and an `alias_language` column so a search can be
+biased toward the user's language.
+
+**The matching technology is deliberately not chosen here.** PostgreSQL collation, normalised search
+columns, trigram indexing, full-text search, transliteration tables or any combination remain open; that
+choice belongs to the Search/Architecture phase and must be recorded in `DECISIONS.md` when it is made.
+The domain model's only obligation is to make such matching *possible* — which is why no organization
+name is ever stored as free text on a transaction row, and why aliases are rows rather than a delimited
+string.
 
 ---
 
 ## 10. Open Questions
 
 Only decisions that genuinely need a product owner are listed. Implementation details are not parked
-here — they are decided in §1.4 and elsewhere. Each item states the question, what changes in the
-model depending on the answer, and what was assumed in the meantime.
+here — they are decided in §1.4 and elsewhere. Each item states the question, what changes in the model
+depending on the answer, and what was assumed in the meantime.
 
-**Six questions were answered by PROJECT SPEC v1 and are closed:** OQ-0 (the spec now exists and this
-model is reconciled against it — §12), OQ-3 (Chief and Head may waive or void, `PROJECT.md` §12),
-OQ-4 (restriction is case-level only, with explicitly authorised users held in `case_access_grant`,
-§13), OQ-8 (reopening is supported on the same case, §10), OQ-12 (one owning case per letter, §5.3),
-and most of OQ-1. What remains genuinely open is below.
+**Closed by PROJECT SPEC v1:** OQ-0 (the spec exists; this model is reconciled against it — §12),
+OQ-3 (Chief and Head may waive or void, `PROJECT.md` §12), OQ-4 (restriction is case-level only, with
+explicitly authorised users held in `case_access_grant`, §13), OQ-8 (reopening on the same case, §10),
+OQ-12 (one owning case per letter, §5.3), and most of OQ-1.
+**Closed by the C-1 / C-2 / C-3 decisions:** recorded in §12.2.
+
+### Reading this section: blockers vs deferrable
+
+The distinction that matters for freezing this document is **whether an answer would invalidate the
+structure already designed**, not whether the question is important.
+
+> **Domain-model blocker** — the answer would change an existing table, key, cardinality or invariant in
+> a way that is not additive, so building on the model before it is answered risks rework.
+>
+> **Deferrable** — the answer adds a table or a column, tightens a constraint, or belongs to workflow,
+> permissions, search or UI design. The existing structure stays correct either way.
+
+**There are currently no domain-model blockers.** Every question below is deferrable, and the reason is
+stated on each. Three are worth calling out as *nearly* structural, and are marked **[near-structural]**
+— each would still be a small, contained change rather than a redesign.
+
+### 10.1 Business questions — deferrable, additive
 
 **OQ-1 (residual) — Can a private individual (a citizen) ever be the requesting party?**
 `PROJECT.md` §3 and §5.2 describe incoming requests as coming from government bodies and
 organizations, which V1 follows. *Impact:* if individuals must ever be requesters, `organization`
 becomes a *party* table and personal-data handling becomes a first-class concern.
-*Assumed:* organizations only; `organization_type` carries an `INDIVIDUAL` code as a placeholder so
-the answer would not require a structural change.
+*Assumed:* organizations only; `organization_type` carries an `INDIVIDUAL` code as a placeholder.
+*Why deferrable:* **[near-structural]** — a rename of `organization` to `party` plus PII handling, but
+no relationship or cardinality changes, because every reference already points at one master row.
 
 **OQ-2 — Does a Case need a structured physical subject (address, cadastral parcel, project object)?**
 For an urban-planning department this is likely, but the brief does not state it, so nothing was
 invented. *Impact:* adds `case_subject_property` (1:N — one case may cover several parcels) plus
 possible master data for parcels; it also changes how cases are searched and how duplicates are
 detected. *Assumed:* the free-text `case.subject` carries it for now.
+*Why deferrable:* purely additive — a new `case_subject_property` table hanging off `case`. Nothing
+already designed becomes wrong. (`PROJECT.md` does not require it; it is raised because the domain makes
+it likely.)
 
 **OQ-3 (residual) — Does waiving a requirement need the raising authority's written agreement?**
 *Who* may waive is settled (Chief and Head, `PROJECT.md` §12). What is not stated is whether the
 authority that imposed the requirement must agree in writing. *Impact:* if yes, a waiver must cite
 evidence — a `requirement_evidence` row with a waiver role, or `requirement.waiver_evidence_id`.
 *Assumed:* an internal authorised decision is sufficient; no external agreement is modelled.
+*Why deferrable:* additive — a waiver-role evidence row, which `requirement_evidence` already supports.
 
 **OQ-5 — How are deadlines computed, and does `ON_HOLD` pause them?**
 Calendar days or working days? Counted from the letter date, the dispatch date, or the receipt date?
@@ -1876,6 +1982,8 @@ Does a hold suspend the case's statutory clock, and do holidays matter? *Impact:
 `due_at` can be a plain stored timestamp (current design) or needs a working-day calendar table and a
 suspension log. *Assumed:* `due_at` is stored as an absolute timestamp entered or defaulted by the
 user, and `ON_HOLD` does **not** silently alter it.
+*Why deferrable:* the `due_at` / `original_due_at` columns stay regardless; a working-day calendar and a
+suspension log are additive, and overdue is derived at read time so no stored value becomes wrong.
 
 **OQ-6 — Final result: mandatory, dispatched, and does it expire?**
 Can a case be closed without an issued `final_result` (e.g. withdrawn by the applicant)? Must every
@@ -1883,6 +1991,7 @@ issued result be sent to the requester as an outgoing letter? Do issued results 
 (a permit that expires)? *Impact:* the first two are `CHECK`-level rules; the third adds
 `final_result.valid_until` and a whole class of expiry reporting. *Assumed:* result optional for
 `CANCELLED` cases, dispatch letter optional (`dispatch_correspondence_id` nullable), no expiry.
+*Why deferrable:* one nullable column plus `CHECK` rules on an entity that already exists.
 
 **OQ-7 — Numbering rules.**
 Format, yearly reset, who assigns, and the uniqueness scope of `case_number`, `registry_number` and
@@ -1891,38 +2000,59 @@ cannot be guaranteed)? Are separate incoming and outgoing registries kept? *Impa
 uniqueness constraints and whether a `number_sequence` table with per-year counters is needed.
 *Assumed:* each business number is unique within the system; `letter_number` is free text and not
 unique.
+*Why deferrable:* business numbers are deliberately not primary keys (§1.4), so their format, reset
+period and generation can change without touching a single foreign key. A `number_sequence` table is
+additive.
 
 **OQ-9 — Retention: how long must documents and audit events be kept, and is physical deletion ever
 permitted?**
 *Impact:* the model forbids deletion outright; a legal retention rule would introduce an archival
 process that must still leave metadata and hashes in place. *Assumed:* nothing is ever physically
-deleted.
+deleted. *Why deferrable:* the answer governs an operational process, not the schema; if cleanup is ever
+permitted it adds the reference-counted `storage_object` table (Appendix C) and must honour the five
+consequences in §2.14.
 
 **OQ-10 — Is there a central mail registry that registers incoming letters *before* they are attached
 to a case?**
 *Impact:* if yes, `correspondence.case_id` must become nullable (an "unassigned mail" tray) and a
 registration-to-case workflow is needed. *Assumed:* no — registration of an initiating letter and
-creation of its case happen in one act, so `case_id` is `NOT NULL`. This is a one-line migration if the
-answer is yes.
+creation of its case happen in one act, so `case_id` is `NOT NULL`.
+*Why deferrable:* **[near-structural]** — dropping the `NOT NULL` on one column, plus a registration
+workflow. No relationship changes; nothing built against the current model would need rewriting.
 
 **OQ-11 — Must an authority's request for more time be tracked formally?**
 *Impact:* if deadline extensions must be reportable ("how often does Authority X ask for extensions?"),
 a `request_deadline_change` history table is needed. *Assumed:* the extension letter is registered as a
 `response` of type `DEADLINE_EXTENSION`, `due_at` is updated and `original_due_at` preserved, and the
 change is visible in `audit_event`.
+*Why deferrable:* additive history table; the current representation already records the fact.
 
-**OQ-13 — What counts as "activity" for the dashboard?**
+### 10.2 Workflow / permissions / UI questions — deferred by design
+
+These belong to `WORKFLOW.md`, `PERMISSIONS.md` or the Search phase. They change **no** table.
+
+**OQ-13 — What counts as "activity" for the inactivity lists?**
 `PROJECT.md` §19 requires *"Cases with no activity for N days"*, which needs a definition and a value
-for N. Does registering a letter count? Does opening the case? Does an automatic deadline passing?
-*Impact:* determines what writes `case.last_activity_at` and therefore which cases surface as stale.
-*Assumed:* any business write within the case scope (correspondence, request, response, requirement,
-document, assignment, note, decision) counts; passive viewing does not; N is configurable.
+for N. Does registering a letter count? Does opening the case? Does a deadline passing?
+*Impact:* determines what writes `case.last_activity_at`, which is **rebuildable cache data and not
+authoritative** (§2.5). **No assumption is made and none should be made now** — answering it arbitrarily
+would bake a guess into a column that reporting will later depend on. Because the value is rebuildable,
+fixing the rule later is a recomputation, not a migration.
+*Owner:* workflow / dashboard design.
 
-**OQ-14 — Must the final result be approved by a different person than the one who decided it?**
+**OQ-14 — Must the final result be approved by someone other than the person who decided it?**
 `PROJECT.md` §12 gives Head "final approval where required", but not when it is required.
-*Impact:* whether `final_result.approved_by_user_id` is mandatory for `ISSUED`, and whether it must
-differ from `decided_by_user_id` (a four-eyes rule). *Assumed:* both columns exist, approval is
-recorded when it happens, and no separation-of-duties constraint is enforced in the data model.
+*Impact:* whether `final_result.approved_by_user_id` is mandatory for `ISSUED` and must differ from
+`decided_by_user_id` (a four-eyes rule). Both columns already exist; this is a constraint, not a
+structure. *Assumed:* approval is recorded when it happens; no separation-of-duties rule is enforced.
+*Owner:* `PERMISSIONS.md` / `WORKFLOW.md`.
+
+**OQ-15 — Which matching technology backs organization-name search?**
+PostgreSQL collation, normalised search columns, trigram, full-text search, transliteration tables, or a
+combination — for Azerbaijani and Russian naming variations (`PROJECT.md` §16).
+*Impact:* none on the domain model, which only has to make matching possible (§9.5). It adds indexes or
+derived columns, never business structure.
+*Owner:* Search / Architecture phase; **must be recorded in `DECISIONS.md`**.
 
 ---
 
@@ -2020,7 +2150,7 @@ active/inactive → `is_active`. The four roles the spec lists are contextual, n
 `sender_organization_id`, `recipient_organization_id`, `letter_number`, `registry_number`,
 `letter_date`, `received_at`, `sent_at`, `subject`, `summary` for description,
 `parent_correspondence_id`, `created_by_user_id`, `registered_at`/`recorded_at`, `occurred_at` family).
-**"related Request ID" is held from the other side — see C-1.**
+**"related Request ID" is held from the Request side per decision C-1 — see §12.2.**
 
 **`PROJECT.md` §5.4 — Request**: `id`, `case_id`, `target_organization_id`, `source_requirement_id`,
 `subject`, `dispatch_correspondence_id`, `status`, `due_at` (expected response date), `closed_at` all
@@ -2028,9 +2158,11 @@ map directly. Responsible employee → request-scoped `assignment`; sent date �
 `dispatch_correspondence.sent_at` (§2.9).
 
 **`PROJECT.md` §5.5 — Response**: modelled as **separate immutable events**, which is explicitly one of
-the two options the spec offers ("versioned or represented as separate immutable events"). The rationale
-for choosing events over versions is §5.3 of this document. Classification → see C-2.
-Supersession → `supersedes_response_id`, with the earlier row retained and visible.
+the two options the spec offers ("versioned or represented as separate immutable events"); the rationale
+is §5.3. Classification is split across `response_type` and `response_outcome` per decision C-2, and all
+eight of the spec's values remain representable — the mapping grid is in §2.10.
+Supersession → `supersedes_response_id`, with the earlier row retained and visible. No
+`ResponseVersion`.
 
 **`PROJECT.md` §5.6 — Requirement**: `id`, `case_id`, `source_response_id`,
 `raised_by_organization_id` (requesting organization), `description`,
@@ -2058,31 +2190,46 @@ identity → `user.auth_source`; audit → `audit_event`, append-only, with ever
 (sequence, actor, action, target entity, timestamp, occurred date, previous values, new values,
 document hash). All thirteen audited actions in §15 map to an `action_code` + `entity_type` pair.
 
-### 12.2 Three points that need a product-owner confirmation
+### 12.2 Confirmed decisions C-1, C-2, C-3
 
-These are differences in **form**, not in business rule. Each preserves the fact the spec asks for; each
-is flagged because the spec wrote it one way and this model realises it another.
+All three points raised for confirmation have been **accepted by the product owner**. They are recorded
+here as decisions, not as open items. Reversing any of them requires a new decision record.
 
-**C-1 — `PROJECT.md` §5.3 lists "related Request ID" on Correspondence; the model holds that link from
-the Request side.** `request.dispatch_correspondence_id` (outgoing) and `response.request_id` (incoming)
-give the same answer, and additionally allow one letter to carry two requests or answer two requests —
-which a single column on `correspondence` would forbid. Nothing is lost; the multiplicity is gained.
-*Confirm: is one letter ever used for more than one request or response in practice?* If never, the
-column could be moved back, but the current direction is safe either way.
+**C-1 — ACCEPTED. The Correspondence ↔ Request link is held from the Request side.**
+There is **no `related_request_id` column on `correspondence`**, and none may be added.
+`correspondence` is the *official communication*; `request` is a *logical request or work item carried
+inside it*. One outgoing letter to an authority may ask for a utility map, for information about
+existing infrastructure, and for an official opinion on restrictions — three requests, one letter, each
+with its own deadline, status, responses and requirements. The ordinary case remains one letter → one
+request, and **the model must not depend on that assumption**. The same holds on the incoming side:
+`response → correspondence` is N:1, so one reply letter may discharge several requests. Future UI and
+workflow logic depend on this distinction; it is stated in §2.8, §2.9 and §2.10 rather than left
+implicit. *(Recorded: §2.8 purpose note, §2.9 dispatch invariant.)*
 
-**C-2 — `PROJECT.md` §5.5 gives one classification list; the model splits it across `response_type` and
-`response_outcome`.** The spec's own list mixes outcomes (Approval, Rejection, Conditional) with kinds
-of act (Opinion, Clarification, Information request, Additional requirement). All eight values are
-supported verbatim as `response_type` codes; `response_outcome` is an optional second column so "a
-conditional opinion" does not have to be recorded as half a fact. *Confirm: is the two-axis
-classification acceptable, or should the UI present exactly the eight values?*
+**C-2 — ACCEPTED. Response type and outcome are two separate dimensions.**
+`response_type` records *what kind of communication was received*
+(`OPINION`, `CLARIFICATION`, `INFORMATION_REQUEST`, `ADDITIONAL_REQUIREMENT`, `INFORMATION`, `OTHER`,
+plus `ACKNOWLEDGEMENT`, `ADDITIONAL_DOCUMENT`, `DEADLINE_EXTENSION`). `response_outcome` records *what
+it decided* (`APPROVED`, `REJECTED`, `CONDITIONAL`, `NOT_APPLICABLE`, `UNDETERMINED`). Combinations such
+as `OPINION + CONDITIONAL` and `CLARIFICATION + NOT_APPLICABLE` are ordinary rows, and a purely
+informational letter is never forced to carry a verdict — `NOT_APPLICABLE` ("none was due") and
+`UNDETERMINED` ("one was due but is not yet established") are explicit values rather than `NULL`, because
+they drive different follow-up. Vocabularies may be refined in later phases; **the separation of the two
+axes may not**. A single mixed classification field is now prohibited. The UI may simplify the
+presentation; the data model keeps both dimensions. Response records remain **immutable**, a later
+official response is a new record referencing the earlier one through `supersedes_response_id`, and
+**`ResponseVersion` is not introduced**. *(Recorded: §2.10, §5.3.)*
 
-**C-3 — Four Case "fields" in `PROJECT.md` §5.1 are relationships or derivations, not columns.**
-Responsible employee (→ `assignment`), Current progress (→ derived, as §10 of the spec itself requires),
-Incoming correspondence (→ the initiating `correspondence` row), Final result (→ `final_result` rows).
-Each is still answerable in one query from the case, and each is modelled this way because the spec's
-own rules (§10 derived progress, §11 assignment history, §7 no overwriting) demand it.
-*Confirm: the Case screen (§17) will read these through joins rather than from case columns.*
+**C-3 — ACCEPTED. Four Case concepts are relationships or derivations, never mutable columns.**
+Responsible employee → the current active `RESPONSIBLE` `assignment`, with assignment history remaining
+authoritative. Current progress → derived from requests, responses, requirements, lifecycle state and
+outstanding dependencies; **no manually maintained `current_progress` string exists as authoritative
+state**. Original incoming correspondence → the initiating `correspondence` relationship. Final result →
+the `final_result` entity and its relationship to the case. The Case screen obtains all four through
+joins/projections. Authoritative information is not duplicated for query convenience; where a future
+performance requirement justifies a cache, it must be **explicitly documented as rebuildable derived
+data** — which is the standard `case.last_activity_at` is held to in §2.5, and the only cache column in
+the model. *(Recorded: §2.5 field tables, §9.)*
 
 ### 12.3 Entities beyond the `PROJECT.md` §30 Phase 1 list
 
@@ -2133,6 +2280,29 @@ elsewhere in the spec, not to expand scope:
 | 11 | What was the final result? | `final_result` with `status = 'ISSUED'` |
 | 12 | Which documents prove the complete history? | `document_link` across every context, with immutable versions and hashes (§7) |
 
+### 12.6 Document status — Domain Model v1
+
+With decisions C-1, C-2 and C-3 accepted, the requirement-state semantics corrected against
+`PROJECT.md` §5.6, and the content-addressed storage consequences written down, this document is
+**approved and stable as Domain Model v1**.
+
+**What "stable" means here:**
+
+- The entity set, the relationships, the cardinalities and the causal chain are settled. `WORKFLOW.md`
+  and `PERMISSIONS.md` can be written against them, and schema design can begin from them.
+- **No open question blocks that work.** Everything in §10 is additive, or belongs to workflow,
+  permissions, search or UI design (§10.1 / §10.2).
+- Vocabularies in lookup tables (`response_type`, `response_outcome`, `void_reason`, …) are expected to
+  be refined during workflow design. That is normal and does not reopen this document.
+- **What would reopen it:** removing or merging an entity, changing a cardinality, adding a mutable
+  column that duplicates authoritative state, adding a `related_request_id` to `correspondence`,
+  collapsing `response_type` and `response_outcome` into one field, introducing `ResponseVersion`, or
+  making `case.last_activity_at` authoritative. Each of those contradicts a recorded decision and needs
+  a new one, recorded in `DECISIONS.md`.
+
+**Next phase:** `WORKFLOW.md` (state transitions, request dependencies, requirement lifecycle, closure
+rules) and `PERMISSIONS.md`, per `PROJECT.md` §30 Phase 2. Neither is started here.
+
 ---
 
 ## Appendix A — Self-review against the acceptance questions
@@ -2143,7 +2313,7 @@ elsewhere in the spec, not to expand scope:
 | 2 | Can a Response create a Requirement? | **Yes** | `requirement.source_response_id`, `1:N`, with `requirement_origin_type = 'RESPONSE'`; §6.2 row 9 |
 | 3 | Can that Requirement create a child Request to another Organization? | **Yes** | `request.source_requirement_id` + a different `target_organization_id`; §6.2 row 11 |
 | 4 | Can the system reconstruct **why** that child Request exists? | **Yes** | The upward walk `request → requirement → response → request …` in §6.3, ending at a root request with `source_requirement_id IS NULL`; all real indexed foreign keys |
-| 5 | Can one Request receive multiple responses without overwriting history? | **Yes** | `request 1:N response`, rows immutable and append-only, revision via `supersedes_response_id`, old row `SUPERSEDED` not deleted; §5.3 |
+| 5 | Can one Request receive multiple responses without overwriting history? | **Yes** | `request 1:N response`, rows immutable and append-only, revision via `supersedes_response_id` (no `REVISION` type, no `ResponseVersion`), old row `SUPERSEDED` not deleted; §5.3 |
 | 6 | Can one correspondence contain several files? | **Yes** | `correspondence 1:N document_link → document`, one `PRIMARY_LETTER` plus any number of attachments/annexes with `ordinal`; §7.3 |
 | 7 | Can a revised file exist without deleting the original? | **Yes** | `document_version` v2 `ACTIVE`, v1 `SUPERSEDED` with bytes retained; evidence links pin the exact version relied on; §7.5 |
 | 8 | Can responsibility for a Case change without losing history? | **Yes** | Temporal `assignment` rows with `valid_from`/`valid_until`, `assigned_by`, `end_reason`, non-overlap enforced by an `EXCLUDE` constraint; temporary cover coexists with the responsible row; §2.7 |
@@ -2151,6 +2321,21 @@ elsewhere in the spec, not to expand scope:
 | 10 | Can Case progress be derived without staff maintaining 15 statuses? | **Yes** | Five stored case states; everything operational derived from `request.status` + conclusive-response existence + `requirement.status`/`is_blocking` + `due_at`; §9 |
 
 No answer is "no", so no revision of the model was required by this review.
+
+### Finalization review (decisions C-1 / C-2 / C-3 and the v1 freeze)
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Contradictions created by the decisions | **5 found and corrected.** (a) §5.3 situation table, (b) §6.2 worked example and (c) §7.5 revision narrative still used the retired `FINAL_OPINION` / `INITIAL` / `REVISION` type codes and the retired `POSITIVE` outcome — all now use the C-2 vocabularies. (d) §8 still said *"only `VOID` is excluded from business statistics"*, which the `void_reason` rule replaced; exclusion is now driven by `void_reason.counts_as_business_outcome`. (e) §2.11 carried a leftover paragraph calling `FAILED` "a third terminal state", contradicting the four-state table directly above it — removed. Glossary and Mermaid annotations were realigned to the `sha256/ab/cd/<full_hash>` path. |
+| 2 | Mermaid diagrams updated | **Relationships unchanged** — C-1 confirmed the direction already drawn (one Correspondence to many Requests, one Correspondence to many Responses), so no edge moved. Attribute annotations updated for the two response axes, the storage path and `auth_source`. Both diagrams re-validated. |
+| 3 | Every referenced entity exists | **Yes** — 20 entity blocks in the full diagram; every entity named in relationships is defined and every defined entity is referenced. |
+| 4 | Cardinalities consistent across prose, tables and diagrams | **Yes** — checked for the four that the decisions touch: `correspondence 1:N request`, `correspondence 1:N response`, `request 1:N response`, `document 1:N document_version`. |
+| 5 | Complete causal path `Request → Response → Requirement → child Request` | **Yes** — `response.request_id` → `requirement.source_response_id` → `request.source_requirement_id`, all `NOT NULL` where required, walked end-to-end in §6.2 rows 5→8→9→11 and reconstructed upward in §6.3. |
+| 6 | One Correspondence supports multiple Requests **and** multiple Responses without duplicating the letter | **Yes** — both links are N:1 to `correspondence`; the letter is registered once (§2.8, §2.9, §12.2 C-1). |
+| 7 | Identical bytes safely referenced by several documents/versions | **Yes** — `UNIQUE (document_id, content_hash)` is scoped per document, so two documents may share bytes; the five consequences in §2.14 govern the shared object. |
+| 8 | Case does not duplicate authoritative relationships | **Yes** — no responsible-employee, progress, incoming-correspondence or final-result column. `last_activity_at` is the single cache, explicitly non-authoritative and rebuildable (§2.5, §12.2 C-3). |
+| 9 | VOID / WAIVED semantics used consistently | **Yes, after two fixes** (1d and 1e above). The four-state table in §2.11 is now the single definition; §5.4, §8, §9 and §12 reference it without restating a different rule, and no section attaches statistics behaviour to the state instead of the reason. |
+| 10 | Remaining domain-model blockers | **None.** Every open question in §10 is additive or belongs to a later phase; two are marked *[near-structural]* and would each be a contained change. |
 
 ---
 
@@ -2171,7 +2356,7 @@ No answer is "no", so no revision of the model was required by this review.
 | **Own organization** | The department itself, held as the single `organization` row with `is_own_organization = true`. |
 | **Who/when/why triple** | The `*_at` + `*_by_user_id` + `*_reason_id`/`*_note` columns that must accompany any retirement of a record. |
 | **Exclusive arc** | Several nullable real foreign keys plus `CHECK (num_nonnulls(...) = 1)` — used instead of generic polymorphism. |
-| **Content address** | A file's SHA-256 hash, which is also its storage path (`ab/cd/<sha256>`). Identical bytes resolve to one stored object. |
+| **Content address** | A file's SHA-256 hash, which is also its storage path (`sha256/ab/cd/<full_hash>`). Identical bytes resolve to one stored object; the logical `document_version` records stay distinct. |
 | **Case access grant** | An explicit, revocable, reason-bearing permission for one named user to view one restricted case (`PROJECT.md` §13). |
 
 ---
