@@ -27,13 +27,18 @@ Four rules hold everywhere in this document and are not repeated in each section
 4. **Operational status is derived, never typed in** (`PROJECT.md` §10). Only the five case states,
    the six request states, the six requirement states, the three response states and the five final
    result states are stored.
+5. **This application never sends or receives official correspondence** (`PROJECT.md` §1.1). Official
+   letters are dispatched and received in a separate external government system, which assigns their
+   official numbers and dates. Everything in this document describes **recording, after the fact, what
+   already happened there**. No workflow step in this system transmits anything, and no state means
+   "waiting to be sent".
 
 ### 0.1 The two kinds of state change
 
 | | **Human decision** | **System consequence** |
 |---|---|---|
 | What it is | Someone judges something and records it | A state that follows mechanically from a record the human already created |
-| Examples | closing a case, waiving a requirement, deciding a response is conclusive | request `DRAFT → SENT` when its letter is dispatched, requirement `OPEN → IN_PROGRESS` when its child request is sent |
+| Examples | closing a case, waiving a requirement, deciding a response is conclusive | request `DRAFT → SENT` when its outgoing correspondence is registered with its external sent date, requirement `OPEN → IN_PROGRESS` when its child request is issued |
 | Needs a reason? | Usually yes | Never |
 | Who is the actor in the audit event? | The person | The person whose action triggered it, with `actor_kind = SYSTEM` noted in the event |
 
@@ -107,9 +112,12 @@ The system may offer to walk the user through the open items in one screen. It m
 
 ### 2.1 The normal flow
 
+A case begins when an official request that has **already been received** through the external
+government system (`PROJECT.md` §1.1) is recorded here.
+
 | Step | Record created | Notes |
 |---|---|---|
-| 1 | `correspondence` — `direction = IN`, `correspondence_kind = INITIATING` | sender = requesting organization, recipient = the `is_own_organization` row |
+| 1 | `correspondence` — `direction = IN`, `correspondence_kind = INITIATING` | the already-received letter: sender = requesting organization, recipient = the `is_own_organization` row, with the external system's letter number and the date it was actually received there |
 | 2 | `case` — `lifecycle_state = REGISTERED` | `case_number`, `title`, `subject`, `registered_at` (business time) |
 | 3 | `case.requesting_organization_id` | selected from master data, never typed as free text; if the organization is new it is created as master data first (`PERMISSIONS.md` §26) |
 | 4 | subject/title entered | `title` for lists, `subject` for the substance |
@@ -127,11 +135,18 @@ Three real situations, and how each is handled **without** changing the frozen m
 | Situation | Handling |
 |---|---|
 | The letter arrives, is scanned later | Create the case and the correspondence row together from the paper letter (its number, date, sender are on the page). The **files** are attached in step 6 whenever scanning happens — a `correspondence` with no documents yet is valid and shows as incomplete in derived progress. |
-| The letter's registry number is issued by a separate registry step | `correspondence.registry_number` may be filled in later. It is not a primary key and nothing references it, so assigning it late costs nothing. **A case does not wait for a registry number.** |
+| The registry number is assigned by the external government system | `correspondence.registry_number` records **the number that system assigned** — this application never generates official correspondence numbers (`PROJECT.md` §1.1). It may be filled in later: it is not a primary key and nothing references it, so recording it late costs nothing. **A case does not wait for a registry number.** |
 | A letter arrives that belongs to no case yet and nobody is sure which case it belongs to | **Not supported in V1** — `correspondence.case_id` is `NOT NULL`. The letter is registered against the case it concerns, and if it opens a new matter, that case is created. A true "unassigned mail tray" is Domain Model **OQ-10**, and answering it yes is a one-column change. |
 
-`case_number` **is** assigned when the case is created, because staff quote it from that moment on.
-Its format and reset rules are Domain Model OQ-7 and do not affect this workflow.
+`case_number` **is** assigned when the case is created, because staff quote it from that moment on. It
+is the one number this application owns: internal case numbering is application-generated and entirely
+separate from official correspondence numbering, which is external. Its format and reset rules are
+Domain Model OQ-7 and do not affect this workflow.
+
+**This partly answers Domain Model OQ-7 ("who assigns the numbers?")** without changing the frozen
+model, which deliberately left it open: **official correspondence numbers are assigned externally and
+recorded here; internal case numbers are assigned by this application.** What remains open in OQ-7 —
+format, yearly reset, uniqueness scope — is unaffected.
 
 ### 2.3 Registration is not a single-branch commitment
 
@@ -148,35 +163,58 @@ ever having had a `RESPONSIBLE` assignment.
 
 ## 3. Request workflow
 
-A `request` is a **logical work item addressed to one external organization** (Domain Model decision
-C-1). It is not the letter. One outgoing letter may carry several requests.
+A `request` is a **business/workflow tracking entity**: *"we officially requested X from Organization
+Y."* It is not a message awaiting transmission, and it is not the letter (Domain Model decision C-1).
+One outgoing letter may carry several requests.
 
-Stored states (Domain Model §2.9): `DRAFT`, `SENT`, `ANSWERED`, `CLOSED`, `WITHDRAWN`, `VOID`.
+Stored states (Domain Model §2.9, frozen): `DRAFT`, `SENT`, `ANSWERED`, `CLOSED`, `WITHDRAWN`, `VOID`.
 
-### 3.1 Why there is no `READY` state, and no `RESPONSE_RECEIVED` state
+### 3.1 What the states mean, now that dispatch is external
 
-- **`READY` is derivable**: a `DRAFT` request whose dispatch `correspondence` exists, has a recipient,
-  a subject and at least a primary document is ready to send. Storing that as a state would mean
-  maintaining a fact the rows already tell us, and it would go stale the moment someone removes the
-  attachment.
-- **`RESPONSE_RECEIVED` would be a second click for a fact already recorded.** Registering the incoming
-  letter *is* the record. `ANSWERED` follows as a system consequence (§3.3), so nobody confirms twice.
+The state names are frozen in Domain Model v1. Under `PROJECT.md` §1.1 their **meaning** is stated
+precisely as follows, and the label `SENT` is historical — it records that the request **was officially
+issued externally**, never that this application sent anything.
+
+| State | Means | Established by |
+|---|---|---|
+| `DRAFT` | **Planned, not yet officially issued.** The department intends to request this; no outgoing correspondence has been registered against it yet | a person creating the request during planning |
+| `SENT` | **Officially issued.** An outgoing correspondence carrying this request has been registered, with the date it was actually sent in the external system | **registering that correspondence** — nothing else |
+| `ANSWERED` | a conclusive response has been registered | registering the incoming letter |
+| `CLOSED` / `WITHDRAWN` / `VOID` | terminal (§3.2) | a person |
+
+**`DRAFT` is retained deliberately, and its purpose has changed.** It is no longer "written but not yet
+transmitted" — this application never transmits. It is **internal planning**: a request the department
+has decided to make but has not yet issued in the external system. That remains useful for workflow
+tracking ("three authorities to approach, one still to do"), and it is the only thing `DRAFT` now means.
+A department that always issues the letter first and records it afterwards will simply never see a
+`DRAFT` request, and nothing breaks.
+
+**Three states that do not exist, and why:**
+
+- **`READY` / "ready to send" — removed.** There is nothing to be ready for. This application performs
+  no dispatch, so there is no queue, no pending-send and no gate between preparation and transmission.
+- **No "Mark as sent" action.** Registering the outgoing correspondence with its external sent date
+  **already proves** the request was issued. Requiring a second click to assert a fact the record
+  already contains would be exactly the duplicate confirmation §0.1 forbids — and it would allow the
+  two to disagree.
+- **`RESPONSE_RECEIVED` — removed**, for the same reason: registering the incoming letter *is* the
+  record, and `ANSWERED` follows mechanically (§3.3).
 - **`OVERDUE` is never a state** (§12).
 
-**One genuine open question sits here:** whether an outgoing official letter needs Chief approval before
-dispatch. `PROJECT.md` §12 gives Chief "approve workflow steps where required" but never says which
-steps. If the answer is yes, it needs a place to record the approver — see **OQ-W1** (§14). It is *not*
-assumed, and no approval gate is designed in.
+**There is no dispatch approval in this application.** Whether an outgoing letter needs anyone's
+approval is a question for the external government system, which performs the sending. Closed as
+**OQ-W1** (§14).
 
 ### 3.2 Transition table
 
 | # | From | To | Trigger | Kind | Required |
 |---|---|---|---|---|---|
-| R1 | — | `DRAFT` | Request created, top-level or from a requirement | human | `case_id`, `target_organization_id`, subject; `source_requirement_id` if it is a child |
-| R2 | `DRAFT` | `SENT` | **System consequence** of the dispatch `correspondence` reaching `sent_at` | system | dispatch correspondence linked, recipient = target organization |
+| R1 | — | `DRAFT` | Request created during planning, top-level or from a requirement | human | `case_id`, `target_organization_id`, subject; `source_requirement_id` if it is a child |
+| R1b | — | `SENT` | Request created **directly from registering an already-issued outgoing correspondence** — the normal path when the letter went out before anyone recorded it **[creation path added here]** | human (one act) | as R1, plus the registered correspondence |
+| R2 | `DRAFT` | `SENT` | **System consequence** of registering an outgoing `correspondence` that carries this request and has its external `sent_at` | system | correspondence registered, recipient = target organization |
 | R3 | `SENT` | `ANSWERED` | **System consequence** of registering an `ACTIVE` response with `is_conclusive = true` | system | — |
 | R4 | `ANSWERED` | `CLOSED` | Human closes the work item | human | `closed_by_user_id`, `closed_at`; **frozen closure rule** (§3.4) |
-| R5 | `DRAFT` / `SENT` / `ANSWERED` | `WITHDRAWN` | The department recalls the request | human | `withdrawal_reason`, actor, time; normally a `WITHDRAWAL` letter if it was already sent |
+| R5 | `DRAFT` / `SENT` / `ANSWERED` | `WITHDRAWN` | The department recalls the request | human | `withdrawal_reason`, actor, time. If it was already issued, a withdrawal letter is sent **in the external system** and then registered here as a `WITHDRAWAL` correspondence |
 | R6 | `DRAFT` / `SENT` / `ANSWERED` | `VOID` | The request was recorded in error and never validly existed | human | `void_reason`, actor, time |
 | R7 | `ANSWERED` | `SENT` | **System consequence**: the conclusive response is superseded by a non-conclusive one, or is voided | system | — |
 | R8 | `CLOSED` | `SENT` | **System consequence**: a late response arrives that is non-conclusive **or** raises a requirement **[transition added here]** | system | §4.6 |
@@ -184,9 +222,27 @@ assumed, and no approval gate is designed in.
 **No auto-close.** R4 is always a human act — the frozen closure rule requires `closed_by_user_id`.
 The system surfaces "ready to close"; it never closes by itself.
 
-### 3.3 `ANSWERED` is a consequence, not a claim
+**R1b is the common path.** In a department that works letter-first, a request is normally created at
+the same moment its already-sent correspondence is registered — one act by one person, producing a
+request that is `SENT` from birth. R1 followed by R2 is the planning path, used when the department
+tracks an intention before acting on it. Both are ordinary; neither involves this application sending
+anything.
 
-The only judgement the clerk makes is `is_conclusive` on the response they are registering anyway:
+R1b adds **no state and no column** — `SENT` and `DRAFT` are both frozen values and the proof of
+issuance is the same registered correspondence in either path. It is marked because the frozen lifecycle
+sketch (Domain Model §5.2) draws `DRAFT` as the only entry point. Requiring every request to pass
+through `DRAFT` would mean writing a state that was never true — the letter had already gone out — and
+then immediately transitioning away from it. Recording a fiction to satisfy a diagram is exactly what
+this clarification exists to prevent.
+
+### 3.3 Issuance and answering are both consequences, not claims
+
+**Issuance.** The single human act is *registering the outgoing correspondence*, with the date it was
+actually sent in the external system. `SENT` follows from that record alone. There is no second
+confirmation, because the registered letter is already the proof — and a separate flag could come to
+disagree with it.
+
+**Answering.** The only judgement the clerk makes is `is_conclusive` on the response they are registering anyway:
 *does this letter discharge what we asked?* An acknowledgement, a partial answer, a request for
 clarification and a deadline extension are all `is_conclusive = false` and leave the request `SENT`
 — visibly "partially answered" in derived progress, without a state for it.
@@ -217,8 +273,9 @@ column, not a process (§6).
 
 ### 3.6 Several requests in one letter
 
-When one outgoing letter carries three requests: **one** `correspondence`, **three** `request` rows,
-all with the same `dispatch_correspondence_id`, all reaching `SENT` together at R2. From then on they
+When one already-sent letter carrying three requests is registered: **one** `correspondence`, **three**
+`request` rows, all with the same `dispatch_correspondence_id`, all becoming `SENT` from that one
+registration (R1b or R2). From then on they
 diverge — each has its own `due_at`, its own responses, its own requirements and its own closure.
 The authority may answer two of them in one letter and the third a month later; that is three
 `response` rows across two letters, and two of the requests close while the third stays `SENT`.
@@ -232,9 +289,13 @@ letter. Its business facts are never edited (Domain Model §2.10). There is **no
 
 ### 4.1 Registration
 
+A response exists in this application **only after** the corresponding official communication has
+already been received through the external government system and is registered here manually
+(`PROJECT.md` §1.1). Nothing arrives in this application by itself.
+
 | Step | What happens |
 |---|---|
-| 1 | The incoming letter is registered as `correspondence` (`direction = IN`), with its own letter number, letter date and `received_at`. If it replies to one of our letters, `parent_correspondence_id` points at it. |
+| 1 | The already-received letter is registered as `correspondence` (`direction = IN`), with the external system's letter number, the letter date and the date it was actually received there. If it replies to one of our letters, `parent_correspondence_id` points at it. |
 | 2 | Its files are attached as `document` + `document_version` + `document_link` **to the correspondence**. |
 | 3 | For **each request the letter answers**, one `response` row is created: `request_id`, `correspondence_id`, `response_type`, `response_outcome`, `is_conclusive`, `summary`, `received_at`. |
 | 4 | If the letter imposes conditions, one `requirement` per condition is created from that response (§5.1). |
@@ -455,14 +516,14 @@ Three foreign keys carry the whole chain. No workflow table, no graph blob, no s
 
 ### 6.2 The department still has to write the letter
 
-Between `R1 FULFILLED` and `Response A2` there is a **human act**: someone sends the map to the
-Architecture Authority. In the model that is an outgoing `correspondence`
-(`parent_correspondence_id` = our original letter to them) carrying a `document_link` to **the same
-document** — the file is not copied.
+Between `R1 FULFILLED` and `Response A2` there is a **human act performed outside this application**:
+someone sends the map to the Architecture Authority **through the external government system**. It is
+then registered here as an outgoing `correspondence` (`parent_correspondence_id` = our original letter
+to them) carrying a `document_link` to **the same document** — the file is not copied.
 
 The system surfaces this as an actionable internal step ("R1 fulfilled — Architecture Authority is
-waiting for it"). It never sends anything by itself. Nothing in this system transmits official
-correspondence.
+waiting for it"), and later records that it happened. **It never sends anything, and it has no way to.**
+Nothing in this system transmits official correspondence (`PROJECT.md` §1.1).
 
 ### 6.3 How a user sees *why* Request B exists
 
@@ -645,9 +706,10 @@ taken while the unmet obligation is invisible.
 - **Revocation without replacement** = F4, with a reason.
 - A superseding result normally follows a **reopening** (§10), because issuing a new decision on a
   closed case means the work resumed.
-- The result is normally conveyed to the requester by an outgoing `correspondence`
-  (`FINAL_RESULT_DISPATCH`) referenced by `dispatch_correspondence_id`. Whether dispatch is mandatory is
-  Domain Model OQ-6.
+- The result is normally conveyed to the requester by an official letter sent **in the external
+  government system**, which is then registered here as an outgoing `correspondence`
+  (`FINAL_RESULT_DISPATCH`) referenced by `dispatch_correspondence_id`. Whether such a letter is
+  mandatory is Domain Model OQ-6. Issuing a result in this application does not send anything.
 
 ---
 
@@ -785,7 +847,7 @@ Evaluated top to bottom; **first match wins**; the matching row supplies the mes
 | **P6** | A blocking requirement is `OPEN`/`IN_PROGRESS` **and overdue** | "Overdue: waiting for {requirement.title} from {addressed_to_organization.short_name} — {n} days" |
 | **P7** | A request is `SENT`, unanswered **and overdue** | "Overdue: no response from {target_organization.short_name} — {n} days" |
 | **P8** | A blocking requirement is `OPEN` with **no** child request sent and no evidence (branch state B2 — *we* owe the move) | "Waiting for {requirement.title} — no request sent yet" |
-| **P9** | A request is `DRAFT` (not yet dispatched) | "{n} request(s) drafted, not yet sent" |
+| **P9** | A request is `DRAFT` — planned but not yet officially issued (§3.1) | "{n} planned request(s) not yet issued" |
 | **P10** | A response is classified `UNDETERMINED` | "{n} response(s) awaiting classification" |
 | **P11** | A blocking requirement is `FULFILLED` but the authority that imposed it has not been written to (§6.2) | "{requirement.title} obtained — {raised_by_organization.short_name} is waiting for it" |
 | **P12** | A blocking requirement is `IN_PROGRESS` with a child request sent | "Waiting for {requirement.title} from {addressed_to_organization.short_name}" |
@@ -806,6 +868,9 @@ Notes on the ordering that are not obvious:
   waiting for it was never told.
 - **P9/P10 below the external overdue rows** but above routine waiting: they are ours, quick, and
   cheap to clear.
+- **P9 never says "waiting to send a letter."** This application does not send letters. It reports an
+  internal planning item — a request the department decided to make and has not yet issued in the
+  external system (§3.1). A department that never uses `DRAFT` will never see P9.
 
 ### 11.4 Summary line
 
@@ -883,7 +948,8 @@ Whether extensions must be separately reportable is Domain Model **OQ-11**.
 ### 12.5 The unresolved deadline question
 
 **Domain Model OQ-5 is not answered here** and must not be answered by implementation default:
-calendar days or working days; counted from letter date, dispatch date or receipt date; whether
+calendar days or working days; counted from the letter date, the date it was sent externally, or the
+receipt date; whether
 `ON_HOLD` suspends a statutory clock; whether holidays count.
 
 Until it is answered:
@@ -912,12 +978,13 @@ actor identity snapshotted, `before_state`/`after_state`, `entity_version`, `cas
 | Case activated | `STATE_CHANGE` | `case` | `actor_kind = SYSTEM` (consequence T2) |
 | Case put on hold / released | `STATE_CHANGE` | `case` | reason code + note |
 | Assignment created / ended / covered | `ASSIGN` | `assignment` | assignee, role, `valid_from`/`valid_until`, `end_reason` |
-| Correspondence registered | `CREATE` | `correspondence` | direction, counterparty, letter number |
+| **Outgoing correspondence registered** (recording a letter already sent externally) | `CREATE` | `correspondence` | `direction = OUT`, counterparty, external letter number, external `sent_at`, `recorded_at` |
+| **Incoming correspondence registered** (recording a letter already received externally) | `CREATE` | `correspondence` | `direction = IN`, counterparty, external letter number, `received_at`, `recorded_at` |
 | Document uploaded | `UPLOAD` | `document_version` | **`document_hash`**, filename, size |
 | Document withdrawn | `WITHDRAW` | `document_version` | reason |
 | Document linked / unlinked | `LINK` / `UNLINK` | `document_link` | role, target entity |
 | Request created | `CREATE` | `request` | target organization, `source_requirement_id` (or null = top-level) |
-| Request sent | `STATE_CHANGE` | `request` | dispatch correspondence, `sent_at` |
+| **Request linked to outgoing correspondence** — the request is thereby officially issued | `STATE_CHANGE` | `request` | the correspondence, its external `sent_at`, `actor_kind = SYSTEM` (consequence R2) |
 | Request closed / withdrawn / voided | `STATE_CHANGE` / `WITHDRAW` / `VOID` | `request` | reason where applicable |
 | Response registered | `CREATE` | `response` | type, outcome, `is_conclusive`, correspondence |
 | Response superseded | `STATE_CHANGE` | `response` | `supersedes_response_id` on the new row |
@@ -941,7 +1008,17 @@ actor identity snapshotted, `before_state`/`after_state`, `entity_version`, `cas
 | Role granted / revoked | `CREATE` / `STATE_CHANGE` | `user_role` | role, grantor, validity |
 | Permission denied | `PERMISSION_DENIED` | the attempted object | attempted action |
 
-### 13.2 A note on the override event
+### 13.2 Audit wording must not claim dispatch
+
+Audit entries describe **what this application recorded**, never an act it performed. "Outgoing
+correspondence registered" and "Request linked to outgoing correspondence" are accurate; *"letter sent"*
+would be a false statement about this system, and a misleading one in any later dispute — the sending
+happened in the external system, on its own date, under its own record.
+
+The distinction shows in the timestamps, which is why both must be present: `occurred_at` /`sent_at`
+carry the external event's date, `recorded_at` carries when an employee entered it here.
+
+### 13.3 A note on the override event
 
 An override is recorded with the existing `STATE_CHANGE` code plus a **reserved
 `case_state_change.reason_code`**, so it is findable by an exact-match query without extending the
@@ -949,7 +1026,7 @@ frozen `action_code` vocabulary. Adding a dedicated `OVERRIDE` code later would 
 refinement, explicitly permitted by Domain Model §12.6 — but it is **not needed**, and this document
 does not assume it.
 
-### 13.3 Out of scope here
+### 13.4 Out of scope here
 
 Cryptographic chaining of audit events belongs to `SECURITY.md` (Domain Model §2.18). Nothing in this
 document depends on it, and nothing here should be designed around a hash format that does not exist
@@ -962,16 +1039,21 @@ yet.
 Separated the way Domain Model §10 separates them: what needs a **business decision** versus what is an
 **implementation choice safely deferred**.
 
-### 14.1 Business decisions still needed
+### 14.0 Closed by the external-correspondence clarification
 
-**OQ-W1 — Does an outgoing official letter require Chief approval before dispatch?**
-`PROJECT.md` §12 gives Chief "approve workflow steps where required" without saying which steps. Not
-assumed; no approval gate is designed in, and requests go `DRAFT → SENT` when the letter is dispatched.
-*If the answer is yes*, the approver must be recorded somewhere, and `correspondence` currently has no
-approver column — that would be a **small additive change to the frozen domain model** (an
-`approved_by_user_id` + `approved_at` on `correspondence`), which is why it is raised rather than
-improvised. *Impact if unanswered:* none — the current design is the "no gate" answer, and adding the
-gate later does not invalidate any record already created.
+**OQ-W1 — Does an outgoing official letter require Chief approval before dispatch? — CLOSED: NO.**
+There is no dispatch approval workflow in this application, because there is no dispatch in this
+application (`PROJECT.md` §1.1). Official letters are sent in the external government system; if that
+system requires an approval, it enforces it. Nothing needs to be recorded here, and the additive change
+to `correspondence` that a "yes" would have required is **not needed** — the frozen domain model stands
+unchanged.
+
+**Integration with the external government correspondence system — CLOSED for V1: NONE.**
+Manual registration only. No API, no import, no export, no polling, no delivery confirmation. Future
+integration may be reconsidered as a separate decision, and **must not shape V1 architecture**
+(`PROJECT.md` §1.1, §31).
+
+### 14.1 Business decisions still needed
 
 **OQ-W2 — Single approval or four-eyes for the final result?** (Domain Model OQ-14.)
 Both models are fully designed in §8.4 and **neither is assumed**. No schema change either way.
@@ -1026,15 +1108,35 @@ requirement resolved before closure, `is_blocking` loses its meaning and G1 tigh
 
 *(Questions 11–13 concern authorization and are answered in `PERMISSIONS.md` §29.)*
 
+### External-correspondence clarification — verification
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Can an employee record an outgoing letter sent yesterday in the external system? | **Yes** — R1b registers the already-sent letter and its request in one act; `sent_at` carries yesterday's date, `recorded_at` today's (§3.2, §3.3) |
+| 2 | Can `occurred_at` differ from `recorded_at`? | **Yes, routinely** — they are separate frozen columns and the clarification makes divergence the norm (`PROJECT.md` §1.1, §5.3) |
+| 3 | Does registering outgoing correspondence establish issuance without a second "mark sent" action? | **Yes** — R2 is a system consequence; §3.1 forbids a confirmation step |
+| 4 | Is there no Send button implied anywhere? | **Yes** — no state, transition, action or audit event in this document transmits anything (§0 rule 5, §3.1, §6.2, §13.2) |
+| 5 | Is there no Chief dispatch approval implied anywhere? | **Yes** — OQ-W1 closed NO (§14.0); no approval gate exists between `DRAFT` and `SENT` |
+| 6 | Is this described as the tracking layer, not the official channel? | **Yes** — §0 rule 5 and `PROJECT.md` §1.1 |
+| 7 | Can incoming correspondence be registered manually after receipt? | **Yes** — §4.1, which now states the external-receipt precondition explicitly |
+| 8 | Are official registry numbers treated as external metadata? | **Yes** — recorded, never generated (`PROJECT.md` §1.1); Domain Model §2.8 already held `letter_number` as the counterparty's number |
+| 9 | Does Request → Response → Requirement → child Request causality remain intact? | **Yes** — untouched. No causal pointer, cardinality or transition in §6 changed |
+
 ### Tension with Domain Model v1
 
 **None found.** Every state, column and invariant used here exists in the frozen model. Three
-transitions are defined that its lifecycle sketches did not draw — R7, R8 and T8 — each marked
-**[transition added here]**; none adds a state, a column or a cardinality, and defining the complete
-transition table is this document's assigned job (`PROJECT.md` §30, Phase 2).
+transitions and one creation path are defined that its lifecycle sketches did not draw — R7, R8, T8 and
+**R1b** — each marked **[transition added here]** / **[creation path added here]**; none adds a state, a
+column or a cardinality, and defining the complete transition table is this document's assigned job
+(`PROJECT.md` §30, Phase 2).
 
-One question (**OQ-W1**) *would* require a small additive change to the frozen model if answered "yes".
-It is raised here rather than acted on.
+**The external-correspondence clarification required no change to Domain Model v1.** It changes what
+the frozen states *mean* (§3.1), not what they are. In fact it strengthens the frozen separation of
+`request` (internal workflow concept) from `correspondence` (record of an official communication that
+happened externally) — decision C-1, which now carries more weight than when it was made.
+
+The one question that *would* have required an additive change to the frozen model — **OQ-W1**, a place
+to record a dispatch approver — is now **closed NO** (§14.0), so that dependency is gone.
 
 ---
 

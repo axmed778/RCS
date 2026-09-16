@@ -52,6 +52,13 @@ roles, one restricted-case grant table, and a small set of relationship conditio
 lists a "complex role designer" as a V1 non-goal, and at 13 users a configurable engine would cost more
 to reason about than the thing it governs.
 
+**And it contains no dispatch permissions.** There is no `SEND_OFFICIAL_LETTER`, no
+`APPROVE_LETTER_FOR_DISPATCH`, and no equivalent — because this application neither sends official
+correspondence nor gates its sending (`PROJECT.md` §1.1). Official letters are dispatched in a separate
+external government system, which enforces whatever approval it requires. **Such a permission must not
+be added here.** Chief and Head authority in this document governs **case and workflow decisions**,
+never external transmission.
+
 ---
 
 ## 15. Worker
@@ -63,7 +70,7 @@ The role that does the work. Most staff are Workers.
 | Area | Actions |
 |---|---|
 | Visibility | view all ordinary cases department-wide; view a restricted case when assigned to it or explicitly granted (§19) |
-| Registration | create a case; register incoming and outgoing correspondence; upload documents; link documents to their business context |
+| Registration | create a case; register **already-received** incoming and **already-sent** outgoing correspondence (`PROJECT.md` §1.1); attach copies of the official letters and their attachments; link documents to their business context |
 | Workflow | create requests on cases they are assigned to or covering; register responses on **any visible case**; create requirements from responses; record evidence; fulfil requirements they are working on |
 | Drafting | draft a final result on cases they are assigned to or covering |
 | Notes | add internal records — notes, calls, meetings, site visits |
@@ -74,9 +81,10 @@ The role that does the work. Most staff are Workers.
 their own recent entry; close, reopen or cancel a case; approve a final result; override a closure
 guard; assign or reassign anyone; grant restricted access; manage users or roles.
 
-**The one deliberately unrestricted write:** *registering an incoming official letter and the responses
-it carries requires no assignment.* A letter that arrived must be filed today, by whoever opens the
-envelope. Making that depend on assignment is how paper ends up in a drawer (§21.3).
+**The one deliberately unrestricted write:** *registering an official letter — incoming or outgoing —
+and the responses it carries requires no assignment.* A letter that has already been received or sent in
+the external system must be recorded here today, by whoever is doing the recording. Making that depend
+on assignment is how the tracking record falls behind the official one (§21.3).
 
 ---
 
@@ -291,11 +299,12 @@ written to avoid.
 | Operation | Condition | Rationale |
 |---|---|---|
 | View an ordinary case | none | department-wide by default |
-| **Register incoming correspondence** | **none** | *the absence rule.* A letter that arrived must be filable today by whoever opens the post |
-| **Register a response** | **none** | same — an official answer must reach the record on the day it arrives |
+| **Register incoming correspondence** (already received externally) | **none** | *the absence rule.* A letter that has arrived must be recordable today by whoever is doing the recording |
+| **Register outgoing correspondence** (already sent externally) | **none** | same — the letter has already gone out; recording it here is bookkeeping, not an act with external effect |
+| **Register a response** | **none** | same — an official answer must reach the record promptly |
 | **Upload and link a document** | **none** | scanning is often done by whoever is at the scanner |
 | Add an internal note | none | |
-| Create a request | assigned / cover (Chief+: none) | deciding to write to an authority is case work, not filing |
+| Create a request | assigned / cover (Chief+: none) | deciding that the department requests something of an authority is case work, not filing. (Creating it *while registering the already-sent letter* is part of that registration — see §21.4) |
 | Create a requirement from a response | assigned / cover, **or the person registering that response** | reading conditions out of a letter is part of registering it |
 | Record evidence | assigned / cover | |
 | Fulfil a requirement | assigned / cover | judging an obligation satisfied is case work |
@@ -304,11 +313,24 @@ written to avoid.
 | Withdraw a document, void a response, void a requirement as a correction | creator, no dependents | §24 |
 | Everything in §16 and §17 | role only — assignment is irrelevant | management authority is not delegated by assignment |
 
-### 21.4 Assignment grants no extra authority
+### 21.4 Registering a letter may create the request it carries
+
+Under `WORKFLOW.md` R1b, registering an already-sent outgoing letter normally creates the request(s) it
+carried, in one act. That creation is **part of the registration** and therefore needs **no assignment**
+— otherwise the absence rule would be defeated by its own side effect, and a letter would sit unrecorded
+because the person recording it did not own the case.
+
+This grants nothing else: the resulting request is an ordinary request, and every later decision on it
+(closing it, raising requirements from its responses) follows the normal conditions above.
+
+### 21.5 Assignment grants no extra authority
 
 Being assigned never confers a Chief action. An assigned Worker still cannot close the case they are
 responsible for. Assignment **widens what a Worker may do on that case**; it never **raises their
 role**.
+
+And no role in this application confers authority over external dispatch, because no such authority
+exists here (§14.3).
 
 ---
 
@@ -346,7 +368,7 @@ different role and coexists with the responsible assignment.
 
 A covering Worker gains **no** Chief authority over the covered case. If the absent person was a Chief,
 their authority does not transfer through cover — Chief actions on their cases are performed by another
-Chief or by Head. Authority follows the role, never the assignment (§21.4).
+Chief or by Head. Authority follows the role, never the assignment (§21.5).
 
 ---
 
@@ -391,9 +413,18 @@ People make mistakes, and the system forbids deletion. Correction authority must
 > Once something depends on it, or it is not theirs, a **Chief** corrects it.
 
 "Depends on it" is a property of the rows, not a clock: no response registered against the request, no
-child request created from the requirement, no evidence linked, the correspondence not yet dispatched,
-the document not yet cited as evidence. This is deterministic, needs no timer, and degrades in the safe
-direction — the more the record has been built on, the more authority it takes to change it.
+child request created from the requirement, no evidence linked, no response yet registered against the
+correspondence, the document not yet cited as evidence. This is deterministic, needs no timer, and
+degrades in the safe direction — the more the record has been built on, the more authority it takes to
+change it.
+
+**Corrected by the external-correspondence clarification.** This rule previously used *"the
+correspondence not yet dispatched"* as one of its dependency tests. Under `PROJECT.md` §1.1 an outgoing
+letter is **always already sent** before it is recorded here, so that test would have been permanently
+true — silently removing a Worker's ability to fix a typo in the record they had just entered, which is
+the opposite of the intent. The dependency that actually matters is whether **other records in this
+application** have been built on it. Correcting our copy of a letter has no external effect at all: the
+official record lives in the external system and nothing done here touches it.
 
 *(A simple time window — "within the same working day" — is an acceptable simplification if the
 dependency check proves awkward in practice. It is weaker, and it is not what this document specifies.)*
@@ -402,11 +433,11 @@ dependency check proves awkward in practice. It is weaker, and it is not what th
 
 | Mistake | Mechanism | Worker (own, no dependents) | Otherwise |
 |---|---|---|---|
-| Wrong organization on a **draft** request or unsent letter | edit in place; audited | ✔ | Chief |
-| Wrong organization recorded on an **already dispatched** letter | edit the metadata in place; the letter itself is a fact, the record of it was mistyped; `before`/`after` in audit | ✘ | **Chief** |
+| Wrong organization on a `DRAFT` request, not yet issued | edit in place; audited | ✔ | Chief |
+| Wrong organization recorded on a registered letter | edit the metadata in place — **the official letter is unaffected**, only our transcription of it was wrong; `before`/`after` in audit | ✔ while nothing depends on it | **Chief** once responses depend on it |
 | Wrong file linked | `document_link` → `REMOVED` + a new link. The file is not deleted | ✔ | Chief |
 | Wrong document uploaded entirely | `document_version` → `WITHDRAWN` with reason; bytes retained | ✔ | Chief |
-| Wrong letter number / date on correspondence | edit while `DRAFT`; after registration it is a correction with audit | ✔ while `DRAFT` | **Chief** after registration |
+| Wrong external letter number or date on correspondence | edit in place; it is our transcription of an external fact, and the external record remains authoritative and untouched | ✔ while nothing depends on it | **Chief** once responses depend on it |
 | **Response registered against the wrong request** | response is immutable → `VOID` it (reason `DATA_ENTRY_ERROR`) and register a new one on the correct request | ✔ | **Chief** |
 | Duplicate response | `VOID` the duplicate, reason `DUPLICATE` | ✔ | Chief |
 | Requirement created accidentally | `VOID`, reason `DATA_ENTRY_ERROR` | ✔ | **Chief** |
@@ -523,10 +554,12 @@ this document.
 Lifecycle state is never editable this way — it changes only through the transitions in
 `WORKFLOW.md` §1.
 
-**⁴ Worker — register Correspondence, Response, upload Document: no assignment required.** The absence
-rule (§21.3). An official letter that arrived must reach the record the day it arrives, by whoever
-opens the post. This is the single most important permission decision in this document: every
-alternative ends with paper waiting in a drawer for someone to come back from leave.
+**⁴ Worker — register Correspondence (incoming **and** outgoing), register Response, upload Document: no
+assignment required.** The absence rule (§21.3). The letter has already been sent or received in the
+external government system (`PROJECT.md` §1.1); recording it here is bookkeeping that must not wait for
+the right person to return from leave. This is the single most important permission decision in this
+document: every alternative ends with this application's record drifting behind the official one. Under
+§21.4 the registration may also create the request(s) the letter carried.
 
 **⁵ Worker — withdraw own incorrect Document.** Their own upload, and only while it is not cited as
 `requirement_evidence` or referenced by an issued final result. Withdrawal is a status change with a
@@ -612,10 +645,10 @@ OQ-W2.) Both models are designed (`WORKFLOW.md` §8.4); **neither is assumed**. 
 changes here is matrix footnote ⁸ — whether Chief may approve. No schema change either way.
 *Blocking:* the final-result screen, nothing else.
 
-**OQ-P2 — Does an outgoing official letter need Chief approval before dispatch?** (`WORKFLOW.md`
-OQ-W1.) Currently **no gate** is designed. If the answer is yes, it needs both a permission row and a
-place to record the approver — the latter would be a small **additive** change to the frozen domain
-model, which is why it is raised rather than improvised.
+**OQ-P2 — CLOSED: NO.** There is no dispatch approval in this application, because there is no dispatch
+in this application (`PROJECT.md` §1.1, `WORKFLOW.md` §14.0). No permission row, no approver column and
+no change to the frozen domain model are needed. A `SEND_OFFICIAL_LETTER` or
+`APPROVE_LETTER_FOR_DISPATCH` permission must not be introduced (§14.3).
 
 **OQ-P3 — May a Chief grant restricted access to any case, or only to cases in their own area?**
 Current design: any case in the department (there is one department). If the department later has
@@ -660,7 +693,10 @@ Plus the checks specific to this document:
 | Does any △ hide an unstated rule? | **No** — all twelve are explained in §26 with their exact condition |
 | Can work stall because one person is absent? | **No** — the four unconditional Worker writes (register correspondence, register response, upload, note) plus cover and Chief override |
 | Is the role model still readable by one person? | **Yes** — four roles, one grant table, four relationship conditions, no policy language |
-| Any dependency on a domain change? | **One, conditional:** OQ-P2 if answered "yes". Nothing else |
+| Any dependency on a domain change? | **None.** OQ-P2 is now closed NO, so the one conditional dependency is gone |
+| Does any permission imply sending or approving dispatch? | **No** — §14.3 states the prohibition explicitly; no matrix row, role section or high-risk entry concerns transmission |
+| Can a Worker record an already-sent outgoing letter with no assignment? | **Yes** — §21.3, §21.4, footnote ⁴ |
+| Can a Worker still fix a typo in a letter record they just entered? | **Yes** — §24.1, restored by removing the "not yet dispatched" test the clarification made permanently true |
 
 ### Tension with Domain Model v1
 

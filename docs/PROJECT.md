@@ -18,6 +18,60 @@ This is a:
 
 The central object of the system is a **Case**.
 
+### 1.1 Scope boundary — official correspondence is handled outside this application
+
+*Confirmed business clarification. This corrects an ambiguity in the original wording; it is not a
+change of scope.*
+
+**This application does not send or receive official government correspondence.**
+
+The organization already operates a separate official government correspondence system. That external
+system performs the actual legal dispatch and receipt of official letters, and assigns their official
+numbers and dates. It remains the legally authoritative channel.
+
+This application is an independent internal **case management, tracking, workflow and document
+reference system**. Its purpose is to **track and organize what has already happened** in the official
+correspondence system.
+
+**How correspondence reaches this application — always manually, always after the fact:**
+
+| Outgoing | Incoming |
+|---|---|
+| 1. An employee prepares and sends the official letter **in the external government system** | 1. The organization receives the official response **through the external government system** |
+| 2. It is registered and sent there, and receives that system's official number, date and process | 2. An employee afterwards records the already-received correspondence here |
+| 3. **Afterwards**, an employee records the already-sent correspondence in this application | 3. The employee enters its metadata |
+| 4. The employee attaches a copy of the sent letter and its attachments | 4. The employee attaches the letter and attachments |
+| 5. The employee links it to the appropriate Case / Request / Requirement | 5. The employee links it to the appropriate Request / Response / Requirement |
+
+**Therefore this application must NOT contain or imply:**
+
+* a "Send official letter" action, or any Send button;
+* dispatch queues, transmission jobs or outgoing mail delivery;
+* a pending-send state, or an action equivalent to "Mark as sent";
+* approval required merely in order to send a letter;
+* delivery confirmation from the external government system;
+* electronic submission to authorities;
+* generation of official government registry numbers;
+* integration with the external government system in V1 (see §31).
+
+**No approval is required in this application before an outgoing letter is sent**, because the sending
+happens outside it. If the external system requires an approval, that is that system's responsibility,
+not this one's.
+
+**Official numbering.** This application does not generate authoritative incoming or outgoing
+government correspondence numbers. It **records** the numbers assigned by the external system, as
+business metadata. Internal Case numbers remain a separate, application-owned concept.
+
+**Business time and system time therefore diverge routinely** and both facts must survive: the official
+letter may have been sent on 15 September and recorded here on 16 September. See §5.3
+(`occurred_at` vs `recorded_at`).
+
+**Stored files are copies.** A file held here is a copy or reference artifact associated with the
+tracked Case. The authoritative official record remains in the external correspondence system.
+
+Future integration with the external system may be reconsidered separately. **It must not shape V1
+architecture.**
+
 ---
 
 ## 2. Deployment Environment
@@ -80,6 +134,9 @@ Examples may include:
 * other municipal planning matters.
 
 The department registers the incoming correspondence and creates a Case.
+
+*(Throughout this section, "sends" and "receives" describe what the department does **in the external
+government correspondence system**. This application records those events afterwards — see §1.1.)*
 
 The department then sends official requests to other competent authorities.
 
@@ -231,15 +288,21 @@ Fields may include:
 * recorded at
 * occurred at
 
-`occurred_at` represents when the event actually happened.
+`occurred_at` represents when the event actually happened — in the external government correspondence
+system.
 
-`recorded_at` represents when it was entered into the system.
+`recorded_at` represents when it was entered into this application.
 
-These must remain separate.
+These must remain separate. Because correspondence is always registered here **after** the official
+event (§1.1), the two routinely differ, and both must survive.
 
 ### 5.4 Request
 
 A Request represents an official request sent by the department to another authority.
+
+It is a **business/workflow tracking entity** — "we officially requested X from Organization Y" — not a
+message awaiting transmission by this application. Its outgoing Correspondence is registered here after
+the official communication already exists (§1.1).
 
 A Request belongs to a Case.
 

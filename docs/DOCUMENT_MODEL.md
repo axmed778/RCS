@@ -34,6 +34,13 @@ Two design commitments follow from that, and everything else in this document se
 2. **Nothing that once served as evidence stops being retrievable.** Corrections change what is
    *current*; they never change what *was*.
 
+**A note on authority.** Official letters are sent and received in a separate external government
+system (`PROJECT.md` §1.1); a file held here is a **copy or reference artifact** attached to the tracked
+case. That does not weaken anything in this document — the copy must still be immutable, hashed,
+version-controlled and access-controlled, because it is what the department reads, cites and relies on
+day to day. It does mean this application is not the authoritative dispatch or receipt record, and
+nothing here should be read as claiming otherwise.
+
 ### 1.1 Relationship to the frozen model
 
 This document **adds no entity, column, cardinality or invariant**. It uses `document`,
@@ -653,7 +660,13 @@ The same rule as `PERMISSIONS.md` §24.1, applied to documents:
 > Once something depends on it, or it is not theirs, a **Chief** corrects it.
 
 "Depends on it" for documents means: the version is cited as `requirement_evidence`, or pinned by an
-issued `final_result`, or the correspondence carrying it has been dispatched.
+issued `final_result`, or a response has already been registered against the correspondence carrying it.
+
+*(This test previously read "or the correspondence carrying it has been dispatched". Official
+correspondence is sent and received in a separate external system and only then recorded here
+(`PROJECT.md` §1.1), so an outgoing letter is **always** already dispatched by the time our copy exists
+— the test would have been permanently true and would have blocked a Worker from fixing their own
+freshly-entered record. Correcting our copy has no external effect; the official record is untouched.)*
 
 **No correction in this section requires database administration.** Every one is an ordinary
 application action.
@@ -662,12 +675,12 @@ application action.
 
 | # | Mistake | Metadata editable? | Link action | New version? | What remains in audit | Minimum role |
 |---|---|---|---|---|---|---|
-| 1 | **Correct file, wrong Correspondence** | n/a | old link → `REMOVED` + reason; new `document_link` to the right correspondence | **no** — bytes are correct | both links, both reasons, both actors; the removed link stays queryable | Worker (own, undispatched) · **Chief** otherwise |
+| 1 | **Correct file, wrong Correspondence** | n/a | old link → `REMOVED` + reason; new `document_link` to the right correspondence | **no** — bytes are correct | both links, both reasons, both actors; the removed link stays queryable | Worker (own, no dependents) · **Chief** otherwise |
 | 2 | **Correct file, wrong Case context** | n/a | as #1, but the new link is in another case's context; treated as a **disclosure decision** (§4.8) | no | as #1, plus the cross-case link is separately visible | **Chief** |
 | 3 | **Wrong file entirely** | n/a | link → `REMOVED`; the correct file is uploaded and linked | the wrong file's version → `WITHDRAWN` with reason; **bytes retained** | the withdrawn version, its reason, its uploader | Worker (own, no dependents) · Chief otherwise |
 | 4 | **Duplicate upload** | n/a | if it converged (§7.4) there is nothing to fix. If a genuine duplicate *document* was created, its link is `REMOVED` and the document → `WITHDRAWN`, reason `DUPLICATE` | no | the duplicate row and the reason | Worker (own) · Chief otherwise |
 | 5 | **Wrong display title** | **yes** — `document.title` is editable | unchanged | no | `before_state`/`after_state` of the title change | Worker · Chief |
-| 6 | **Attachment classified as main letter** | n/a — role lives on the link | the `PRIMARY_LETTER` link → `REMOVED`, a new `ATTACHMENT` link created; the true letter gets the `PRIMARY_LETTER` link | no | both role changes | Worker (own, undispatched) · **Chief** otherwise |
+| 6 | **Attachment classified as main letter** | n/a — role lives on the link | the `PRIMARY_LETTER` link → `REMOVED`, a new `ATTACHMENT` link created; the true letter gets the `PRIMARY_LETTER` link | no | both role changes | Worker (own, no dependents) · **Chief** otherwise |
 | 7 | **Revised official letter uploaded as a new version instead of a new correspondence** | — | **the correction is at the workflow level, not the file level** — see §8.3 | — | — | **Chief** |
 
 ### 8.3 Case 7 in detail — the one that actually matters
