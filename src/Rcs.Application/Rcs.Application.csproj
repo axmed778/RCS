@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Use-case contracts and the abstractions they need. No PostgreSQL, no HTTP. -->
+  <PropertyGroup>
+    <RootNamespace>Rcs.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rcs.Domain\Rcs.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

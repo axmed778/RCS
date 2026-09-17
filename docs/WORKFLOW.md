@@ -4,6 +4,13 @@
 **Authoritative inputs:** `/docs/PROJECT.md` (PROJECT SPEC v1), `/docs/DOMAIN_MODEL.md` (Domain Model v1,
 frozen).
 **Companion:** `/docs/PERMISSIONS.md` — *who* may perform each transition described here.
+**Post-review amendments (2026-09-17):** closure contract and one definition of `is_blocking` (§3.4,
+§7.2, §7.4, §9); final-result replacement (§8.2, §8.6); response supersession edges (§4.3, §4.5);
+requirement resolution correction Q7 (§5.2); informational late responses and R8/R9 (§3.2, §4.6, §10.3);
+audit actor semantics (§0.1, §13.1). Recorded in `DOMAIN_MODEL.md` §12.7.
+**Pre-schema pass (2026-09-17):** retraction of a supersession recorded in error, restoring the
+superseded response (§3.2 R3/R9, §4.3, §4.7, §13.1 — Domain Model A-10, closes OQ-16). Decisions are logged
+in `/docs/DECISIONS.md`.
 
 ---
 
@@ -14,8 +21,10 @@ allowed to do it (that is `PERMISSIONS.md`), and it does not implement anything.
 
 Four rules hold everywhere in this document and are not repeated in each section:
 
-1. **The domain model is frozen.** Every state named here exists in Domain Model v1. No state, entity,
-   column or cardinality is added. Where this document defines a *transition* that the frozen model's
+1. **The domain model is frozen.** Every state named here exists in Domain Model v1.1 — v1 plus the
+   post-review amendments of its §12.7, which is the only place entities or cardinalities were added
+   (`response_supersession`, `requirement_resolution_correction`); no state is added. Where this document
+   defines a *transition* that the frozen model's
    lifecycle sketches did not draw, it is marked **[transition added here]** — defining the complete
    transition table is precisely this document's job (`PROJECT.md` §30, Phase 2), and none of them adds
    a state or a column.
@@ -40,7 +49,7 @@ Four rules hold everywhere in this document and are not repeated in each section
 | What it is | Someone judges something and records it | A state that follows mechanically from a record the human already created |
 | Examples | closing a case, waiving a requirement, deciding a response is conclusive | request `DRAFT → SENT` when its outgoing correspondence is registered with its external sent date, requirement `OPEN → IN_PROGRESS` when its child request is issued |
 | Needs a reason? | Usually yes | Never |
-| Who is the actor in the audit event? | The person | The person whose action triggered it, with `actor_kind = SYSTEM` noted in the event |
+| Who is the actor in the audit event? | The person (`actor_kind = USER`) | The person whose action triggered it, in `actor_user_id`, with `actor_kind = SYSTEM` and the triggering event's `correlation_id` — so the human decision that caused it stays visible, while nobody is recorded as having *decided* the consequence itself. Only a scheduled run with no initiating person is `actor_kind = JOB` with no user (Domain Model §2.18) |
 
 This distinction is the answer to *"do not require the user to separately click RESPONSE RECEIVED"*.
 A clerk registering an incoming letter makes exactly one judgement — what kind of communication it is
@@ -61,7 +70,7 @@ Stored states (Domain Model §2.5): `REGISTERED`, `ACTIVE`, `ON_HOLD`, `CLOSED`,
 | T2 | `REGISTERED` | `ACTIVE` | **System consequence**: the first substantive record is created (a request, a requirement, an outgoing letter), or a user activates it explicitly | a current `RESPONSIBLE` assignment must exist | — |
 | T3 | `REGISTERED` / `ACTIVE` | `ON_HOLD` | Work genuinely cannot proceed for a reason outside the branch structure | `reason_code` + note; `hold_until` optional | — |
 | T4 | `ON_HOLD` | `ACTIVE` | Hold lifted | `reason_code` + note | — |
-| T5 | `ACTIVE` | `CLOSED` | Work is finished | closure metadata (§9) | **Closure guards G1–G4 (§9.2)** |
+| T5 | `ACTIVE` | `CLOSED` | Work is finished | closure metadata (§9) | **Closure guards G1–G5 (§9.2)**, or a Head override of the eligible guards (§9.4) |
 | T6 | `REGISTERED` / `ACTIVE` / `ON_HOLD` | `CANCELLED` | The dossier will not be pursued (withdrawn by the requester, duplicate, registered in error, merged) | `closure_type_id` + `closure_note`; `merged_into_case_id` when merged | every open request and requirement must first be explicitly `WITHDRAWN` or `VOID` (§1.4) |
 | T7 | `CLOSED` | `ACTIVE` | Reopening (§10) | `reason_code` + note, mandatory | — |
 | T8 | `CANCELLED` | `ACTIVE` | **Correction only** — the cancellation itself was a mistake **[transition added here]** | `reason_code = CANCELLATION_CORRECTED` + note | highest authority only (`PERMISSIONS.md` §23) |
@@ -212,12 +221,13 @@ approval is a question for the external government system, which performs the se
 | R1 | — | `DRAFT` | Request created during planning, top-level or from a requirement | human | `case_id`, `target_organization_id`, subject; `source_requirement_id` if it is a child |
 | R1b | — | `SENT` | Request created **directly from registering an already-issued outgoing correspondence** — the normal path when the letter went out before anyone recorded it **[creation path added here]** | human (one act) | as R1, plus the registered correspondence |
 | R2 | `DRAFT` | `SENT` | **System consequence** of registering an outgoing `correspondence` that carries this request and has its external `sent_at` | system | correspondence registered, recipient = target organization |
-| R3 | `SENT` | `ANSWERED` | **System consequence** of registering an `ACTIVE` response with `is_conclusive = true` | system | — |
+| R3 | `SENT` | `ANSWERED` | **System consequence** of registering an `ACTIVE` response with `is_conclusive = true` — or of a conclusive response returning to `ACTIVE` when the supersession edge over it is retracted (§4.7) | system | — |
 | R4 | `ANSWERED` | `CLOSED` | Human closes the work item | human | `closed_by_user_id`, `closed_at`; **frozen closure rule** (§3.4) |
 | R5 | `DRAFT` / `SENT` / `ANSWERED` | `WITHDRAWN` | The department recalls the request | human | `withdrawal_reason`, actor, time. If it was already issued, a withdrawal letter is sent **in the external system** and then registered here as a `WITHDRAWAL` correspondence |
 | R6 | `DRAFT` / `SENT` / `ANSWERED` | `VOID` | The request was recorded in error and never validly existed | human | `void_reason`, actor, time |
 | R7 | `ANSWERED` | `SENT` | **System consequence**: the conclusive response is superseded by a non-conclusive one, or is voided | system | — |
-| R8 | `CLOSED` | `SENT` | **System consequence**: a late response arrives that is non-conclusive **or** raises a requirement **[transition added here]** | system | §4.6 |
+| R8 | `CLOSED` | `SENT` | **System consequence**: the response(s) that discharged the request are superseded by non-conclusive ones or voided, so no `ACTIVE` conclusive response remains **[transition added here; trigger narrowed post-review]** | system | §4.6 |
+| R9 | `CLOSED` | `ANSWERED` | **System consequence**: work reappears under a closed request while an `ACTIVE` conclusive response stays in force — a **blocking** requirement is raised against one of its responses, a late or restored response creates an unresolved conflict (§4.5, §4.7), or a blocking requirement raised by one of its responses returns to an open state through a resolution correction (Q7, §5.2) **[transition added post-review]** | system | §4.6, §5.2 |
 
 **No auto-close.** R4 is always a human act — the frozen closure rule requires `closed_by_user_id`.
 The system surfaces "ready to close"; it never closes by itself.
@@ -251,13 +261,16 @@ clarification and a deadline extension are all `is_conclusive = false` and leave
 
 A request may reach `CLOSED` only when **all** hold:
 
-1. at least one `ACTIVE` response with `is_conclusive = true`; **and**
-2. every `requirement` whose `source_response_id` belongs to this request is terminal
-   (`FULFILLED`, `WAIVED`, `VOID`, `FAILED`); **and**
+1. at least one `ACTIVE` response with `is_conclusive = true`, and no unresolved response conflict
+   (§4.5); **and**
+2. every **blocking** `requirement` (`is_blocking = true`) whose `source_response_id` belongs to this
+   request is terminal (`FULFILLED`, `WAIVED`, `VOID`, `FAILED`); **and**
 3. a person with the authority records `closed_by_user_id` and `closed_at`.
 
-Condition 2 is what stops "the authority gave its final opinion" from closing a branch whose conditions
-are still outstanding.
+Condition 2 is what stops "the authority gave its final opinion" from closing a branch whose blocking
+conditions are still outstanding. A non-blocking requirement does not hold its request open — the same
+meaning `is_blocking` has for the branch, for readiness and for case closure (§9.2; Domain Model
+amendment A-3).
 
 ### 3.5 Top-level and child requests are the same entity
 
@@ -306,6 +319,12 @@ already been received through the external government system and is registered h
 registered once; its attached map is stored once and linked, never copied. This is the mechanism that
 makes a case↔correspondence M:N junction unnecessary (Domain Model §2.8).
 
+**A response in another case discloses nothing of the letter.** The letter, its files and its other
+responses stay governed by the case the letter is filed in. The response in the second case shows that
+case its own facts only — type, outcome, conclusiveness, dates, summary, the requirements it raised. If
+the second case needs the actual file, it is shared by an explicit, version-pinned link into that case —
+a disclosure decision (`DOCUMENT_MODEL.md` §4.8, `PERMISSIONS.md` §16).
+
 ### 4.2 The two axes in practice (frozen decision C-2)
 
 `response_type` = *what kind of communication arrived*. `response_outcome` = *what it decided*.
@@ -339,14 +358,19 @@ new official act.
 
 1. Register the new `correspondence` and its files.
 2. Create a new `response` on the **same request**, classified for what the new letter is.
-3. Set `supersedes_response_id` to the earlier response.
-4. The earlier response becomes `SUPERSEDED` — **not** deleted, **not** edited, still queryable, and
-   **still the source of any requirements it raised** (§6.4).
+3. Record a `response_supersession` edge from the new response to **each** earlier response it replaces
+   — one, or several when the letter replaces more than one (Domain Model §2.21).
+4. Each earlier response becomes `SUPERSEDED` in the same transaction — **not** deleted, **not** edited,
+   still queryable, and **still the source of any requirements it raised** (§6.4).
 
 There is no `REVISION` response type. Supersession is the relationship; a label that could disagree with
 it would be a defect waiting to happen.
 
-**Constraint (frozen):** a superseding response must belong to the same request.
+**Constraints (frozen, amended A-1, A-10):** a superseding response must belong to the same request; a
+response cannot supersede itself; a response has at most one `ACTIVE` incoming edge; both responses are
+`ACTIVE` when the edge is recorded, which makes cycles impossible. A supersession between two responses
+that already exist (§4.5) is recorded the same way — an edge, never an edit of either response. An edge
+recorded in error is **retracted**, never deleted (§4.7).
 
 ### 4.4 Responses that create requirements
 
@@ -372,7 +396,7 @@ unreliable and the later letter is sometimes the mistaken one.
 | Detection | Derived condition: >1 `ACTIVE` conclusive response on one request with different outcomes |
 | Display | The request shows **"conflicting responses — resolution required"** and ranks high in derived progress (§11, P4) |
 | Blocking | The request may **not** be `CLOSED` while unresolved |
-| Resolution | A person with authority records which response supersedes which (§4.3), or voids one as a registration error, or writes to the authority for clarification — which produces a third response that supersedes both |
+| Resolution | A person with authority records which response supersedes which — a `response_supersession` edge between the two existing responses (§4.3) — or voids one as a registration error, or writes to the authority for clarification — which produces a third response that supersedes **both**: two edges from the same new response (Domain Model §2.21) |
 | Never | No automatic resolution, no silent preference |
 
 ### 4.6 A response arriving after the request looked finished
@@ -380,18 +404,33 @@ unreliable and the later letter is sometimes the mistaken one.
 Late letters are normal in interagency work. Registering one is **always** permitted, whatever the
 request's state — refusing would force staff to falsify the record or leave an official letter unfiled.
 
-| The request was | The late response is | Result |
+**Informational only vs creates new work.** A late response **creates new work** when it — at
+registration or afterwards — (a) raises a requirement, (b) supersedes a response in force, or (c) creates
+an unresolved conflict (§4.5). Anything else is **informational only** — an acknowledgement, a copy, a
+covering letter, a deadline notice, information that asks nothing of the department — **whatever its
+`is_conclusive` value**. Being non-conclusive is never, by itself, a reason to change a request's state or
+to reopen a case.
+
+| The request was | The late response | Result |
 |---|---|---|
-| `ANSWERED` | informational, non-conclusive | stays `ANSWERED`; the response is recorded |
-| `ANSWERED` | conclusive, superseding the earlier one | stays `ANSWERED` with the new response in force |
-| `ANSWERED` | supersedes the conclusive response with a **non-conclusive** one | **R7**: back to `SENT` — the branch is genuinely unfinished again |
-| `CLOSED` | purely informational | stays `CLOSED`; the response is recorded against the closed request |
-| `CLOSED` | non-conclusive, **or** raises a requirement | **R8**: back to `SENT` — work has genuinely resumed, and the frozen closure rule would otherwise be violated by an open requirement under a closed request |
+| `ANSWERED` | is informational only | stays `ANSWERED`; the response is recorded |
+| `ANSWERED` | raises a requirement | stays `ANSWERED`; not closeable while that requirement is blocking and open |
+| `ANSWERED` | is conclusive and supersedes the earlier conclusive one | stays `ANSWERED` with the new response in force |
+| `ANSWERED` | supersedes the conclusive response(s) with **non-conclusive** ones | **R7**: back to `SENT` — the branch is genuinely unfinished again |
+| `CLOSED` | is informational only | stays `CLOSED`; the response is recorded against the closed request |
+| `CLOSED` | supersedes the discharging response(s), leaving no `ACTIVE` conclusive response | **R8**: back to `SENT` — the answer was withdrawn |
+| `CLOSED` | raises a **blocking** requirement, or creates a conflict, while a conclusive response stays in force | **R9**: back to `ANSWERED` — still answered, no longer closeable |
+| `CLOSED` | raises a non-blocking requirement, or conclusively supersedes a conclusive response | stays `CLOSED` — nothing it holds is open (§3.4); the case-level rule below still applies |
 | `WITHDRAWN` / `VOID` | anything | the response is recorded; the request's state does not change. An authority answering a request we withdrew is a fact worth keeping, not a reason to revive it |
 
-If the case itself is `CLOSED` when a late letter arrives, the case is **reopened** (§10) before the
-response is registered. Filing official correspondence into a closed dossier without reopening it would
-make the closure record false.
+**If the case itself is `CLOSED`:**
+
+- an **informational-only** response is recorded and the case **stays `CLOSED`**. The closure asserted
+  that the department's work is finished, and a letter that asks nothing of anyone leaves that true;
+- a response that **creates new work** — or recording, on that case, a requirement or a supersession
+  against an earlier response — requires the case to be **reopened** (§10) first. The system refuses it on
+  a closed case and offers the reopening. Filing new work into a closed dossier without reopening it would
+  make the closure record false.
 
 ### 4.7 Voiding a response
 
@@ -403,6 +442,26 @@ remains: it did arrive.
 and a person decides each one: `VOID` if the demand disappeared with the mistake, unchanged if the
 condition is real and simply attached to the wrong row (in which case a corrected response is registered
 and the requirements are recreated against it).
+
+**Voiding a response that superseded others does restore them** *(pre-schema amendment A-10, closes Domain
+Model OQ-16)*. Its supersession edges were part of the same mistake, so in the same transaction they are
+**retracted** (status `RETRACTED`, attributed to the person voiding, `actor_kind = SYSTEM`) and each response
+they superseded returns `SUPERSEDED → ACTIVE`. This is a mechanical consequence, not a judgement: a
+response cannot remain superseded by an entry that never validly existed. What follows is ordinary
+evaluation — R3, R7 or a conflict (§4.5) as the restored response dictates — and the restored responses are
+listed for review, because a person may still need to record the *correct* supersession.
+
+Example: A (`OPINION`/`APPROVED`, conclusive) is in force on request R. A clerk registers letter C as a
+response on R superseding A — but C actually answers a different request. C is voided (`DATA_ENTRY_ERROR`)
+→ the C→A edge is retracted → A is `ACTIVE` again and R is answered by A; C's letter is registered on the
+correct request. When the authority's genuine revision D of A later arrives, D supersedes A normally —
+possible only because the retracted edge no longer counts towards the one `ACTIVE` incoming edge.
+
+**An edge recorded in error between two valid responses** — the wrong direction chosen when resolving a
+conflict — is retracted explicitly by a Chief, with a mandatory note; the response it superseded is
+restored the same way, and the correct edge is then recorded. A supersession that was *true* is never
+retracted to express a later change of position: that is a new response superseding the newer one. Because
+retraction changes which answer is in force, on a `CLOSED` case it is preceded by reopening (§9.1).
 
 ---
 
@@ -435,9 +494,36 @@ single flag that decides whether an open requirement stops the case (§9.2 G1).
 | Q4 | `OPEN` / `IN_PROGRESS` | `WAIVED` | An authorised person releases the case from it | human | none — the waiver *is* the justification | `waiver_authorised_by_user_id` + `waiver_reason_id` + note, all mandatory |
 | Q5 | `OPEN` / `IN_PROGRESS` | `VOID` | It no longer applies, or never did | human | none | `void_reason_id` mandatory; `void_source_response_id` when a later letter caused it |
 | Q6 | `OPEN` / `IN_PROGRESS` | `FAILED` | It applied, was not released, and could not be satisfied | human | none | `failure_reason_note` mandatory |
+| Q7 | `FULFILLED` / `WAIVED` / `VOID` / `FAILED` | `IN_PROGRESS` if one of its child requests is `SENT`, otherwise `OPEN` | **Resolution corrected** — the terminal state was **recorded in error**: wrong evidence, wrong requirement, clerical error **[transition added post-review — Domain Model amendment A-2]** | human (Chief) | wrong evidence rows retracted individually — never cascaded | `reason_code` + note, both mandatory; a `requirement_resolution_correction` row preserves the withdrawn resolution verbatim (Domain Model §2.22) |
 
-**All four terminal states are final.** A requirement that comes back is a **new** requirement — the
-history of the first one stays intact. There is no `FULFILLED → OPEN`.
+**Terminal states are final as business outcomes.** A requirement that comes back because something
+*changed* — the authority repeats a demand it had dropped, a released obligation is re-imposed — is a
+**new** requirement, and the history of the first one stays intact. There is **no terminal-to-terminal
+transition**, and no `FULFILLED → OPEN` for a change of circumstances.
+
+**Q7 is the one exit, and it is for errors only** — the terminal state was false when it was recorded.
+It does not decide the correct outcome; it removes the false one. The correct terminal state, if any, is
+then reached by the ordinary transition (Q3–Q6) with that transition's own evidence, reason and authority
+— a mistaken `FULFILLED` that should have been `WAIVED` still needs a Chief's waiver. Q7:
+
+- **never erases** — the original terminal event stays in `audit_event`; the requirement's resolution
+  columns are copied verbatim into the correction record before they are cleared; evidence rows are
+  retracted, not deleted, each with its own reason;
+- **never fabricates** — no replacement requirement, no official act, no change to `source_response_id`,
+  child requests or the causal chain (§6.3);
+- **requires a case open to work** — on a `CLOSED` case it is preceded by reopening (T7); on a
+  `CANCELLED` case it is unavailable unless the cancellation itself is corrected (T8);
+- is a **Chief** action (`PERMISSIONS.md` §16, §23).
+
+After Q7 the requirement takes part in everything exactly as any open requirement does:
+
+| Concern | Effect |
+|---|---|
+| Blockers | if `is_blocking`, it blocks again — G1 (§9.2), readiness (§7.4), branch state (§7.2) and the progress ladder (§11) all see it as open |
+| Parent request | if it is blocking and its request is `CLOSED`, **R9** returns the request to `ANSWERED` (§3.2) |
+| Progress and overdue | counted as open; overdue again if its `due_at` has passed (§12.2) |
+| Final result | an `ISSUED` result that relied on the corrected state is **not** changed automatically. It is surfaced for a decision: a replacement (§8.6), a revocation (F4), or leaving it in force |
+| Reporting | current-state statistics count the requirement as open; the withdrawn resolution appears only as a correction record — never as a fulfilment, waiver, void or failure |
 
 `IN_PROGRESS` is a convenience signal, not a decision. Skipping it (`OPEN → FULFILLED` directly, when
 the requester simply hands in the document) is normal and permitted.
@@ -452,7 +538,8 @@ pinned to an exact `document_version`), or **an internal record**. Evidence is M
   is two requirements sharing one piece of evidence, each closed separately.
 
 Evidence is **retracted, never deleted**. A requirement wrongly marked fulfilled must still show that it
-once was, and why that was withdrawn.
+once was, and why that was withdrawn — its wrong evidence is retracted row by row, and the requirement
+itself returns to an open state through Q7 (§5.2).
 
 ### 5.4 `WAIVED` vs `VOID` vs `FAILED` in operation
 
@@ -487,8 +574,8 @@ chase conditions from two different requirements, that is two `request` rows sha
 When a requirement reaches any terminal state, the system re-evaluates the request whose response
 raised it:
 
-- if **every** requirement from that request's responses is terminal **and** an `ACTIVE` conclusive
-  response exists → the request becomes **closeable** (surfaced, not auto-closed);
+- if **every blocking** requirement from that request's responses is terminal **and** an `ACTIVE`
+  conclusive response exists → the request becomes **closeable** (surfaced, not auto-closed);
 - if the requirement was blocking and is now terminal → the case's derived progress moves on to the next
   blocker (§11);
 - nothing else changes automatically. In particular, fulfilling a requirement does **not** send the
@@ -603,12 +690,12 @@ Not stored. Computed from the branch's rows, evaluated in this order (first matc
 
 | # | Branch state | Condition |
 |---|---|---|
-| B1 | **FAILED** | any `FAILED` requirement in the branch with `is_blocking = true`. (Requirement states are terminal, so a `FAILED` requirement is never later fulfilled — if the department tries again, that is a **new** requirement, and the branch is then judged on that new one as well as the failed one) |
-| B2 | **BLOCKED** | a requirement is `OPEN`/`IN_PROGRESS` with **no** child request in `SENT` and no `ACTIVE` evidence recorded — i.e. *we* owe the next move |
-| B3 | **WAITING_EXTERNAL** | any request in the branch is `SENT` without a conclusive response, or a requirement is `IN_PROGRESS` with a child request `SENT` |
+| B1 | **FAILED** | any `FAILED` requirement in the branch with `is_blocking = true`. (Requirement states are terminal as business outcomes, so a `FAILED` requirement is never later fulfilled — if the department tries again, that is a **new** requirement, and the branch is then judged on that new one as well as the failed one. Only a `FAILED` recorded in error leaves this state, through Q7, §5.2) |
+| B2 | **BLOCKED** | a **blocking** requirement is `OPEN`/`IN_PROGRESS` with **no** child request in `SENT` and no `ACTIVE` evidence recorded — i.e. *we* owe the next move |
+| B3 | **WAITING_EXTERNAL** | any request in the branch is `SENT` without a conclusive response, or a **blocking** requirement is `IN_PROGRESS` with a child request `SENT` |
 | B4 | **WAITING_INTERNAL** | any request in the branch is `DRAFT`, or a response is `UNDETERMINED`, or a fulfilled requirement still owes a follow-up letter (§6.2) |
 | B5 | **WITHDRAWN** | the top-level request is `WITHDRAWN` or `VOID` |
-| B6 | **COMPLETE** | the top-level request is `CLOSED` and every requirement in the branch is terminal |
+| B6 | **COMPLETE** | the top-level request is `CLOSED` and every **blocking** requirement in the branch is terminal (open non-blocking requirements stay listed — §9.2) |
 
 B2 and B4 are the branches where *we* are the bottleneck; B3 is where an authority is. That distinction
 drives derived progress precedence (§11) and the "waiting for me" dashboard.
@@ -630,7 +717,9 @@ A case is **ready for final result** when **all** hold:
 2. no requirement anywhere in the case is `is_blocking = true` and `OPEN`/`IN_PROGRESS`;
 3. no request is in `DRAFT`, `SENT` or `ANSWERED` (all terminal: `CLOSED`, `WITHDRAWN`, `VOID`);
 4. no unresolved response conflict (§4.5);
-5. no `final_result` already `ISSUED`.
+5. no `final_result` already `ISSUED` — **except** when the result being issued is a replacement that
+   names the currently `ISSUED` result in `supersedes_final_result_id` (§8.6). An issued result never
+   blocks its own replacement.
 
 A `FAILED` branch does **not** prevent readiness. It shapes the decision — the department can and must
 be able to issue a refusal or a partial approval precisely because something could not be obtained.
@@ -653,8 +742,8 @@ A draft has no effect on anything: it does not block branches and does not signa
 | # | From | To | Trigger | Required |
 |---|---|---|---|---|
 | F1 | — | `DRAFT` | Someone starts drafting | `case_id`, `decision_type_id`, summary |
-| F2 | `DRAFT` | `ISSUED` | The decision is made and signed | guards D1–D4 (§8.3); `decided_by_user_id`, `decided_at`, `approved_by_user_id`, `approved_at`, `issued_at` |
-| F3 | `ISSUED` | `SUPERSEDED` | **System consequence** of a newer result being issued with `supersedes_final_result_id` set | — |
+| F2 | `DRAFT` | `ISSUED` | The decision is made and signed | guards D1–D4 (§8.3); `decided_by_user_id`, `decided_at`, `approved_by_user_id`, `approved_at`, `issued_at`. For a replacement, performed atomically with F3 (§8.6) |
+| F3 | `ISSUED` | `SUPERSEDED` | **System consequence** of issuing a replacement (F2) that names this result in `supersedes_final_result_id` — **in the same transaction, before the replacement becomes `ISSUED`** | — |
 | F4 | `ISSUED` | `REVOKED` | The decision is withdrawn without a replacement | `revoked_by_user_id`, `revoked_at`, `revocation_reason_note` |
 | F5 | `DRAFT` / `ISSUED` | `VOID` | Recorded in error | `void_reason`, actor, time |
 
@@ -703,6 +792,21 @@ taken while the unmet obligation is invisible.
 - **Correction or amendment** = a **new row** with `supersedes_final_result_id` → the old one, which
   becomes `SUPERSEDED` (F3). The original is never edited and stays fully readable — it is what the
   requester acted on at the time.
+- **Issuing a replacement is one atomic operation** (Domain Model amendment A-4). `supersedes_final_result_id`
+  is set while the replacement is `DRAFT` and may name only the case's currently `ISSUED` result. At
+  issue, in one transaction under the case-level serialization of `ARCHITECTURE.md` §12.5:
+  1. **identify** the currently `ISSUED` result and verify it is the one named — if it has meanwhile been
+     revoked or superseded, the issue is refused (with no `ISSUED` result left, the draft is issued as a
+     first result instead);
+  2. **retire** it: `ISSUED → SUPERSEDED` (F3);
+  3. **issue** the replacement: `DRAFT → ISSUED` (F2), with guards D1 (readiness, §7.4 — condition 5 does
+     not block a replacement) to D4, and its own pins taken at issue;
+  4. **preserve** everything of the old result — its dispatch letter, its pinned documents, its approval
+     metadata and its audit history are untouched; both transitions are audited under one
+     `correlation_id`.
+
+  Step 2 precedes step 3 so that the "at most one `ISSUED`" index holds at every statement. Reopening
+  the case therefore never deadlocks against its own previous decision.
 - **Revocation without replacement** = F4, with a reason.
 - A superseding result normally follows a **reopening** (§10), because issuing a new decision on a
   closed case means the work resumed.
@@ -718,12 +822,24 @@ taken while the unmet obligation is invisible.
 ### 9.1 What `CLOSED` means
 
 The department has finished its work on this dossier: every branch reached a terminal state, every
-blocking obligation was resolved one way or another, and the result (where one is due) has been issued.
+blocking obligation was resolved one way or another, and the result (where one is due) has been issued —
+**or** the Head authorised closing with named exceptions, recorded as such (§9.4).
+
+**This section is the one authoritative closure contract** (Domain Model §2.5 defers to it, amendment
+A-3):
+
+| | Normal closure | Exceptional closure |
+|---|---|---|
+| Condition | every guard G1–G5 passes (§9.2) | the Head overrides the eligible guards that fail (G1, G2, G3, G5 — never G4) |
+| Record | `case_state_change` + `audit_event` | the same, with `reason_code = CLOSURE_GUARD_OVERRIDE`, a mandatory note naming each overridden guard and why, the actual actor and time |
+| Unresolved records | only non-blocking requirements can remain open | stay in their **true** states — never auto-fulfilled, auto-voided or auto-failed by the closure |
+| Reported as | closed; open non-blocking requirements listed | `closed_with_unresolved_items` (derived — Domain Model §9.1) |
 
 `CLOSED` is **not** an archive flag and **not** a permissions boundary. A closed case remains fully
-readable to everyone who could read it before. What it stops is *ordinary operational writing*: new
-requests, responses and requirements are not added to a closed case — the case is reopened first (§10),
-which is one action and leaves a record.
+readable to everyone who could read it before. What it stops is *new work*: a new request or requirement,
+a supersession, or a response that creates new work (§4.6) is not added to a closed case — the case is
+reopened first (§10), which is one action and leaves a record. An **informational-only** response may be
+recorded on a closed case without reopening it, because it changes nothing the closure asserted.
 
 ### 9.2 Closure guards
 
@@ -735,9 +851,17 @@ which is one action and leaves a record.
 | **G4** | Closure metadata present: `closed_by_user_id`, `closed_at`, `closure_type_id` | — | **no** |
 | **G5** | The case has, or has had, a `RESPONSIBLE` assignment | a case nobody ever owned should not reach closure silently | **yes** |
 
-Non-blocking requirements (`is_blocking = false`) that are still open do **not** prevent closure. They
-are shown on the closure screen, and the person closing decides whether to resolve them first. This is
-what `is_blocking` is for.
+**One definition of blocking.** A non-blocking requirement (`is_blocking = false`) **holds nothing
+open** — not its request's closure (§3.4), not its branch (§7.2), not readiness for the final result
+(§7.4), not case closure (G1). Open non-blocking requirements are shown on the closure screen, and the
+person closing decides whether to resolve them first. This is what `is_blocking` is for. **Requests are
+never exempt:** a request sent to satisfy a non-blocking requirement is still an open letter to an
+authority, and G2 still requires it to be terminal.
+
+**Guards are evaluated under serialization.** G1–G5, and readiness (§7.4) for D1, read many rows. They
+are evaluated under the case-level serialization convention of `ARCHITECTURE.md` §12.5, shared with every
+operation that adds or removes closure-relevant work in the case — a row-version check alone cannot stop
+a requirement being created while the case is being closed.
 
 ### 9.3 Closure is never automatic
 
@@ -760,8 +884,8 @@ So:
 | Who | the highest business authority only (`PERMISSIONS.md` §23) |
 | Reason | **mandatory**, free text, naming which guard was overridden and why |
 | Record | a `case_state_change` row with `reason_code = CLOSURE_GUARD_OVERRIDE` plus the note, and a `STATE_CHANGE` `audit_event` |
-| **Unresolved records are left exactly as they are** | an `OPEN` requirement stays `OPEN` on the closed case; a `SENT` request stays `SENT`. Nothing is back-dated, re-labelled or swept |
-| Consequence | the case is reportable as *"closed with unresolved obligations"* — a genuinely useful metric that only exists because nothing was falsified |
+| **Unresolved records are left exactly as they are** | an `OPEN` requirement stays `OPEN` on the closed case; a `SENT` request stays `SENT`. Nothing is back-dated, re-labelled, swept, auto-fulfilled, auto-voided or auto-failed |
+| Consequence | the case is reportable as **`closed_with_unresolved_items`** — derived, never stored (Domain Model §9.1) — a genuinely useful metric that only exists because nothing was falsified. Its unresolved items leave the live operational lists (§12.2) |
 
 A closed case carrying an open requirement is not a data error. It is an accurate record of an
 authorised exception, and it is the reason the override mechanism exists.
@@ -777,8 +901,8 @@ authorised exception, and it is the reason the override mechanism exists.
 | Transition | `CLOSED → ACTIVE` (T7), on the **same case**. Never a replacement case, never a copy, never a new case number |
 | Who | operational management authority (`PERMISSIONS.md` §23) |
 | Reason | `case_state_change.reason_code` + note, **mandatory, no exception** |
-| Closure metadata | **retained**, not cleared. The case shows it was closed on a date, by a person, for a reason, and reopened later |
-| Previous final result | **stays `ISSUED` and in force**. Reopening does not revoke a decision. If the reopening changes the outcome, a new result supersedes it at F2/F3 (§8.6); if the decision is withdrawn outright, that is F4 |
+| Closure metadata | **retained**, not cleared. The case shows it was closed on a date, by a person, for a reason, and reopened later. A later closure overwrites the `case.closed_*` columns; **every closure episode remains a `case_state_change` row** (Domain Model §2.6) |
+| Previous final result | **stays `ISSUED` and in force**. Reopening does not revoke a decision. If the reopening changes the outcome, a replacement supersedes it atomically at F2/F3 (§8.6) — the issued result never blocks its own replacement; if the decision is withdrawn outright, that is F4 |
 | New work | permitted in full — new requests, responses, requirements, documents, assignments |
 | Assignment | the previous `RESPONSIBLE` assignment ended at closure; reopening requires assigning someone again (it may be the same person, as a new assignment row) |
 | Audit | `STATE_CHANGE` on the case + a `case_state_change` row; the reason is part of the permanent record |
@@ -792,9 +916,10 @@ numbers, break the origin chains of everything already in it, and make "what hap
 
 ### 10.3 The common trigger
 
-A late official letter about a closed case (§4.6). The sequence is: reopen the case (with the letter as
-the stated reason) → register the correspondence → register the response → let the request transitions
-follow → close again when resolved. Four steps, each recorded, none of them falsifying anything.
+A late official letter about a closed case **that creates new work** (§4.6). The sequence is: reopen the
+case (with the letter as the stated reason) → register the correspondence → register the response → let
+the request transitions follow → close again when resolved. Four steps, each recorded, none of them
+falsifying anything. A letter that is informational only is simply recorded; the case stays closed.
 
 ---
 
@@ -839,7 +964,7 @@ Evaluated top to bottom; **first match wins**; the matching row supplies the mes
 | # | Condition | Message template |
 |---|---|---|
 | **P0** | `case.lifecycle_state = CANCELLED` | "Cancelled — {closure_type} ({closed_at})" |
-| **P1** | `= CLOSED` | "Closed {closed_at} — {decision_type of the ISSUED result, or closure_type}" |
+| **P1** | `= CLOSED` | "Closed {closed_at} — {decision_type of the ISSUED result, or closure_type}{ · n unresolved item(s), when `closed_with_unresolved_items`}" |
 | **P2** | `= ON_HOLD` | "On hold{ until hold_until} — {reason} (by {actor of the hold})" |
 | **P3** | `= REGISTERED` and no request exists | "Registered — no requests sent yet" |
 | **P4** | An unresolved response conflict exists (§4.5) | "Conflicting responses from {organization} — resolution required" |
@@ -924,7 +1049,9 @@ behaves.
 
 A `due_at` that is `NULL` is never overdue. Nothing with a terminal state is ever overdue —
 retrospective overdue reporting uses the recorded completion timestamps against `due_at`, which is a
-reporting question, not a state.
+reporting question, not a state. Requests and requirements left unresolved on a `CLOSED` case by an
+authorised override (§9.4) are not reported as live overdue work; they are reported through
+`closed_with_unresolved_items`.
 
 ### 12.3 Overdue never changes lifecycle state
 
@@ -987,19 +1114,21 @@ actor identity snapshotted, `before_state`/`after_state`, `entity_version`, `cas
 | **Request linked to outgoing correspondence** — the request is thereby officially issued | `STATE_CHANGE` | `request` | the correspondence, its external `sent_at`, `actor_kind = SYSTEM` (consequence R2) |
 | Request closed / withdrawn / voided | `STATE_CHANGE` / `WITHDRAW` / `VOID` | `request` | reason where applicable |
 | Response registered | `CREATE` | `response` | type, outcome, `is_conclusive`, correspondence |
-| Response superseded | `STATE_CHANGE` | `response` | `supersedes_response_id` on the new row |
+| Response superseded | `CREATE` + `STATE_CHANGE` | `response_supersession` + each superseded `response` | superseding and superseded response; one event pair per edge, one `correlation_id` |
 | Response voided | `VOID` | `response` | reason |
+| **Response supersession retracted** (by voiding the superseding response, or explicitly) | `STATE_CHANGE` ×2 | `response_supersession` + the restored `response` | retraction note — **mandatory** when explicit; the void's `correlation_id` when consequential (`actor_kind = SYSTEM`) |
 | Requirement created | `CREATE` | `requirement` | origin type, `source_response_id`, `is_blocking` |
 | Requirement started | `STATE_CHANGE` | `requirement` | `actor_kind = SYSTEM` when triggered by a child request |
 | Requirement fulfilled | `STATE_CHANGE` | `requirement` | evidence references |
 | Requirement waived | `STATE_CHANGE` | `requirement` | **authoriser, reason — mandatory** |
 | Requirement voided | `STATE_CHANGE` | `requirement` | **`void_reason`, `void_source_response_id` where applicable** |
 | Requirement failed | `STATE_CHANGE` | `requirement` | **failure reason** |
+| **Requirement resolution corrected** (Q7) | `STATE_CHANGE` + `CREATE` | `requirement` + `requirement_resolution_correction` | **reason code + note — mandatory**; corrected and restored status; `before_state` carries the withdrawn resolution in full |
 | Child request created | `CREATE` | `request` | `source_requirement_id` — this is what makes the causal chain auditable, not just queryable |
 | Evidence recorded / retracted | `LINK` / `UNLINK` | `requirement_evidence` | what it points at, pinned version if any |
 | Final result drafted | `CREATE` | `final_result` | decision type |
 | Final result issued | `STATE_CHANGE` | `final_result` | decided_by, approved_by, issued_at |
-| Final result superseded / revoked | `STATE_CHANGE` | `final_result` | reason, `supersedes_final_result_id` |
+| Final result superseded / revoked | `STATE_CHANGE` | `final_result` | reason, `supersedes_final_result_id`; a supersession is `actor_kind = SYSTEM`, attributed to the person issuing the replacement, under that issue's `correlation_id` (§8.6) |
 | Case closed | `STATE_CHANGE` | `case` | closure type, closed_by |
 | **Closure guard overridden** | `STATE_CHANGE` | `case` | **`case_state_change.reason_code = CLOSURE_GUARD_OVERRIDE`** + note naming the guard |
 | Case reopened | `STATE_CHANGE` | `case` | **reason — mandatory** |
@@ -1073,8 +1202,11 @@ a recomputation, not a migration. **No production rule is assumed.**
 `dispatch_correspondence_id` is nullable today.
 
 **OQ-W6 — May a case be closed with a non-blocking requirement still open?**
-Current design: yes (§9.2), which is the purpose of `is_blocking`. If the department wants *every*
-requirement resolved before closure, `is_blocking` loses its meaning and G1 tightens.
+Current design: yes (§9.2), which is the purpose of `is_blocking` — and **uniformly**: since the
+post-review amendment, a non-blocking requirement also does not hold its request or branch open (§3.4,
+§7.2), so there is one definition of closure, not two. If the department wants *every* requirement
+resolved before closure, `is_blocking` loses its meaning and G1 and the request closure rule tighten
+together. Needs business confirmation that this is intended.
 
 ### 14.2 Implementation decisions safely deferred
 
@@ -1137,6 +1269,22 @@ happened externally) — decision C-1, which now carries more weight than when i
 
 The one question that *would* have required an additive change to the frozen model — **OQ-W1**, a place
 to record a dispatch approver — is now **closed NO** (§14.0), so that dependency is gone.
+
+### Post-review amendments — verification (2026-09-17)
+
+The "none found" above was not correct: the independent review found contradictions between this document
+and Domain Model v1. They are resolved as follows, with the domain side in Domain Model §12.7.
+
+| # | Contradiction | Resolution here |
+|---|---|---|
+| 1 | Domain Model v1 forbade `CLOSED` with non-terminal work; §9.4 permitted a Head override that leaves it | This document governs: §9.1 closure contract; Domain Model §2.5 amended (A-3) |
+| 2 | Non-blocking requirements "do not prevent closure", yet held their request open and so failed G2 | One definition of blocking: §3.4, §5.6, §7.2, §9.2 |
+| 3 | An issued result blocked readiness, so a reopened case could not issue its replacement | Readiness condition 5 exempts a replacement; F2/F3 atomic (§7.4, §8.6) |
+| 4 | "Supersedes both" (§4.5) was not representable with one supersession column | Supersession edges (§4.3, §4.5; A-1) |
+| 5 | "All terminal states are final" vs correcting a requirement wrongly marked fulfilled | Q7 for errors only, with a correction record (§5.2; A-2) |
+| 6 | Any non-conclusive late response reopened requests and forced case reopening | "Creates new work" vs "informational only"; R8 narrowed, R9 added (§3.2, §4.6, §9.1, §10.3) |
+| 7 | Consequences were attributed to "the person … with `actor_kind = SYSTEM`" while the Domain Model said `SYSTEM` ⟹ no user | Initiating person + `actor_kind = SYSTEM`; `JOB` has no user (§0.1; A-8) |
+| 8 | T5 cited guards G1–G4 while §9.2 defines G1–G5 | T5 cites G1–G5 or override |
 
 ---
 

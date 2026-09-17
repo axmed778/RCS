@@ -6,6 +6,10 @@
 **Deferred to `ARCHITECTURE.md`:** deployment topology, host and network build, backup product and
 media rotation, monitoring stack. This document states the security requirements those decisions must
 satisfy.
+**Post-review amendments (2026-09-17):** per-version document authorization and cross-case letters
+(§7.2, §7.3, B-19, G-07, invariant 7); bounded type detection (§10.1, invariant 10); backup
+recovery-point invariant (§14.3, B-48, G-10); immediate suspension on departure (§3.1, §17.2, B-13, G-08,
+invariant 5). Recorded in `DOMAIN_MODEL.md` §12.7.
 
 ---
 
@@ -60,7 +64,7 @@ theatre** — controls this department will still be operating correctly in five
 | T2 | **Compromised workstation** | acts with the logged-in user's rights; reads what they read; uploads what they can upload | session controls (§8), no direct store access (§5.3), bounded user authority (§7) |
 | T3 | **Malware via USB** | infects a workstation; encrypts what that workstation can write | **workstations cannot write the document store** (§5.3, §14.4) |
 | T4 | **Malicious external document** | macro or exploit runs **on the workstation that opens it**, not on the server | never executed server-side (§10), download-only (§10.3), endpoint AV (§11) |
-| T5 | **Departed employee account** | logs in with credentials that were never revoked | deactivation + session revocation (§17), departure checklist (§17.2) |
+| T5 | **Departed employee account** | logs in with credentials that were never revoked | **immediate suspension** + session revocation, not waiting for handover (§17), departure checklist (§17.2) |
 | T6 | **Shared passwords** | destroys attribution; one leak becomes everyone's access | individual accounts (§6.1), usable password policy (§6.3), practical timeouts (§8.4) |
 | T7 | **Unlocked workstation** | full access as that user, with no trace that it was someone else | **OS screen lock is the only real control** (§8.5) — application timeouts do not solve this |
 | T8 | **Another device on the LAN** | sniffs traffic, spoofs a hostname, probes services | HTTPS (§5.4), minimal exposed services (§5.2), no DB or file-share exposure (§5.3) |
@@ -420,6 +424,9 @@ Visibility per `PERMISSIONS.md` §19: the assigned users, Chief, Head, and holde
 | Attempt | Why it fails |
 |---|---|
 | Guessing a document, case or version UUID | identity is not authority — the check still runs |
+| Seeing a document through one version and requesting another version of it | authorization is **per version**: only a visible `ACTIVE` link that exposes that version authorises it (`DOCUMENT_MODEL.md` §10.1) |
+| Following a response registered in an ordinary case to the letter it came from, filed in a restricted case | the letter, its files, its metadata and its audit stay governed by the owning case; the response exposes only its own facts (`DOMAIN_MODEL.md` §2.8) |
+| Relying on a link that was removed as a wrong placement | a `REMOVED` link grants nothing (`DOCUMENT_MODEL.md` §10.2) |
 | Reusing a download URL seen elsewhere | every download re-authorises; no URL carries a grant |
 | Requesting by content hash | the hash is never an API input; it is storage-internal |
 | Constructing a filesystem path | workstations have no path to the store (§5.3) |
@@ -434,8 +441,9 @@ decision in the system:
 | Question | Rule |
 |---|---|
 | May the user see the document at all? | if **any** `ACTIVE` link's context is visible to them |
+| **Which versions may they see?** | **only those exposed by such a link** — the pinned version, or, for a floating link (home case only), the document's versions. The union is per version, never per document *(post-review)* |
 | Which links are listed to them? | **only** those whose contexts they may view |
-| Which context authorises a download? | **the one the user requested it through** |
+| Which context authorises a download? | **the one the user requested it through**, and only for a version that link exposes |
 | Does the restricted link restrict the document elsewhere? | **No** |
 
 **The tradeoff, stated honestly.** The alternative rule — *any restricted link restricts the document
@@ -451,6 +459,11 @@ everywhere* — sounds safer and is worse:
 The union rule is chosen because restriction is a property of **the case**, not of the bytes, and
 because the real control sits at the moment of linking — a deliberate, authorised, audited disclosure
 decision — rather than in a retroactive hide that cannot undo what has already been read.
+
+**What the disclosure covers is exactly one version.** A link into another case is always pinned, and
+new versions can be added only in the document's home case (`DOCUMENT_MODEL.md` §4.4). So disclosing a
+map from a restricted case discloses that map as it was chosen — never the revisions the restricted case
+makes afterwards, and never their filenames or existence.
 
 **No new ACL system is introduced.** `case_access_grant` remains view-only, one user, one case, and must
 not grow per-action rights (`PERMISSIONS.md` §20.3).
@@ -639,8 +652,17 @@ Uploaded files are untrusted input (invariant 9). This section is the security v
 | **Process / parse** | **no.** The application does not open, parse, convert, extract text from, unzip or thumbnail uploaded files |
 
 **The application never executes document bytes** (invariant 10). It hashes them, stores them and hands
-them back. Hashing is the only operation performed on file content, and it cannot be influenced by that
-content.
+them back. Exactly **two** operations read file content *(post-review clarification — v1 said "hashing is
+the only operation", which contradicted content-based type detection)*:
+
+- **hashing**, which cannot be influenced by that content; and
+- **bounded type detection** (`DOCUMENT_MODEL.md` §9.2) — a fixed, limited number of leading bytes
+  compared against a table of known file signatures.
+
+Detection is **not parsing**: it does not decompress, traverse internal structure, follow references,
+render or execute anything, and its cost does not depend on what the file contains. Anything beyond that
+— opening a ZIP, reading a PDF object tree, extracting text — is processing, and remains forbidden
+server-side (§11.5).
 
 ### 10.2 Never rendered inline under the application origin
 
@@ -784,7 +806,7 @@ to retain. Deleting it destroys evidence to solve a problem that deleting does n
 | **Bytes are retained** — `DOCUMENT_MODEL.md` §12 permits no physical deletion in V1 except orphaned temporary files | |
 | **Downloads are blocked or heavily gated** by policy while the verdict stands, with the reason shown | |
 | **The business record is unchanged**: `document_version.status` is not altered, because the business fact has not changed — only the safety judgement about the bytes (`DOCUMENT_MODEL.md` §9.6) | |
-| **Audit records the finding** as a system event (§16.2) | |
+| **Audit records the finding** as a `JOB` event with no user, since no person initiated the scan (§16.2, `DOMAIN_MODEL.md` §2.18) | |
 
 **Carried-forward open question:** whether a malware verdict should also be visible as a *business*
 state is `DOCUMENT_MODEL.md` **OQ-D6**, and answering "yes" would require adding a value to
@@ -983,14 +1005,18 @@ Invariant 14, and the single most important requirement in this section.
 ### 14.3 Consistency between database and object store
 
 `DOCUMENT_MODEL.md` §6.7, restated because a restore that mixes vintages produces a broken evidence
-record:
+record. **Corrected post-review:** v1 required "object store before the database", which is not
+sufficient — an upload committing after the object copy but before the database backup yields a database
+that references bytes the backup lacks. The requirement is:
 
-> **Back up the object store before (or continuously ahead of) the database. Restore the database to a
-> point, then ensure the object store is at or ahead of that point.**
+> **Every object referenced by the selected database recovery point must exist, and verify against its
+> hash, in the retained object set. A combined recovery point is valid only once that has been checked.**
 
-Safe because objects are immutable and content-addressed: an object store ahead of the database holds
-extra files and no wrong ones. The reverse ordering guarantees a window in which the database references
-bytes the backup does not contain.
+Met either by a consistent database snapshot whose required object set is then copied and verified, or by
+a physical base backup plus WAL whose recovery targets are published only up to an object-complete
+boundary (`DOCUMENT_MODEL.md` §6.7, `ARCHITECTURE.md` §15.4). A logical dump is never a base for WAL
+replay. The security consequence: **an offline or rotated copy is only a backup if it carries a valid
+combined recovery point** — the database state *and* every object it references.
 
 ### 14.4 Ransomware blast radius
 
@@ -1161,15 +1187,16 @@ Conceptual, to be performed as one sequence:
 
 | # | Step | Why |
 |---|---|---|
-| 1 | **Deactivate the account** (`status = DEACTIVATED`, with reason) | |
-| 2 | **Revoke all sessions immediately** (§8.3) | invariant 5 — deactivation without revocation leaves a live session |
+| 1 | **Suspend the account immediately** (`status = SUSPENDED`, with reason) — **first, and never waiting for handover** *(post-review: v1 put reassignment before deactivation, so access stayed open for as long as reassignment took)* | `PERMISSIONS.md` §25.3 |
+| 2 | **Revoke all sessions immediately** (§8.3) | invariant 5 — suspension without revocation leaves a live session |
 | 3 | **Revoke business roles** (Head), leaving the historical `user_role` rows intact | |
-| 4 | **Reassign open case responsibility** — required before deactivation completes (`PERMISSIONS.md` §25.4), so no case is orphaned | |
+| 4 | **Reassign open case responsibility** — the handover; required before final deactivation (`PERMISSIONS.md` §25.4), so no case is orphaned | |
 | 5 | **Reassign or reconsider open requirements** assigned to them | |
 | 6 | **Review and revoke `case_access_grant` rows** — a departed employee's grants to restricted cases should not persist | |
 | 7 | **Rotate any shared secret they held** (§13.6) — for a departing TechAdmin this means DB credentials, TLS/CA keys, backup credentials and break-glass, and it is the whole point of §6.8 | |
 | 8 | **Collect physical items** — workstation, keys, backup media, any sealed envelope in their custody | |
-| 9 | **Record the departure** as a security event (§16.2) | |
+| 9 | **Deactivate the account** (`status = DEACTIVATED`, with reason) once handover is complete | final administrative step |
+| 10 | **Record the departure** as a security event (§16.2) | |
 
 **Never:** delete the account, reassign their identity to someone else, or reuse their username for a new
 employee. Each would corrupt the audit trail that names them.
@@ -1265,7 +1292,7 @@ specialist.
 | B-10 | 12-character minimum, no composition rules, no forced rotation, local blocklist | 6.3 |
 | B-11 | Rate limiting with progressive delay, auto-releasing lock, all failures logged | 6.4 |
 | B-12 | First-login password change for every new or reset account | 6.7 |
-| B-13 | **Deactivation immediately revokes existing sessions** | 6.5, 8.3 |
+| B-13 | **Suspension or deactivation immediately revokes existing sessions**; a departure suspends at once, before handover | 6.5, 8.3, 17.2 |
 | B-14 | Documented in-person reset procedure, audited, TechAdmin cannot impersonate | 6.7 |
 | B-15 | **Break-glass credential sealed, two-person custody, tested, documented outside the system** | 6.8 |
 | B-16 | **At least two people hold the Head role** (or break-glass is accepted as routine) | 6.9 |
@@ -1276,7 +1303,7 @@ specialist.
 |---|---|---|
 | B-17 | **Server-side `can()` on every path** — views, API, search, metadata, download, export, audit | 7.1 |
 | B-18 | Search and aggregates **filtered before returning or counting** | 7.4 |
-| B-19 | **Direct identifiers cannot bypass case restrictions**; downloads re-authorised per request against a context | 7.2, 7.3 |
+| B-19 | **Direct identifiers cannot bypass case restrictions**; downloads re-authorised per request against a context **and a version that context exposes** | 7.2, 7.3 |
 | B-20 | Roles and grants evaluated **at action time**, not from a login claim | 7.1 |
 | B-21 | **TechAdmin has no business capability and cannot grant roles** | 7.5 |
 
@@ -1335,7 +1362,7 @@ specialist.
 |---|---|---|
 | B-46 | **Backup target pulls; the server holds no write credential for backups** | 14.2 |
 | B-47 | **At least one backup copy offline or otherwise unwritable from the primary** | 14.2 |
-| B-48 | Object store backed up **ahead of** the database; documented restore ordering | 14.3 |
+| B-48 | A combined recovery point is **published only when every object its database state references exists and verifies** in the retained object set; documented restore procedure | 14.3 |
 | B-49 | **A full restore tested successfully**, including decrypting encrypted media | 14.6 |
 | B-50 | Backup success/failure visible in the application and surfaced to a person | 14.5 |
 | B-51 | **Removable/offsite backup media encrypted**, passphrase in custody (§13.4) | 13.4 |
@@ -1394,10 +1421,10 @@ verifiable in an afternoon, and none is a document review.
 | G-04 | **The document store is not browsable from a workstation** (no share, no path) | attempt it — it must fail |
 | G-05 | **Every user has an individual account**; no shared logins exist; all bootstrap/default credentials removed or changed | list accounts; confirm with staff |
 | G-06 | **Permission model tested** with a real Worker, Chief and Head account: each can do what they should and is refused what they should not | a short scripted walkthrough |
-| G-07 | **Restricted-case test passed**: a Worker without a grant cannot see the case in search, counts, or by direct document link; a granted Worker can; revoking the grant takes effect on the next action | the decisive test — do it deliberately |
-| G-08 | **Deactivation test passed**: deactivating a logged-in user kills their live session immediately | two browsers |
+| G-07 | **Restricted-case test passed**: a Worker without a grant cannot see the case in search, counts, or by direct document **or version** link; a document shared into an ordinary case exposes only its pinned version there; a granted Worker can see the case; revoking the grant takes effect on the next action | the decisive test — do it deliberately |
+| G-08 | **Suspension/deactivation test passed**: suspending (and, separately, deactivating) a logged-in user kills their live session immediately | two browsers |
 | G-09 | **First backup completed**, and visible in the application | the backup panel (`PROJECT.md` §20) |
-| G-10 | **A restore has been tested successfully** — database **and** object store, including decrypting the media — and documents open afterwards | record the date |
+| G-10 | **A restore has been tested successfully** — database **and** object store from one valid combined recovery point (§14.3), including decrypting the media — the integrity sweep reports no missing object, and documents open afterwards | record the date |
 | G-11 | **An offline/unwritable backup copy exists** and the server cannot delete it | inspect credentials and media |
 | G-12 | **Break-glass tested once** and resealed; custodians know where it is | do it before go-live, not during the emergency |
 | G-13 | **Server time is correct**, and the drift/jump warning works | |
@@ -1492,12 +1519,12 @@ The commitments of this document. Any future change that breaks one requires a d
 | **2** | PostgreSQL is not directly reachable from user workstations | §5.2, B-04, tested at G-03 |
 | **3** | Document storage is not a general LAN file share | §5.3, B-05, tested at G-04 |
 | **4** | Every business user has an individual identity | §6.1, B-07 |
-| **5** | Deactivated users cannot continue using existing sessions | §6.5, §8.2–§8.3, tested at G-08 |
+| **5** | Suspended or deactivated users cannot continue using existing sessions, and a departure never waits for handover to remove access | §6.5, §8.2–§8.3, §17.2, tested at G-08 |
 | **6** | Authorization is enforced server-side, on every path | §7.1, B-17 |
-| **7** | Direct document identifiers cannot bypass case permissions | §7.2–§7.3, tested at G-07 |
+| **7** | Direct document or version identifiers cannot bypass case permissions or version exposure | §7.2–§7.3, tested at G-07 |
 | **8** | TechAdmin does not automatically receive business authority | §7.5, `PERMISSIONS.md` §18 |
 | **9** | Uploaded files are treated as untrusted | §10, §11 |
-| **10** | Document bytes are never executed by the application | §10.1 — hashing is the only operation on content |
+| **10** | Document bytes are never executed or parsed by the application | §10.1 — the only operations reading content are hashing and bounded signature-based type detection |
 | **11** | Active content is never rendered inline under the authenticated origin | §10.2, B-33, B-37 |
 | **12** | The application runtime is not a DB superuser | §12.2, B-30 |
 | **13** | Ordinary users cannot modify audit history | §9.2 — enforced by DB grant, not by application care |
@@ -1519,7 +1546,7 @@ The commitments of this document. Any future change that breaks one requires a d
 | 2 | Can the primary application server destroy every backup? | **NO** | the backup target **pulls**; the server holds no write credential for it, and at least one copy is offline (§14.2, B-46/B-47, G-11) |
 | 3 | Can TechAdmin approve a FinalResult by virtue of being TechAdmin? | **NO** | the role carries no business capability and cannot grant itself one — Head is the sole role granter (§7.5, §17.1). *At OS/DB level see §4.4; the honest answer is stated, not hidden* |
 | 4 | Can a guessed Document UUID bypass a restricted Case? | **NO** | identity is not authority; every download re-authorises against a context the user can see (§7.2, §7.3), tested at G-07 |
-| 5 | Can a disabled employee keep an old session indefinitely? | **NO** | server-side sessions, revoked immediately on deactivation and checked every request (§6.5, §8.2, §8.3), tested at G-08 |
+| 5 | Can a disabled employee keep an old session indefinitely? | **NO** | server-side sessions, revoked immediately on suspension or deactivation and checked every request (§6.5, §8.2, §8.3); a departure suspends at once rather than waiting for handover (§17.2); tested at G-08 |
 | 6 | Can an uploaded HTML/SVG execute under the authenticated app origin? | **NO** | never rendered inline — attachment disposition, `nosniff`, neutral content type, CSP (§10.2); no server-side parsing at all (§10.1) |
 | 7 | Is PostgreSQL reachable directly from ordinary workstations? | **NO** | localhost/socket binding plus default-deny firewall (§5.2), tested at G-03 |
 | 8 | Does V1 need the Internet for login, assets, certificates, scanning or operation? | **NO** | internal CA with no Internet revocation URLs, bundled assets, no telemetry, no cloud scanning (§18.3), verified with the uplink disconnected at G-14 |
@@ -1546,6 +1573,12 @@ model change:
 One carried-forward question (**OQ-S7**, from `DOCUMENT_MODEL.md` OQ-D6) *would* require an additive
 change to the frozen domain model if answered "yes" — a new `document_version.status` value for a
 malware finding. It is raised, not acted on.
+
+**Post-review (2026-09-17).** Four statements here were inconsistent with the rest of the set and are
+corrected: authorization by document rather than by version (§7.2, §7.3); "hashing is the only operation
+on content" beside mandatory content-based type detection (§10.1); the "objects before database" backup
+ordering (§14.3); and a departure checklist that removed access only after reassignment (§17.2). No
+security invariant is weakened; invariants 5, 7 and 10 are made more precise.
 
 ---
 

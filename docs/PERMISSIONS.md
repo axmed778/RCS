@@ -4,6 +4,9 @@
 **Authoritative inputs:** `/docs/PROJECT.md` (PROJECT SPEC v1), `/docs/DOMAIN_MODEL.md` (Domain Model v1,
 frozen), `/docs/WORKFLOW.md`.
 **Scale:** ~13 users, four roles, one department, LAN only.
+**Post-review amendments (2026-09-17):** requirement resolution correction (§16, §23, §24, §26);
+cross-case document sharing as a Chief disclosure (§16, §21.3, §23); version-scoped document visibility
+(§19.2, §27.1); immediate suspension on departure (§23, §25, OQ-P5). Recorded in `DOMAIN_MODEL.md` §12.7.
 
 ---
 
@@ -108,9 +111,11 @@ department, assigned or not.
 | 7 | **Mark a requirement `FAILED`** | records an unmet obligation that will shape the decision |
 | 8 | **Grant and revoke** restricted-case access (§20) | controls who sees confidential dossiers |
 | 9 | **Correct** structured records after others depend on them (§24) | corrections with downstream effects need a second pair of eyes |
-| 10 | **Resolve response conflicts** — record which response supersedes which (`WORKFLOW.md` §4.5) | choosing between two contradictory official letters |
+| 10 | **Resolve response conflicts** — record which response supersedes which (`WORKFLOW.md` §4.5), or retract a supersession recorded in error (`WORKFLOW.md` §4.7, amendment A-10) | choosing between two contradictory official letters |
 | 11 | **Void a response** that is not the actor's own recent entry | removes an official act from the active record |
 | 12 | **Approve a final result** — **only under approval Model A** (§28, OQ-P1) | unresolved business decision |
+| 13 | **Correct a requirement resolution recorded in error** — return a `FULFILLED`/`WAIVED`/`VOID`/`FAILED` requirement to an open state (`WORKFLOW.md` Q7) | withdraws a recorded outcome that others relied on; the correct outcome then needs its own authority |
+| 14 | **Share a document into another case** — a version-pinned link outside the document's home case (`DOCUMENT_MODEL.md` §4.8) | a disclosure decision: it makes that version visible to another dossier's viewers |
 
 **May not:** override a closure guard (§9.4 of `WORKFLOW.md` — highest authority only); manage users,
 roles or system configuration.
@@ -158,7 +163,7 @@ Administers the system. Has **no business authority whatsoever**, by design (`PR
 | Forbidden | Note |
 |---|---|
 | Approve or issue a final result | business authority |
-| Waive, void or fail a requirement | business authority |
+| Waive, void or fail a requirement, or correct its resolution | business authority |
 | Close, reopen or cancel a case | business authority |
 | Register correspondence, responses or requirements | business record creation |
 | Assign cases | management decision |
@@ -208,6 +213,11 @@ Uses the frozen model only: `case.is_restricted` + `case_access_grant`. No gener
 **Restriction filters at the source, not at the screen.** A restricted case must be absent from search
 results, list counts, dashboard totals and exports for anyone who cannot see it. A count that reveals
 "there are 3 cases you cannot see" leaks the existence of the dossier (§27.2).
+
+**Documents are visible per version, through links** (`DOCUMENT_MODEL.md` §10.1). A document shared from
+a restricted case into another case exposes there only the version pinned by that link — not the
+document's other versions, their filenames or their existence. A response registered in another case
+from a letter filed in a restricted case exposes nothing of that letter (`DOMAIN_MODEL.md` §2.8).
 
 ### 19.3 TechAdmin and restricted cases
 
@@ -302,7 +312,7 @@ written to avoid.
 | **Register incoming correspondence** (already received externally) | **none** | *the absence rule.* A letter that has arrived must be recordable today by whoever is doing the recording |
 | **Register outgoing correspondence** (already sent externally) | **none** | same — the letter has already gone out; recording it here is bookkeeping, not an act with external effect |
 | **Register a response** | **none** | same — an official answer must reach the record promptly |
-| **Upload and link a document** | **none** | scanning is often done by whoever is at the scanner |
+| **Upload and link a document** | **none** | scanning is often done by whoever is at the scanner. Within the document's home case; a link into **another** case is a Chief disclosure decision (§16, row 14) |
 | Add an internal note | none | |
 | Create a request | assigned / cover (Chief+: none) | deciding that the department requests something of an authority is case work, not filing. (Creating it *while registering the already-sent letter* is part of that registration — see §21.4) |
 | Create a requirement from a response | assigned / cover, **or the person registering that response** | reading conditions out of a letter is part of registering it |
@@ -381,6 +391,8 @@ Actions that change the meaning of the record, release obligations, or alter who
 | Waive a requirement | **Chief** | **yes** — authoriser + reason code + note | — |
 | Void a *genuine* requirement (business reason) | **Chief** | **yes** — `void_reason` + note; `void_source_response_id` where a letter caused it | — |
 | Mark a requirement `FAILED` | **Chief** | **yes** — failure reason | must be visible on the decision screen (`WORKFLOW.md` §8.5) |
+| Correct a requirement resolution recorded in error (Q7) | **Chief** | **yes** — reason code + note | errors only; the case must be open to work (reopen first if `CLOSED`); evidence retracted row by row; the correct terminal state then needs its own authority |
+| Link a document into another case | **Chief** | **yes** | pinned to one version; a disclosure decision (`DOCUMENT_MODEL.md` §4.8, §10.3) |
 | Void a response | **Chief** (Worker: own, no dependents — §24) | **yes** | affected requirements are surfaced, never cascaded |
 | Close a case | **Chief** | closure type; note if a guard was overridden | guards G1–G5 |
 | Reopen a case | **Chief** | **yes — always** | same case only |
@@ -392,7 +404,8 @@ Actions that change the meaning of the record, release obligations, or alter who
 | Grant / revoke restricted access | **Chief** | **yes** | case must be restricted |
 | Reactivate a cancelled case | **Head** | **yes** | correction only |
 | Grant or revoke a role | **Head** | **yes** | §25.2 |
-| Deactivate a user account | **TechAdmin** | **yes** | open work reassigned first (§25.4) |
+| Suspend a departing user's account | **TechAdmin**, on business instruction | **yes** | **immediate** — sign-in blocked and sessions revoked at once; never waits for reassignment (§25.3) |
+| Deactivate a user account | **TechAdmin** | **yes** | final step after handover: open work reassigned first (§25.4) |
 | Technical configuration | **TechAdmin** | — | no business effect |
 
 **No approval ceremonies are added.** Every row above is a single action by one authorised person with
@@ -443,7 +456,7 @@ dependency check proves awkward in practice. It is weaker, and it is not what th
 | Requirement created accidentally | `VOID`, reason `DATA_ENTRY_ERROR` | ✔ | **Chief** |
 | Requirement created against the wrong response | `VOID` it and create it against the right one — the causal link is not editable | ✔ | Chief |
 | Wrong case entirely (letter filed in the wrong dossier) | `VOID` the response(s); the `correspondence` is re-registered against the correct case | ✘ | **Chief** |
-| Requirement wrongly marked fulfilled | evidence is **retracted** (not deleted) and a new terminal state recorded | ✘ | **Chief** |
+| Requirement wrongly marked fulfilled (or wrongly waived, voided or failed) | the requirement returns to `OPEN`/`IN_PROGRESS` through the correction transition Q7 (`WORKFLOW.md` §5.2), which preserves the withdrawn resolution in a correction record; wrong evidence is **retracted** row by row (not deleted); the correct terminal state, if any, is then recorded by its own transition | ✘ | **Chief** |
 | Case created in error | `CANCELLED`, closure type "registered in error" | ✘ | **Chief** |
 
 ### 24.3 What correction never means
@@ -453,6 +466,8 @@ dependency check proves awkward in practice. It is weaker, and it is not what th
   `VOID`/`WITHDRAW` plus a new row, never by rewriting.
 - Never a change to a causal pointer. `source_requirement_id` and `source_response_id` are write-once
   (Domain Model §6.4); a wrong link is corrected by voiding the row and creating the right one.
+- Never a jump from one terminal state to another. A requirement resolution recorded in error returns to
+  an open state first (Q7); the correct outcome is then a separate, separately authorised transition.
 - Never silent. Every correction is an `audit_event` with `before_state` and `after_state`.
 
 ---
@@ -489,17 +504,23 @@ should be visible in the audit trail from day one rather than quietly special-ca
 
 | | **Temporary absence** | **Permanent departure** |
 |---|---|---|
-| Account | stays `ACTIVE` (or `SUSPENDED` for a long leave) | `DEACTIVATED`, with reason |
-| Assignments | **kept** — the person remains responsible of record | **ended**, with `end_reason = USER_DEACTIVATED` |
+| Account | stays `ACTIVE` (or `SUSPENDED` for a long leave) | **`SUSPENDED` immediately** — sign-in blocked and every session revoked at once, never waiting for handover (`SECURITY.md` §6.5); then **`DEACTIVATED`**, with reason, once handover is complete |
+| Assignments | **kept** — the person remains responsible of record | kept only during handover; **ended**, with `end_reason = USER_DEACTIVATED`, as the work is reassigned |
 | Coverage | a `TEMPORARY_COVER` assignment (§22) | the work is **reassigned** to a new responsible person |
 | History | untouched | untouched |
 
+Access removal and administrative closure are two different steps, deliberately: the first must be
+instant, the second must be orderly, and making the first wait for the second leaves a departed
+employee able to sign in for as long as reassignment takes.
+
 ### 25.4 Deactivation guard
 
-A user holding `ACTIVE` `RESPONSIBLE` assignments **may not be deactivated** until those cases are
-reassigned. The system lists them; a Chief reassigns them (one action per case, or a bulk reassignment
-that still writes one `assignment` row per case with a shared reason). This prevents the common failure
-of orphaned cases discovered months later.
+**The guard never delays access removal.** Suspension on departure (§25.3) is immediate and unguarded.
+The guard applies only to the final `DEACTIVATED` step: a user holding `ACTIVE` `RESPONSIBLE` assignments
+**may not be deactivated** until those cases are reassigned. The system lists them — including while the
+user is suspended — and a Chief reassigns them (one action per case, or a bulk reassignment that still
+writes one `assignment` row per case with a shared reason). This prevents the common failure of orphaned
+cases discovered months later.
 
 A deactivated user cannot sign in, cannot receive new assignments, and keeps appearing in every
 historical record exactly as before.
@@ -525,6 +546,8 @@ historical record exactly as before.
 | Fulfill Requirement | △³ | ✔ | ✔ | ✘ |
 | Waive Requirement | ✘ | ✔ | ✔ | ✘ |
 | Void Requirement | △⁷ | ✔ | ✔ | ✘ |
+| Correct Requirement resolution (Q7) | ✘ | ✔ | ✔ | ✘ |
+| Link Document into another Case | ✘ | ✔ | ✔ | ✘ |
 | Assign Case | ✘ | ✔ | ✔ | ✘ |
 | Reassign Case | ✘ | ✔ | ✔ | ✘ |
 | Close Case | ✘ | ✔ | ✔ | ✘ |
@@ -608,7 +631,7 @@ same function for:
 |---|---|
 | UI | never the authority — the UI only *reflects* decisions made server-side |
 | API / RPC | every call, including reads |
-| **Document download** | on **every** download, by document and by the context it is being fetched through. A URL, a hash or a file path is **not** an authorization token |
+| **Document download** | on **every** download, by **version** and by the context it is being fetched through — the requested version must be one that context's link exposes (`DOCUMENT_MODEL.md` §10.1). A URL, a document or version identifier, a hash or a file path is **not** an authorization token |
 | **Search** | results are **filtered at query time**, not hidden after retrieval |
 | **Exports and printing** | same checks as the screen, plus an `EXPORT` / `PRINT` audit event |
 | Dashboards, counts, aggregates | included in the same filtering (§27.2) |
@@ -659,8 +682,9 @@ Current design: Head sees all (§17), which follows `PROJECT.md` §12 "access al
 organizations prefer that even the highest authority needs an explicit, logged grant. Stated so the
 choice is conscious.
 
-**OQ-P5 — Is a departing employee's account deactivated immediately, or after a handover period?**
-Affects only the operational procedure around §25.4, not the model.
+**OQ-P5 — CLOSED (post-review): both, as two steps.** A departing employee's account is **suspended
+immediately** — sign-in blocked, sessions revoked — and **deactivated after handover** (§25.3, §25.4).
+Access removal never waits for reassignment. No model change: `SUSPENDED` and `DEACTIVATED` already exist.
 
 ### 28.2 Implementation decisions safely deferred
 
@@ -703,6 +727,12 @@ Plus the checks specific to this document:
 **None.** This document uses `user`, `role`, `user_role`, `assignment`, `case.is_restricted`,
 `case_access_grant` and `audit_event` exactly as frozen. No entity, column, cardinality or invariant is
 added, and no ACL structure is introduced.
+
+**Post-review (2026-09-17).** §24.2 permitted correcting a requirement wrongly marked fulfilled by
+recording "a new terminal state", which contradicted "terminal states are final". Resolved by the Q7
+correction transition and Domain Model amendment A-2; the permissions above use it without adding a role,
+a grant type or an ACL. Departure now suspends immediately (OQ-P5 closed), and document visibility is per
+version — both without model change.
 
 ---
 

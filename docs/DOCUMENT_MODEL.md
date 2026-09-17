@@ -5,6 +5,13 @@
 `/docs/WORKFLOW.md`, `/docs/PERMISSIONS.md`.
 **Deferred to later documents:** threat model and audit chaining → `SECURITY.md`; storage volume layout,
 backup mechanics and deployment → `ARCHITECTURE.md`; technology choices → `DECISIONS.md`.
+**Post-review amendments (2026-09-17):** official correspondence placements are version-pinned and
+floating links are confined to the home case (§4.4, OQ-D7 closed); authorization is per version
+(§10); cross-case letters and responses (§3.2, §4.8); removed links grant nothing (§10.2); backup
+recovery-point invariant (§6.7); command idempotency (§7.4); bounded type detection (§9.2); no physical
+garbage collection in V1 (§12.4). Recorded in `DOMAIN_MODEL.md` §12.7.
+**Pre-schema pass (2026-09-17):** version reinstatement replaces "v1 becomes ACTIVE again" (§5.2, §5.3,
+§7.4, §8.2, §8.3, §13.1). Decisions are logged in `/docs/DECISIONS.md`.
 
 ---
 
@@ -20,7 +27,7 @@ The model must let anyone, years later, answer:
 |---|---|
 | Which official letter was received, and when? | `correspondence` + its `PRIMARY_LETTER` link |
 | Which official letter was sent? | the outgoing `correspondence` and its links |
-| Which files belonged to that letter? | `document_link` rows on that correspondence |
+| Which files belonged to that letter? | `document_link` rows on that correspondence — each pinned to the exact version registered with the letter (§4.4) |
 | Which version of a file existed on a given date? | `document_version` rows and their status history |
 | Which exact file proved a requirement? | `requirement_evidence`, version-pinned (§4.6) |
 | Which exact files supported the final result? | `document_link` with `FINAL_RESULT_DOCUMENT`, version-pinned (§4.7) |
@@ -32,7 +39,8 @@ Two design commitments follow from that, and everything else in this document se
 1. **A file's business meaning is never inferred from where its bytes sit.** Meaning comes from links;
    bytes are addressed by hash.
 2. **Nothing that once served as evidence stops being retrievable.** Corrections change what is
-   *current*; they never change what *was*.
+   *current*; they never change what *was*. Bytes are never removed; access to them is always through a
+   link that is still `ACTIVE` and exposes that version (§10.1).
 
 **A note on authority.** Official letters are sent and received in a separate external government
 system (`PROJECT.md` §1.1); a file held here is a **copy or reference artifact** attached to the tracked
@@ -43,7 +51,9 @@ nothing here should be read as claiming otherwise.
 
 ### 1.1 Relationship to the frozen model
 
-This document **adds no entity, column, cardinality or invariant**. It uses `document`,
+This document **adds no entity, column or cardinality**. (The post-review amendments add pinning
+constraints and a per-version authorization rule over the existing columns — Domain Model amendment A-5.)
+It uses `document`,
 `document_version`, `document_link`, `requirement_evidence`, `correspondence`, `case`, `request`,
 `response`, `requirement` and `final_result` exactly as frozen in `DOMAIN_MODEL.md` §2.13–§2.15, §2.12
 and §7.
@@ -96,9 +106,9 @@ A **placement**: it says that a document (optionally, a specific version of it) 
 object, in one named role.
 
 ```
-document_link:  document="Utility Map"  →  correspondence K-IN-040   role=ATTACHMENT      is_origin=true
+document_link:  document="Utility Map"  →  correspondence K-IN-040   role=ATTACHMENT            version=v1 (pinned)  is_origin=true
 document_link:  document="Utility Map"  →  requirement  R1           role=REQUIREMENT_EVIDENCE  version=v1 (pinned)
-document_link:  document="Utility Map"  →  correspondence K-OUT-050  role=ANNEX
+document_link:  document="Utility Map"  →  correspondence K-OUT-050  role=ANNEX                 version=v1 (pinned)
 ```
 
 One document, one set of bytes, three placements. The file is not copied (§18/§4.5).
@@ -109,8 +119,8 @@ One document, one set of bytes, three placements. The file is not copied (§18/�
 |---|---|---|---|
 | Answers | *what is it?* | *what are the exact bytes?* | *why is it here?* |
 | Changes when | the business identity changes (rare) | a new file arrives (append-only) | context changes (append + retire) |
-| Carries | title, kind, issuer | filename, hash, size, MIME, uploader, upload time | role, ordinal, optional version pin, who linked it and when |
-| Mutable? | title/description editable, audited | **never** — only status transitions | `ACTIVE` → `REMOVED` only |
+| Carries | title, kind, issuer | filename, hash, size, MIME, uploader, upload time | role, ordinal, version pin (required wherever the link records history, §4.4), who linked it and when |
+| Mutable? | title/description editable, audited | **never** — only status transitions | `ACTIVE` → `REMOVED`; a floating link may additionally be frozen to a version **once** (§4.4) |
 | Count | 1 per business artefact | 1..n per document | 1..n per document, across contexts |
 
 ---
@@ -146,6 +156,10 @@ Request → Architecture Authority
 Both sides are **queries**, not stored lists. This matters because one outgoing letter may carry
 several requests (`DOMAIN_MODEL.md` decision C-1): the letter's files appear under each request the
 letter carried, from one set of link rows, with no duplication and nothing to keep in sync.
+
+**Both sides obey the letter's own visibility.** Where a response's letter is filed in another case, its
+files appear on the incoming side **only for viewers of that owning case** (§4.8). For everyone else the
+request shows the response's own facts and no trace of the letter.
 
 The frozen arc does allow `document_link.request_id` and `.response_id` directly. Those are for files
 that belong to the *work item* rather than to a letter — a draft being prepared, an internal analysis of
@@ -226,45 +240,54 @@ them):
 | L5 | `document_version_id IS NOT NULL ⟹ that version belongs to `document_id`` | `CHECK` via FK pair, or trigger |
 | L6 | every document has ≥1 `ACTIVE` link | **application invariant** — not expressible as a plain constraint; a deferred constraint or trigger is possible, and this document does not mandate the mechanism |
 | L7 | all business FKs `ON DELETE RESTRICT`; no cascade | FK definition |
+| L8 | every link to a `correspondence` is pinned: `correspondence_id IS NULL OR document_version_id IS NOT NULL` | `CHECK` *(post-review)* |
+| L9 | `REQUIREMENT_EVIDENCE` links are pinned; `FINAL_RESULT_DOCUMENT` links are pinned once their result is `ISSUED` | application invariant (role is a lookup) *(post-review)* |
+| L10 | **home-case confinement**: a link whose context lies outside the document's home case is pinned; floating links exist only in the home case; a new version is added only through a home-case context | application invariant *(post-review)* |
 
 L2 is the structural reason "attach everything to the case" cannot happen by accident: there is no
 column for it except a `CHECK`-restricted arc that names itself as supporting material.
 
 ### 4.4 Version pinning: the rule
 
-A link may point at the **document** (floating) or at a **specific version** (pinned).
+A link may point at a **specific version** (pinned) or at the **document** (floating).
 
-| | `document_version_id IS NULL` — **floating** | `document_version_id` set — **pinned** |
+| | `document_version_id` set — **pinned** | `document_version_id IS NULL` — **floating** |
 |---|---|---|
-| Resolves to | the document's current `ACTIVE` version | exactly that version, forever |
-| Effect of a new version | the link now shows v2 | **nothing** — the link still shows v1 |
-| Use for | contextual placement: attachments on a letter, working copies, supporting files | **evidential and decision links** |
-| Rationale | a letter's file list should show the current file | what a decision relied on must not change under it retroactively |
+| Exposes | **exactly that version**, forever | the document's versions, presenting the `ACTIVE` one as current |
+| Effect of a new version | **nothing** — the link still shows v1 | the link presents v2 as current |
+| Use for | **everything that records history**: every file of a registered letter, evidence, issued results, anything shared into another case | **non-historical working placements only**, inside the document's home case |
+| Rationale | what an official act contained, or what a decision relied on, must never change under it | a working file in progress should show its latest state |
 
-**The rule, stated plainly:**
+**The rule, stated plainly** *(post-review amendment — replaces the v1 rule "contextual links float",
+which let a registered letter silently show a later file)*:
 
-> **Contextual links float. Evidential and decision links pin.**
+> **Anything that records history pins. Floating is a narrow, same-case working convenience.**
 >
-> - `PRIMARY_LETTER`, `ATTACHMENT`, `ANNEX`, `SUPPORTING`, `WORKING_COPY` → **floating** by default.
-> - `REQUIREMENT_EVIDENCE` and `FINAL_RESULT_DOCUMENT` → **pinned, always**.
+> 1. **Every link to a `correspondence` is pinned** — `PRIMARY_LETTER`, `ATTACHMENT`, `ANNEX` and
+>    `SUPPORTING` alike (L8). Reopening letter №7/119 years later shows exactly the files registered
+>    with it, whatever versions exist since. A later upload can never change what an older official
+>    letter is shown to contain.
+> 2. **`REQUIREMENT_EVIDENCE` is pinned, always. `FINAL_RESULT_DOCUMENT` is pinned no later than
+>    issue** (§4.7) (L9).
+> 3. **A link outside the document's home case is pinned** (L10). The **home case** is the case the
+>    document's `ACTIVE` `is_origin` link resolves to — where the file entered the system. A link into
+>    any other case discloses exactly one chosen version, never "whatever the document becomes".
+> 4. **Floating links** — `SUPPORTING` or `WORKING_COPY` on a case, request, response or internal
+>    record, or the `FINAL_RESULT_DOCUMENT` of a `DRAFT` result — **exist only in the home case**.
+> 5. **New versions are added only through a context in the home case** (L10). A revised file arriving
+>    in any other case becomes a **new document** there; identical bytes are still stored once (§6.3).
+>
+> Rules 3–5 together guarantee that **a floating link never exposes a version introduced under another
+> case**: every version entered through the home case, and every floating link sits in it.
 
-**Challenging the default for correspondence attachments.** There is a real argument that a letter's
-attachments should pin too: the file that arrived with letter №7/119 *is* a historical fact, and if
-someone later uploads v2 of that document, the letter's file list silently changes. Two reasons the
-default stays floating:
+**Freezing.** A floating link may be frozen **once** — its `document_version_id` set to a version it
+currently exposes, normally the `ACTIVE` one. It is never re-pinned to another version and never
+unpinned; a different version means a new link. Issuing a final result freezes its document links
+exactly this way (§4.7).
 
-1. In practice a corrected file from an authority arrives as a **new letter**
-   (`WORKFLOW.md` §4.3), so it becomes a new correspondence with its own link — the old letter's
-   attachment is untouched because the new version belongs to a *different document* or is pinned by
-   its own context.
-2. Where the same document genuinely is re-versioned in place (an internal working file), the letter's
-   list *should* show the current one.
-
-**But the escape hatch is explicit and recommended:** an attachment link *may* be pinned when the
-correspondence is registered, and **should** be pinned for any incoming official letter whose file
-composition must be reproducible exactly as received. Whether that becomes the default for incoming
-correspondence is **OQ-D7** (§16) — it is a business question about evidential strictness, and it
-requires no model change either way, only a different default value.
+**If the home case moves.** Correcting a document's origin into another case (§8.2, case 2) moves its
+home case. Any floating link left in the old case is removed — or re-created pinned, as a disclosure —
+in the same correlated action, so rule 4 keeps holding.
 
 ### 4.5 One document, several links
 
@@ -276,9 +299,9 @@ to the Architecture Authority.
 document "Utility communication map"     ← ONE document
   └── document_version v1  sha256:41ab…  ← ONE set of bytes, ONE file on disk
 
-  document_link → correspondence K-IN-040   ATTACHMENT           floating   is_origin=true
+  document_link → correspondence K-IN-040   ATTACHMENT           pinned v1   is_origin=true
   document_link → requirement  R1           REQUIREMENT_EVIDENCE pinned v1
-  document_link → correspondence K-OUT-050  ANNEX                floating
+  document_link → correspondence K-OUT-050  ANNEX                pinned v1
 ```
 
 Three placements, zero duplication. Duplicating the file instead would produce three hashes for one
@@ -316,7 +339,7 @@ here is what stops two records of the same fact from drifting apart.
 | Rule | |
 |---|---|
 | Every `FINAL_RESULT_DOCUMENT` link **must** set `document_version_id` | a decision that silently changes when someone uploads a new file is not a record |
-| Pins are taken **at issue** (`DRAFT → ISSUED`, `WORKFLOW.md` F2) | while a result is `DRAFT`, links may float; issuing freezes them |
+| Pins are taken **at issue** (`DRAFT → ISSUED`, `WORKFLOW.md` F2) | while a result is `DRAFT`, links to home-case documents may float; issuing freezes them (§4.4). A link to a document from another case is pinned from creation |
 | A superseding result (F3) gets **its own** pinned links | the superseded result keeps pointing at what it actually relied on |
 | At least one `ACTIVE` `FINAL_RESULT_DOCUMENT` link is required to issue | guard D4, `WORKFLOW.md` §8.3 |
 
@@ -331,17 +354,32 @@ The frozen ownership model is unchanged: **`correspondence.case_id` is single an
 and produces **several `response` rows** — that is the frozen mechanism, and it needs nothing from this
 document.
 
+**The letter stays governed by its owning case** *(post-review — Domain Model amendment A-6)*. A
+`response` in case B that references a letter filed in case A is case B's record of what the letter
+meant for case B's request. It exposes, to case B's viewers, only the response's own facts — type,
+outcome, conclusiveness, dates, summary, the requirements it raised. It does **not** expose the letter's
+metadata (numbers, subject, parties), the letter or its attachments, the other responses it carries, or
+case A's audit. A case-B viewer who cannot see case A sees no trace of the letter at all — not even a
+"filed elsewhere" marker, which would itself disclose a dossier (`PERMISSIONS.md` §27.2).
+
 For the *documents* the letter carried:
 
 | Need | Mechanism |
 |---|---|
-| The file must appear in the second case's dossier | an additional `document_link` from the second case's context — the requirement it evidences, or the case with role `SUPPORTING` |
+| The file must appear in the second case's dossier | an **explicit, version-pinned** `document_link` from a case-B context — the requirement it evidences, the case-B response (role `SUPPORTING`), or the case with role `SUPPORTING` — created by a Chief as a disclosure decision (`PERMISSIONS.md` §16) |
 | Bytes must not be duplicated | they are not: same `document`, same `document_version`, same object |
-| The letter itself stays filed once | unchanged — the `correspondence` row belongs to its owning case |
+| The letter itself stays filed once | unchanged — the `correspondence` row belongs to its owning case; no `case ↔ correspondence` junction is introduced |
 
-**Access-control consequence, deliberate:** a document owned by case A but linked into case B becomes
-visible to viewers of case B *through the B link* (§10.3). Linking a document into another case is
-therefore a disclosure decision, not a filing convenience, and it is audited as such.
+**Access-control consequence, deliberate:** a document from case A linked into case B becomes visible
+to viewers of case B *through the B link* — **and only the version that link pins** (§10.1). A later
+version added in case A does not reach case B. Linking a document into another case is therefore a
+disclosure decision, not a filing convenience, and it is audited as such.
+
+**What that disclosure includes.** The document-level fields — title, kind, issuer, reference —
+accompany the disclosed version, because they identify what was disclosed; a later edit of the title in
+the home case is visible wherever the document is linked, which the edit screen must show (§19,
+principle 9). Nothing about **other** versions is disclosed: not their existence, count, numbers,
+filenames, sizes, dates or uploaders.
 
 ---
 
@@ -363,28 +401,50 @@ corrected file is **version n+1**.
 
 ```
 upload ──▶ ACTIVE ──a newer version is uploaded──▶ SUPERSEDED    (bytes retained)
-              │
+              │  ▲                                       │
+              │  └───────────────────────────────────────┘  reinstated: no ACTIVE version remains —
+              │                                             the newest non-withdrawn version; same row
               └──uploaded in error / recalled───▶ WITHDRAWN      (bytes retained, reason recorded)
 ```
 
 | Status | Meaning | Visible? | Downloadable? |
 |---|---|---|---|
 | `ACTIVE` | the current representation of this document | yes | yes |
-| `SUPERSEDED` | replaced by a later version; still historically valid | yes, in revision history | **yes** — pinned links resolve to it |
-| `WITHDRAWN` | should not have been uploaded, or was recalled | yes, visually secondary | yes to authorised users, with the withdrawal reason shown |
+| `SUPERSEDED` | replaced by a later version; still historically valid | yes, in the revision history of users it is exposed to (§10.1) | **yes** — to users a visible link exposes it to; pinned links resolve to it |
+| `WITHDRAWN` | should not have been uploaded, or was recalled | yes, visually secondary | yes to users a visible link exposes it to, with the withdrawal reason shown |
 
 Rules:
 
 - `UNIQUE (document_id, version_no)`; `version_no` increments, never reuses.
 - **At most one `ACTIVE` version per document** (frozen partial unique index).
-- `supersedes_version_id` points from the new version at the one it replaced.
+- `supersedes_version_id` points from the new version at the version that was `ACTIVE` when it was
+  uploaded (`NULL` if none was). It is a creation fact and is never changed afterwards.
+- A new version is added only through a context in the document's home case (§4.4, rule 5).
+- **Reinstatement** *(pre-schema amendment — `DOMAIN_MODEL.md` A-9, `DECISIONS.md` ADR-027)*. When a
+  document has no `ACTIVE` version, its **newest version that is not `WITHDRAWN`** may be made current
+  again: `SUPERSEDED → ACTIVE`.
+  - It is the **existing row**: same `version_no`, bytes, hash, filename, uploader and upload time. No
+    bytes are re-uploaded, no version is created, and `UNIQUE (document_id, content_hash)` is untouched.
+  - It is an **explicit act with a mandatory reason**, normally performed in the same action as the
+    withdrawal that made it necessary (one `correlation_id`). Withdrawing the `ACTIVE` version never
+    reinstates anything by itself — sometimes no version should be current.
+  - The withdrawn version keeps its own `withdrawn_*` who/when/why and stays in the history, exposed under
+    §10.1 like any version.
+  - To reach an older version, the newer one is reinstated and then withdrawn with its own reason — every
+    step is on the record; there is no jump back past a version nobody has judged.
+  - Upload of a new version, withdrawal of the `ACTIVE` version and reinstatement are **serialised per
+    document** (lock or version-check the `document` row); the partial unique index is the backstop.
+  - Pinned links are unaffected; floating links (home case only) present the reinstated version as
+    current again.
 - A withdrawn version's bytes are **never** removed (§12).
 - A document whose every version is withdrawn is still a valid historical row. It is not deleted.
 
 ### 5.3 "Current version" means one thing
 
-The `ACTIVE` version. Floating links resolve to it; pinned links ignore it. There is no per-link notion
-of "current" and no separate current-version pointer to keep in sync.
+The `ACTIVE` version. Floating links (home case only) present it as current; pinned links ignore it.
+There is no per-link notion of "current" and no separate current-version pointer to keep in sync — which
+is also why restoring an earlier version is a status transition of that version (reinstatement, §5.2), not
+an update of a pointer on `document`.
 
 ### 5.4 Four things that are not the same
 
@@ -539,24 +599,42 @@ outcomes:
 
 | Mismatch | Severity | Why |
 |---|---|---|
-| **Object exists, no metadata row** | harmless | an invisible orphan; nothing references it; ordinary GC territory |
+| **Object exists, no metadata row** | harmless | an invisible orphan; nothing references it; **retained and reported, never collected in V1** (§12.4) |
 | **Metadata row exists, object missing** | **critical** | an evidence record pointing at nothing — the exact failure this system must not have |
 
-That asymmetry gives a simple, robust ordering rule:
+**Correction (post-review).** v1 stated the rule *"back up the object store before the database"*. That
+is **not sufficient**. Counterexample: the object copy finishes at 22:00; an upload commits at 22:01; the
+database backup at 22:02 includes the new metadata row — and the retained objects do not include its
+bytes. Ordering the copies does not make a recovery point consistent. The rule that does:
 
-> **Back up the object store *before* (or continuously ahead of) the database. Restore the database to a
-> point in time, then ensure the object store is at or ahead of that point.**
+> **The recovery-point invariant.** Every object referenced by the selected database recovery point must
+> exist, and verify against its hash, in the retained object set. A combined recovery point is **valid
+> only when this has been checked** — never because of copy ordering alone.
 
-This is safe precisely because objects are **immutable and content-addressed**: an object store that is
-"ahead" of the database contains extra files and no wrong ones. There is no such thing as a stale
-object, because an object is never modified.
+The required object set of a database recovery point is every `content_hash` of every `document_version`
+row in it, **in any status**. Two ways to meet the invariant in V1 — the backup product is not chosen here
+(`DECISIONS.md` DEF-01):
 
-The reverse ordering — database first, files second — guarantees a window in which the database
-references bytes the backup does not yet contain.
+| Strategy | How the invariant is met |
+|---|---|
+| **A — consistent database snapshot** | 1. take a transactionally consistent database snapshot; 2. derive its required object set from that snapshot; 3. copy each required object into the retained object set, or confirm it is already there, and verify it by hash; 4. mark the combined recovery point **valid only after both** the snapshot and every required object verify |
+| **B — physical base backup + continuous WAL archive** | a recovery target inside the WAL stream is **published as a recovery point only up to an object-complete boundary** — once every object referenced as of that target is present and verified in the retained object set. Until the object copy catches up, the newest published recovery point lags behind the newest WAL |
 
-Consistency checking after any restore is the integrity sweep in §11. Full backup architecture, media,
-rotation and the offline copy required by `PROJECT.md` §20 belong to **ARCHITECTURE.md** and
-**SECURITY.md**; this section fixes only the consistency rule they must honour.
+**A logical dump is a recovery point on its own. It is never a base for WAL replay** — only a physical
+base backup is.
+
+**Why "snapshot first, objects second" works — the reverse of the v1 rule.** Objects are immutable, never
+deleted in V1 (§12.4), and durably stored *before* their metadata row commits (§7.2). So every object a
+snapshot references already existed when the snapshot was taken, and an object copy pass that **begins
+after the snapshot completes** will find all of them. The verification in step 4 is still required — the
+ordering is what makes it pass, not a substitute for it. Extra objects in the retained set are harmless
+orphans, and the retained object set is never pruned in V1.
+
+**Restoring.** Choose a valid recovery point; restore the database to it; restore at least its required
+object set from the retained objects; then run the full integrity sweep (§11) before the system is
+declared usable. Full backup architecture, media, rotation and the offline copy required by `PROJECT.md`
+§20 belong to **ARCHITECTURE.md** (§15.4) and **SECURITY.md** (§14.3); this section fixes only the
+invariant they must honour.
 
 ---
 
@@ -578,7 +656,8 @@ From `PROJECT.md` §22, with the transaction boundary made explicit:
                                                         ┌─ one DB transaction ─────────┐
  8. create or reuse `document`                           │                              │
  9. create `document_version` (or converge — §7.4)       │                              │
-10. create `document_link` in the business context       │                              │
+10. create `document_link` in the business context,      │                              │
+    pinned as §4.4 requires                              │                              │
 11. write `audit_event` (UPLOAD + LINK)                  │                              │
 12. COMMIT                                               └──────────────────────────────┘
 ```
@@ -588,7 +667,7 @@ From `PROJECT.md` §22, with the transaction boundary made explicit:
 The ordering is deliberate and is the same asymmetry as §6.7:
 
 - **Bytes first, metadata second** → a failure between them leaves an unreferenced object: invisible,
-  harmless, collectable.
+  harmless, and retained — V1 performs no physical garbage collection (§12.4).
 - **Metadata first, bytes second** → a failure between them leaves a database row pointing at nothing:
   a broken evidence record.
 
@@ -607,18 +686,26 @@ discarded, and the existing object is used. Identical content is identical conte
 
 ### 7.4 Idempotency and convergence
 
-The idempotency key is **`(document_id, content_hash)`** — the frozen unique constraint
-(`DOMAIN_MODEL.md` §2.14). It is what makes every retry safe.
+Two different guarantees, kept apart *(post-review correction)*:
+
+- **Version convergence** is keyed on **`(document_id, content_hash)`** — the frozen unique constraint
+  (`DOMAIN_MODEL.md` §2.14). A retry onto an existing document never produces a phantom version.
+- **Command idempotency** — a retry after an *uncertain* commit not creating a second logical document, a
+  duplicate link or duplicate audit events — is **not** provided by that constraint. A retried *first*
+  upload has no `document_id` to converge on. It requires the durable **operation identifier** of
+  `ARCHITECTURE.md` §12.6: generated once when the upload is prepared, recorded in the same transaction as
+  the upload's effects, and answered from that record on any retry.
 
 | Scenario | What happens |
 |---|---|
 | **Connection drops mid-upload** | the temporary file is incomplete and is never renamed (step 3 fails). Nothing reaches the database. The orphan temp is collected (§7.6) |
-| **Browser retries after a timeout** | the bytes are re-streamed and hash to the same value; step 6 finds the object present and skips; step 9 finds an existing `(document_id, content_hash)` row and **converges on it** rather than creating version 2 |
+| **Browser retries after a timeout** | the retry carries the **same operation identifier**. If the first attempt committed, the recorded operation returns its result and nothing is re-executed — no second document, link or audit trail. If it did not commit, the attempt runs normally: the bytes hash to the same value, step 6 finds the object present and skips, and for an existing document step 9 **converges on** the `(document_id, content_hash)` row rather than creating version 2 |
 | **User uploads the same file twice by accident, to the same document** | same as above — one version, no phantom v2 |
+| **User re-uploads v1's bytes to "restore" v1 after an erroneous v2** | not a restoration: step 9 converges on the existing v1 row, and convergence **never changes a version's status**. The user is told the file already exists as v1 and is offered **reinstatement** (§5.2), which is how v1 becomes current again |
 | **User uploads the same file to a *different* document, intentionally** | a new `document_version` under that document, **same object on disk**, same hash. Permitted and normal (§6.3) |
 | **User uploads the same file to a second context of the same document** | no new version at all — a **new `document_link`**, because the need was placement, not content (§4.5) |
 | **Two users upload the same bytes simultaneously** | both hash identically; the rename is idempotent; the unique constraint serialises the metadata, and the loser converges on the winner's row |
-| **Bytes written, transaction fails at step 11** | the object remains, unreferenced and invisible; the user is told the upload failed and retries; the retry converges. No partial business record is ever visible |
+| **Bytes written, transaction fails at step 11** | the object remains, unreferenced, invisible and retained (§12.4); the user is told the upload failed and retries; nothing was committed, so no operation record exists and the retry runs normally. No partial business record is ever visible |
 
 **A retry must never produce a phantom version.** A document showing "v1, v2, v3" where all three have
 the same hash is a data-quality failure that misleads anyone reading the revision history later.
@@ -626,8 +713,9 @@ the same hash is a data-quality failure that misleads anyone reading the revisio
 ### 7.5 A genuinely new version
 
 A new version is created only when the bytes **differ** — a different hash under the same
-`document_id`. Then: `version_no + 1`, `supersedes_version_id` → the previous version, previous version
-→ `SUPERSEDED`, both sets of bytes retained, pinned links still resolving to the old one.
+`document_id` — and only through a context in the document's home case (§4.4). Then: `version_no + 1`,
+`supersedes_version_id` → the version `ACTIVE` at that moment (if any), that version → `SUPERSEDED`, both
+sets of bytes retained, pinned links still resolving to the old one.
 
 ### 7.6 Orphan temporary files
 
@@ -675,9 +763,9 @@ application action.
 
 | # | Mistake | Metadata editable? | Link action | New version? | What remains in audit | Minimum role |
 |---|---|---|---|---|---|---|
-| 1 | **Correct file, wrong Correspondence** | n/a | old link → `REMOVED` + reason; new `document_link` to the right correspondence | **no** — bytes are correct | both links, both reasons, both actors; the removed link stays queryable | Worker (own, no dependents) · **Chief** otherwise |
-| 2 | **Correct file, wrong Case context** | n/a | as #1, but the new link is in another case's context; treated as a **disclosure decision** (§4.8) | no | as #1, plus the cross-case link is separately visible | **Chief** |
-| 3 | **Wrong file entirely** | n/a | link → `REMOVED`; the correct file is uploaded and linked | the wrong file's version → `WITHDRAWN` with reason; **bytes retained** | the withdrawn version, its reason, its uploader | Worker (own, no dependents) · Chief otherwise |
+| 1 | **Correct file, wrong Correspondence** | n/a | old link → `REMOVED` + reason; new `document_link` to the right correspondence, pinned to the same version | **no** — bytes are correct | both links, both reasons, both actors; the removed link stays queryable as history and **grants nothing** (§10.2) | Worker (own, no dependents) · **Chief** otherwise |
+| 2 | **Correct file, wrong Case context** | n/a | as #1, but the new link is in another case's context; treated as a **disclosure decision** (§4.8). The wrong-case link is removed — it is never kept `ACTIVE` to preserve access, and once removed it stops granting access. If the moved link is the origin, the home case moves with it (§4.4) | no | as #1, plus the cross-case link is separately visible | **Chief** |
+| 3 | **Wrong file entirely** | n/a | link → `REMOVED`; the correct file is uploaded and linked | the wrong file's version → `WITHDRAWN` with reason; **bytes retained**. If the wrong file was uploaded as a new version of a document whose previous version is the correct one, that previous version is **reinstated** (§5.2) — not re-uploaded | the withdrawn version, its reason, its uploader; the reinstatement with its reason | Worker (own, no dependents) · Chief otherwise — reinstatement follows the authority of the withdrawal it accompanies |
 | 4 | **Duplicate upload** | n/a | if it converged (§7.4) there is nothing to fix. If a genuine duplicate *document* was created, its link is `REMOVED` and the document → `WITHDRAWN`, reason `DUPLICATE` | no | the duplicate row and the reason | Worker (own) · Chief otherwise |
 | 5 | **Wrong display title** | **yes** — `document.title` is editable | unchanged | no | `before_state`/`after_state` of the title change | Worker · Chief |
 | 6 | **Attachment classified as main letter** | n/a — role lives on the link | the `PRIMARY_LETTER` link → `REMOVED`, a new `ATTACHMENT` link created; the true letter gets the `PRIMARY_LETTER` link | no | both role changes | Worker (own, no dependents) · **Chief** otherwise |
@@ -686,21 +774,23 @@ application action.
 ### 8.3 Case 7 in detail — the one that actually matters
 
 A revised letter arrives from an authority. A clerk uploads it as **version 2** of the existing letter
-document. That is wrong, and quietly so: the original letter's file silently becomes the new one, the
-revised letter has no `correspondence` row, no letter number, no date, and no `response` — and the
-official act it represents is invisible to the workflow.
+document. That is wrong, and quietly so: the original letter still shows its pinned v1 (§4.4), but the
+*document's* current version is now a different official act, the revised letter has no
+`correspondence` row, no letter number, no date, and no `response` — and the official act it represents
+is invisible to the workflow.
 
 Correcting it:
 
 1. The mistaken **v2** → `WITHDRAWN`, reason "revised letter — registered separately as correspondence
-   №…". Its bytes are retained; v1 becomes `ACTIVE` again as the current version of the original letter
-   document.
+   №…". Its bytes are retained. In the same action, **v1 is reinstated** as the current version of the
+   original letter document (`SUPERSEDED → ACTIVE`, §5.2): the same v1 row with its original upload
+   facts — nothing is re-uploaded, and v2 stays visible in the history with its withdrawal reason.
 2. A **new `correspondence`** is registered for the revised letter, with its own letter number, letter
    date and `received_at`, and `supersedes_correspondence_id` → the original letter where appropriate.
 3. The revised file is uploaded as **v1 of a new `document`** and linked as that correspondence's
    `PRIMARY_LETTER`.
-4. A **new `response`** is registered against the same request, with `supersedes_response_id` → the
-   earlier response (`WORKFLOW.md` §4.3).
+4. A **new `response`** is registered against the same request, with a `response_supersession` edge →
+   the earlier response (`WORKFLOW.md` §4.3).
 5. Any requirement raised by the earlier response is surfaced for review — never cascaded
    (`WORKFLOW.md` §6.4).
 
@@ -747,6 +837,8 @@ requirement, and it needs no scanning, sandboxing or conversion to be correct.
 | Rule | |
 |---|---|
 | Type is determined from **content**, never from the extension or the client's declared type | an extension is a user-supplied string |
+| Detection is **bounded signature matching** *(post-review clarification)*: a fixed, limited number of leading bytes compared against a table of known file signatures. It does not decompress, traverse internal structure, follow references, render or execute anything, and its cost does not depend on what the file contains (`SECURITY.md` §10.1) | detection is not parsing — parsing untrusted formats is exactly what §9 avoids |
+| Where a signature identifies only a **container family** (OOXML and ODF documents are ZIP containers), the detected type is that family; a declared type or extension may refine it only when consistent with that family | a `.docx` is recognisable as a ZIP-family document without opening the ZIP |
 | The detected type is stored in `document_version.mime_type` | frozen column |
 | A mismatch between declared, extension and detected type is **recorded in the upload audit event** and surfaced in the UI | it is weak evidence of a mistake, and occasionally of an attack |
 | A mismatch alone does **not** reject the upload | scanners and authorities produce mislabelled files constantly; rejecting would block legitimate official documents |
@@ -814,23 +906,43 @@ such thing as a document permission in this system.
 
 ### 10.1 The rule
 
-```
-may_see_document(user, document) =
-    EXISTS an ACTIVE document_link L on that document
-    such that can(user, VIEW, context_of(L))          # PERMISSIONS.md §14.2
-```
-
-and, separately and always:
+**Authorization applies to the requested `document_version`, not only to its document**
+*(post-review — v1 authorised by document, so a user who could see v1 through one link could request
+any other version of the same document)*:
 
 ```
-may_download(user, document_version, via_link L) =
-        L is ACTIVE and belongs to this document
-    AND can(user, VIEW, context_of(L))
-    AND user.status == ACTIVE
+exposes(L, v) =
+        L.status = ACTIVE
+    AND L.document_id = v.document_id
+    AND (    L.document_version_id = v.id          # pinned: exactly that version
+          OR L.document_version_id IS NULL )       # floating: home case only (§4.4) — the
+                                                   #   document's versions, all of which entered there
+
+may_access_version(user, v, via_link L) =
+        user.status == ACTIVE
+    AND exposes(L, v)
+    AND can(user, VIEW, context_of(L))             # PERMISSIONS.md §14.2
+
+visible_versions(user, d) = { v of d : EXISTS L such that may_access_version(user, v, L) }
+may_see_document(user, d) = visible_versions(user, d) is not empty
 ```
 
-A download is always requested **through a context the user can see**. The context is not decoration: it
-is what the check is performed against, and it is what the audit event records.
+A download is always requested **through a context the user can see, for a version that context's link
+exposes**. The context is not decoration: it is what the check is performed against, and it is what the
+audit event records.
+
+**Everything version-level obeys the same rule** — not only downloads:
+
+| Surface | Rule |
+|---|---|
+| Version history / revision list | lists only `visible_versions` — no count, numbering, gap or "newer version exists" indicator for anything else |
+| Version metadata | `original_filename`, size, MIME type, `document_date`, uploader, upload time, status, withdrawal reason and integrity data only for exposed versions |
+| `supersedes_version_id` | never followed to, or rendered for, a version that is not exposed |
+| Document-level fields | title, kind, issuer, reference accompany any exposed version (§4.8) |
+| Search | version-level facets match only exposed versions (§15.2) |
+| Exports and print | contain only exposed versions (§14.3) |
+| Download and print URLs | name the link and the version; the server re-evaluates `may_access_version` on every request |
+| Audit views | an `UPLOAD` / `DOWNLOAD` event is shown under its own `case_id` scope and only for an exposed version |
 
 ### 10.2 A document ID is not a capability
 
@@ -842,7 +954,9 @@ is what the check is performed against, and it is what the audit event records.
 | Reusing a download URL seen elsewhere | every download re-authorises; a URL carries no grant and no signed token substitutes for the check |
 | Requesting a document by hash | the hash is never an API input. It is storage-internal |
 | Constructing a filesystem path | workstations have no access to the store (§6.6) |
-| Requesting a version directly, skipping the document | the version resolves to its document, and the same check runs |
+| Requesting a version directly, skipping the document | the check is per version: the request must name a visible link that **exposes that version** (§10.1) |
+| Seeing v1 through one link and requesting v2 of the same document — e.g. a version added in a restricted home case | refused: seeing a document's identity through one version grants nothing about its other versions. Only a visible link that exposes v2 authorises v2 |
+| Relying on a link that has since been removed — including a wrong-case link | only `ACTIVE` links expose anything; a `REMOVED` link is history, not a grant. A wrong placement is corrected by removing it, not by leaving it active (§8.2) |
 | Having *previously* had access via a since-revoked grant | authorisation is evaluated **now** (`PERMISSIONS.md` §27.3), not at session start |
 
 ### 10.3 Documents with several links
@@ -852,6 +966,7 @@ A document linked to several contexts (§4.5, §4.8) needs a rule that is safe i
 | Question | Answer | Reason |
 |---|---|---|
 | May the user see the document at all? | if **any** `ACTIVE` link's context is visible to them | if they can already see the map as an attachment of an ordinary letter, a second link into a restricted case cannot retroactively hide it from them |
+| **Which versions may they see?** | **only** versions exposed by an `ACTIVE` link whose context they may view (§10.1) — the union is taken per version, never per document | a pinned link into an ordinary case discloses its one version; it never discloses what the restricted home case adds later |
 | Which links does the user see listed? | **only** those whose contexts they may view | otherwise the link list would reveal that a restricted case exists, roughly when, and what it concerns |
 | Which context is the download authorised against? | the one the user requested it through | prevents "I can see it via context X" from silently licensing access through context Y |
 | Does a restricted link restrict the document elsewhere? | **no** | restriction is a property of the case, not of bytes. A file that is legitimately public in case A does not become secret because it was also cited in restricted case B |
@@ -863,7 +978,8 @@ disclosure decision.** It is audited, and it is a Chief action (§8.2, case 2).
 
 Documents obey `PERMISSIONS.md` §27.2 without exception: a restricted case's documents are **absent**
 from search results, counts, dashboards and exports for users who cannot see the case. "3 documents
-hidden" reveals that the documents exist.
+hidden" reveals that the documents exist. The same holds per version: a version not exposed to the user
+is absent from every list, count, search match and export (§10.1).
 
 ### 10.5 TechAdmin
 
@@ -898,7 +1014,7 @@ assumed away.
 | # | Finding | Detection | Classification | Automatic action | Needs an administrator |
 |---|---|---|---|---|---|
 | I1 | **Metadata row points at a missing object** | stat the path for each `document_version` | **CRITICAL** | none — nothing is modified | **Yes, immediately.** An evidence record with no evidence. Restore from backup |
-| I2 | **Object exists with no metadata row** | enumerate the store, compare to `content_hash` values | **INFORMATIONAL** | none | No. Expected after a failed upload (§7.2); a GC candidate only under §12.4 |
+| I2 | **Object exists with no metadata row** | enumerate the store, compare to `content_hash` values | **INFORMATIONAL** | none — **reported and retained**; V1 performs no physical garbage collection (§12.4) | No. Expected after a failed upload (§7.2) |
 | I3 | **Stored size differs from `byte_size`** | stat vs column | **CRITICAL** | none | **Yes.** The object is not what the record says |
 | I4 | **Re-hash differs from `content_hash`** | full re-read | **CRITICAL** — the most serious of all | none | **Yes.** Either corruption or tampering; content addressing means the path itself asserts the hash, so a mismatch is never benign |
 | I5 | **Object unreadable** (permissions, I/O error, bad media) | read attempt | **WARNING**, escalating to **CRITICAL** if it persists | retry once | Yes if it persists — usually hardware |
@@ -983,6 +1099,12 @@ renamed into the content store. They are by construction referenced by nothing.
 **Objects already in the content store are never deleted in V1** — not when a version is withdrawn, not
 when a document is voided, not when a case is cancelled, not when a link is removed.
 
+**Physical garbage collection of the content store is disabled in V1** *(post-review, stated explicitly)*,
+including for objects no metadata row references. Such orphans are **reported** (I2, §11.1) and
+**retained**: at scan time an "orphan" may belong to an upload whose metadata is about to commit, and it
+may be referenced by a database recovery point held in backup (§6.7) — deleting it could turn a valid
+restore into a broken evidence record.
+
 ---
 
 ## 13. Audit requirements
@@ -998,7 +1120,8 @@ vocabulary. No enum is extended.
 | **Version uploaded** | `UPLOAD` | `document_version` | **`document_hash`**, `original_filename`, `byte_size`, detected MIME, any declared/detected mismatch (§9.2) |
 | Version superseded | `STATE_CHANGE` | `document_version` | `supersedes_version_id` on the new row |
 | Version withdrawn | `WITHDRAW` | `document_version` | reason, actor |
-| Link created | `LINK` | `document_link` | role, target entity and its type, pin if any, `is_origin` |
+| **Version reinstated** | `STATE_CHANGE` | `document_version` | **reason — mandatory**; the withdrawn version it follows; the withdrawal's `correlation_id` when done in the same action. No `UPLOAD` event — nothing was uploaded |
+| Link created | `LINK` | `document_link` | role, target entity and its type, the pinned version (or floating, home case only — §4.4), `is_origin` |
 | Link withdrawn | `UNLINK` | `document_link` | reason, actor |
 | **Context corrected** | `UNLINK` + `LINK` under **one `correlation_id`** | `document_link` | both reasons — this is what makes a correction readable as one act rather than two unrelated events |
 | Document metadata changed | `UPDATE` | `document` | `before_state` / `after_state` |
@@ -1012,7 +1135,8 @@ vocabulary. No enum is extended.
 
 ### 13.2 Integrity findings
 
-Findings are **system events**: `actor_kind = SYSTEM`, recorded as `UPDATE` on `document_version` (the
+Findings are **job events**: `actor_kind = JOB` with no `actor_user_id`, because no person initiated
+the sweep (`DOMAIN_MODEL.md` §2.18, amendment A-8), recorded as `UPDATE` on `document_version` (the
 check updates `integrity_checked_at`), with the finding class and evidence in `after_state`, plus an
 operational alert.
 
@@ -1077,7 +1201,7 @@ case-2026-114/
 | 3 | **Verifiable.** Every file is named by and listed with its SHA-256, so any future reader can check the export is intact with a standard tool |
 | 4 | **Relationships explicit.** "Which document belonged to which official letter, in what role, in what version" is answerable **from the export alone** — that is the §14.4 test |
 | 5 | **Text where possible.** JSON and CSV over any proprietary format; UTF-8 throughout |
-| 6 | **Authorised and audited.** An export is a bulk disclosure: `EXPORT` audit event, and it respects §10 — a user who cannot see the case cannot export it |
+| 6 | **Authorised and audited.** An export is a bulk disclosure: `EXPORT` audit event, and it respects §10 — a user who cannot see the case cannot export it, and an export contains only the versions exposed to the exporting user through that case's links (§10.1): a document shared in from another case is exported as its pinned version only; a letter filed in another case is not exported with a response that references it (§4.8) |
 
 ### 14.4 The test it must pass
 
@@ -1126,6 +1250,9 @@ documents to be findable. It does **not** design search, and it introduces **no 
 - **Filter before aggregating** (§10.4, `PERMISSIONS.md` §27.2).
 - **Search the current version by default**, with superseded and withdrawn versions available
   explicitly — a user searching for "the map" wants today's map, but an auditor wants all of them.
+- **Version-level facets match only versions exposed to the searcher** (§10.1). A filename that exists
+  only on a version the user cannot access must not make the document match — that match would disclose
+  the filename.
 - **No file-content indexing in V1.** No text extraction, no OCR, no parsing of untrusted file formats
   — parsing is exactly the attack surface §9 avoids. If content search is ever wanted it must run in
   the isolated pipeline of §9.5, offline, and it is **OQ-D10**.
@@ -1168,10 +1295,12 @@ Currently a scan verdict is a security fact that does not alter `document_versio
 *Impact:* if it must be visible to caseworkers, `document_version.status` would need a new value — a
 **change to the frozen model**, which is why it is raised rather than assumed.
 
-**OQ-D7 — Should incoming correspondence attachments be version-pinned by default?**
-Currently contextual links float and evidential links pin (§4.4). Pinning incoming attachments would
-make a received letter's file composition exactly reproducible. *Impact:* a different default value, no
-model change.
+**OQ-D7 — CLOSED (post-review): yes, and not as a default but as a rule.** Every placement on a
+registered `correspondence` — incoming and outgoing, every role — is version-pinned (§4.4, L8), so a
+letter's file composition is reproducible exactly as registered and a later upload can never change it.
+Floating links survive only as non-historical working placements in the home case. Cross-case sharing is
+an explicit pinned link, and a response in another case discloses nothing of the letter (§4.8). No new
+column: the pin is the existing `document_version_id`.
 
 **OQ-D9 — Is archival-grade preservation of originals (format migration over decades) required?**
 Distinct from export (§14.5). *Impact:* a large, ongoing operational commitment if yes.
@@ -1192,7 +1321,7 @@ significant impact on procedure, and on what the department can rely on in a dis
 | Preview tooling, if ever | §9.5 fixes the four architectural constraints | `DECISIONS.md` |
 | Whether file delivery gets a separate origin | §9.4 states the reason to want one | `ARCHITECTURE.md` |
 | Temp-file age threshold, integrity sweep cadence | §7.6, §11.3 fix the rules; the numbers are configuration | `ARCHITECTURE.md` |
-| Backup product, media and rotation | §6.7 fixes the ordering rule they must honour | `ARCHITECTURE.md` |
+| Backup product, media and rotation | §6.7 fixes the recovery-point invariant they must honour | `ARCHITECTURE.md` |
 | **OQ-D8** — add an `INTEGRITY_CHECK` audit action code? | §13.2 works without it; adding it is a permitted vocabulary refinement | schema design |
 | **OQ-D10** — file-content/OCR search | explicitly out of V1 (§15.2); would require the isolated pipeline of §9.5 | later phase |
 | Export file format details (JSON schema shape, CSV dialect) | §14 fixes the principles and the test it must pass | later phase |
@@ -1254,11 +1383,13 @@ decision record in `DECISIONS.md`.
 | **5** | One document may have many business links | §4.5; `document_link` is M:N to context, with roles and optional pins |
 | **6** | Correcting a link never erases historical evidence | §8.2; links are `REMOVED` with a reason, never deleted |
 | **7** | A final result can identify the **exact** versions that supported it | §4.7; `FINAL_RESULT_DOCUMENT` links are always version-pinned, taken at issue |
-| **8** | A user cannot reach a restricted case's document by direct identifier | §10.1–§10.2; authorisation is per request, against a visible context |
+| **8** | A user cannot reach a restricted case's document — or any version not exposed to them — by direct identifier | §10.1–§10.2; authorisation is per request and per version, against a visible context |
 | **9** | Original filename is metadata, never storage identity | §5.5, §6.2; the storage key is the hash and nothing else |
 | **10** | Business withdrawal never physically deletes bytes | §12.2, §12.4; the only V1 deletion is orphaned temporary files |
-| **11** | File storage stays consistent with PostgreSQL metadata | §6.7 ordering rule; §7.2 bytes-first; §11 detection of drift |
+| **11** | File storage stays consistent with PostgreSQL metadata | §6.7 recovery-point invariant; §7.2 bytes-first; §11 detection of drift; §12.4 no physical GC |
 | **12** | No external or cloud storage is required, ever | §6.1, §20; local filesystem only, fully functional with no Internet |
+| **13** | A registered letter's file composition never changes after the fact | §4.4, L8; every correspondence placement is version-pinned *(post-review)* |
+| **14** | A floating link never exposes a version introduced under another case | §4.4, L10; floating links and new versions are confined to the home case *(post-review)* |
 
 ---
 
@@ -1277,7 +1408,7 @@ Not screen designs — principles that follow from this model and would be expen
 | 7 | **Users never see hashes, paths, volume codes or version numbers as identifiers** | those are storage internals (§7.7). Users work with titles, letters and dates |
 | 8 | **Uploading a revised official letter must be visibly different from uploading a new version** | R5 / §8.3 — the single most damaging easy mistake; the UI is where it is prevented |
 | 9 | **A file's presence in more than one context is shown plainly** — "also evidence for R1" | §4.5; otherwise users duplicate files because they cannot see the link already exists |
-| 10 | **Cross-case linking is presented as a disclosure decision, with a reason prompt** | §4.8, §10.3 — it changes who can see the file |
+| 10 | **Cross-case linking is presented as a disclosure decision, with a reason prompt, naming the one version being disclosed** | §4.8, §10.3 — it changes who can see the file, and it pins |
 | 11 | **Download always states what is being downloaded and from which context** | matches the audit record (§13.3), and makes bulk actions self-evident |
 
 ---
@@ -1315,9 +1446,9 @@ sized by configuration and runs off-hours. Everything else is ordinary indexed q
 | 4 | Can a final result still point at v1 after v2 exists? | **Yes** | §4.7 — `FINAL_RESULT_DOCUMENT` links are version-pinned at issue and are immune to later versions (§8.4) |
 | 5 | Can a wrong link be corrected without deleting history? | **Yes** | §8.2 cases 1, 2, 6 — link → `REMOVED` with reason, new link created, both queryable under one `correlation_id` |
 | 6 | Can identical bytes exist under two logical documents? | **Yes** | §6.3 — the unique constraint is scoped per document, so cross-document sharing is legal and deliberate |
-| 7 | Do interrupted and retried uploads converge safely? | **Yes** | §7.4 — `(document_id, content_hash)` idempotency; incomplete uploads never rename; retries converge with no phantom version |
+| 7 | Do interrupted and retried uploads converge safely? | **Yes** | §7.4 — incomplete uploads never rename; `(document_id, content_hash)` prevents phantom versions; a durable operation identifier (`ARCHITECTURE.md` §12.6) prevents a retried first upload creating a second document *(corrected post-review)* |
 | 8 | Can missing or corrupted objects be detected? | **Yes** | §11.1 — five findings, three classified critical; full re-hash sweep with `integrity_checked_at` |
-| 9 | Can restricted documents be downloaded only by authorised users? | **Yes** | §10.1–§10.3 — per-request authorisation against a visible context; identifiers carry no authority |
+| 9 | Can restricted documents be downloaded only by authorised users? | **Yes** | §10.1–§10.3 — per-request, per-version authorisation against a visible context; identifiers carry no authority |
 | 10 | Can the whole storage system operate with no Internet? | **Yes** | §6.1, §20 — local filesystem and local PostgreSQL only; no external dependency anywhere in this document |
 | 11 | Can a future export reconstruct which document belonged to which official letter? | **Yes** | §14.2–§14.4 — `manifest.json` + `index.csv` carry role, version and correspondence for every file; §14.4 states the test |
 | 12 | Does the model avoid exposing raw filesystem paths to users? | **Yes** | §7.7, §19 principle 7 — users work with titles and letters; hashes and paths are storage internals |
@@ -1341,6 +1472,14 @@ required a model change; both are recorded so the resolution is visible rather t
 
 One open question (**OQ-D6**) *would* require a change to the frozen model if answered "yes" — a new
 `document_version.status` value for a malware finding. It is raised, not acted on.
+
+**Post-review (2026-09-17).** The independent review found that this document's v1 rules were not safe,
+and they are corrected here: floating letter attachments could show a later file than the one registered
+(§4.4, OQ-D7 closed); authorization by document exposed every version (§10.1); a response in another case
+could surface the letter's files (§3.2, §4.8); "objects before database" did not make backups consistent
+(§6.7); `(document_id, content_hash)` did not make first-upload retries idempotent (§7.4); detection was
+described inconsistently with "no parsing" (§9.2); orphans were called "collectable" although V1 deletes
+nothing (§12.4). None adds an entity or column; the domain side is `DOMAIN_MODEL.md` §12.7, A-5 and A-6.
 
 ---
 

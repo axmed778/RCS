@@ -1,0 +1,6 @@
+* text=auto
+
+# Migration checksums are computed on LF-normalized text, but keep SQL LF in the repository anyway
+# so that what reviewers read is byte-for-byte what was hashed.
+*.sql text eol=lf
+*.sh  text eol=lf
