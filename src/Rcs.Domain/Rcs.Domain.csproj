@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure domain: no PostgreSQL, no HTTP, no filesystem, no package references. -->
+  <PropertyGroup>
+    <RootNamespace>Rcs.Domain</RootNamespace>
+  </PropertyGroup>
+
+</Project>

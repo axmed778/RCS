@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    ASP.NET Core host and composition root. Phase 1: technical endpoints and deployment commands only.
+    No business UI. Server-rendered pages arrive in later phases (DECISIONS.md ADR-003).
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rcs.Web</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rcs.Application\Rcs.Application.csproj" />
+    <ProjectReference Include="..\Rcs.Infrastructure\Rcs.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The CLI commands read configuration from the application directory, so it must be in the output. -->
+    <Content Update="appsettings*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

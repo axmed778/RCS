@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Shared build settings for every RCS project.
+    Stack: ASP.NET Core LTS / C# (DECISIONS.md ADR-002). Keep this file boring.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Warnings are defects. The analyzer level is the SDK default set, not an extreme ruleset. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- Repeatable builds and pinned dependencies (SECURITY.md §18.1). -->
+    <Deterministic>true</Deterministic>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Azerbaijani and Russian text handling needs culture data; do not switch to invariant mode. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+</Project>

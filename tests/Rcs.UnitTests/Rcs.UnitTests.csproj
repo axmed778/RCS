@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Fast tests with no database: domain vocabularies, identifiers, lock keys, migration parsing and repository conventions. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Rcs.UnitTests</RootNamespace>
+    <!-- xUnit1051 asks every async call to take TestContext's token; noise for these short tests. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Rcs.Domain\Rcs.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Rcs.Application\Rcs.Application.csproj" />
+    <ProjectReference Include="..\..\src\Rcs.Infrastructure\Rcs.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

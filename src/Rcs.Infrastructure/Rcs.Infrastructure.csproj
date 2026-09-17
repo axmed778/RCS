@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PostgreSQL access, the migration runner and other infrastructure implementations. -->
+  <PropertyGroup>
+    <RootNamespace>Rcs.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Microsoft.Extensions.* (DI, options, logging) from the shared framework the host already uses. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rcs.Application\Rcs.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Hand-written SQL - authoritative (DECISIONS.md ADR-004)">
+    <!-- Embedded so that the migration runner and the runtime schema check use exactly the shipped files. -->
+    <EmbeddedResource Include="..\..\database\migrations\*.sql"
+                      LogicalName="Rcs.Migrations.%(Filename)%(Extension)"
+                      Link="Migrations\Sql\%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\database\bootstrap\schema_migration.sql"
+                      LogicalName="Rcs.Bootstrap.schema_migration.sql"
+                      Link="Migrations\Sql\bootstrap\schema_migration.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rcs.UnitTests" />
+    <InternalsVisibleTo Include="Rcs.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

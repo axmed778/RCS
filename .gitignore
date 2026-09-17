@@ -1,0 +1,18 @@
+# Build output
+bin/
+obj/
+TestResults/
+*.user
+.vs/
+.vscode/
+.idea/
+
+# Local development state (object store, scratch data)
+.local/
+
+# Secrets never enter source control (SECURITY.md invariant 16).
+# Examples under deploy/config-templates/ are named *.example.json and stay tracked.
+*.secrets.json
+appsettings.*.local.json
+pgpass.conf
+.pgpass
