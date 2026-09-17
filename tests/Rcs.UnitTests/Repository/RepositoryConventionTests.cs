@@ -102,7 +102,8 @@ public sealed partial class RepositoryConventionTests
 
     private static string[] ProjectReferences(string project) =>
         LoadProject(project).Descendants("ProjectReference")
-            .Select(element => Path.GetFileNameWithoutExtension((string)element.Attribute("Include")!))
+            // Includes use Windows separators, which Path does not recognise on Linux.
+            .Select(element => Path.GetFileNameWithoutExtension(((string)element.Attribute("Include")!).Replace('\\', '/')))
             .Order(StringComparer.Ordinal)
             .ToArray();
 
