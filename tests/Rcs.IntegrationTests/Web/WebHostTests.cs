@@ -107,7 +107,8 @@ public sealed class WebHostTests : IAsyncLifetime
     public async Task MigrateAndCheckSchemaCommandsAreExplicitDeploymentActions()
     {
         Assert.Equal(ExitCodes.SchemaIncompatible, await RcsEntryPoint.RunAsync(["check-schema", $"--ConnectionStrings:Runtime={database.RuntimeConnectionString}"]));
-        Assert.Equal(ExitCodes.UsageOrConfigurationError, await RcsEntryPoint.RunAsync(["migrate"])); // no migration credentials configured
+        // Explicitly empty: DOTNET_ENVIRONMENT=Development would otherwise supply the rcs_dev connection string.
+        Assert.Equal(ExitCodes.UsageOrConfigurationError, await RcsEntryPoint.RunAsync(["migrate", "--ConnectionStrings:Migration="]));
 
         Assert.Equal(ExitCodes.Success, await RcsEntryPoint.RunAsync(["migrate", $"--ConnectionStrings:Migration={database.MigrationConnectionString}"]));
         Assert.Equal(ExitCodes.Success, await RcsEntryPoint.RunAsync(["migrate", $"--ConnectionStrings:Migration={database.MigrationConnectionString}"]));
