@@ -1,8 +1,14 @@
 # RCS — Domain Model
 
-**Status:** **Domain Model v1 — approved / stable.** Reconciled against `PROJECT.md` (PROJECT SPEC v1);
+**Status:** **Domain Model v1.1 — approved / stable.** Reconciled against `PROJECT.md` (PROJECT SPEC v1);
 decisions C-1, C-2 and C-3 accepted and recorded in §12.2. Design only: no schema, no migrations, no
 code. Structural changes from here require a decision record.
+**Post-review amendments (2026-09-17):** the independent architecture review found three implementation
+blockers caused by contradictions across the frozen set. They are resolved by amendments **A-1 … A-8**;
+the pre-schema pass added **A-9** (document version reinstatement) and **A-10** (response supersession
+retraction, closing OQ-16). All are recorded with their reasons in
+[§12.7](#127-post-review-amendment-record-v11), and the decisions themselves in `/docs/DECISIONS.md`.
+Everything not named there is unchanged v1.
 **Target database:** PostgreSQL
 **Scope:** Fully local / on-premise LAN case management and interagency workflow system for a municipal urban-planning department (~13 users).
 
@@ -86,7 +92,8 @@ requirement"*, *"ready for final result"* — is **computed** from those rows at
 | `Correspondence` vs `Document` | **Kept separate** | One official letter legitimately carries a main PDF plus Excel, map, drawing, annexes. Merging them would force one row per file and destroy the identity of the communication event (its letter number, its date, its sender). |
 | `Document` vs `DocumentVersion` | **Kept separate** | `document` is the stable business identity ("the utility communication map from the Utility Authority"); `document_version` is an immutable stored file. A revision must not destroy the original. |
 | `DocumentLink` | **Added (new entity)** | The same file may legitimately belong to an incoming letter *and* be evidence for a requirement *and* be re-sent as an annex of our outgoing letter. Without a link table the only options are attaching everything to the Case (forbidden) or duplicating files (forbidden). |
-| `Response` vs `ResponseVersion` | **`ResponseVersion` NOT created** | Each incoming letter is its own official act with its own number and date. A "revised response" is a *new letter*, not a new version of an old one. Modelled as immutable `response` rows plus a `supersedes_response_id` chain. Full rationale in §5.3. |
+| `Response` vs `ResponseVersion` | **`ResponseVersion` NOT created** | Each incoming letter is its own official act with its own number and date. A "revised response" is a *new letter*, not a new version of an old one. Modelled as immutable `response` rows plus `response_supersession` edges (§2.21 — one later response may supersede several earlier ones; amendment A-1). Full rationale in §5.3. |
+| `RequirementResolutionCorrection` | **Added (amendment A-2)** | A terminal requirement state recorded in error must stop counting without erasing that it was recorded. A correction record plus one narrow transition does this; a replacement requirement would break the causal chain (§2.22). |
 | `Requirement` | **Kept as a first-class entity** | It is the branch point of the whole workflow: it is raised by a response, it owns a deadline and a lifecycle, and it spawns child requests. Flattening it into a request field would make "why does this request exist?" unanswerable. |
 | `RequirementEvidence` | **Added (new entity)** | A requirement may be satisfied by a response, by a supplied document, or by an internal act — and the same evidence may satisfy two requirements from two authorities. M:N is real here. |
 | `Assignment` | **Kept as a table, not an FK** | `case.responsible_user_id` would destroy reassignment history. Temporal assignment rows preserve it and additionally model temporary absence cover. |
@@ -186,7 +193,8 @@ This keeps real referential integrity, real indexes and real joins. The **only**
 **Denormalised scope columns**
 `requirement.case_id` and `audit_event.case_id` are denormalised for permission filtering and
 dashboards. They are caches of an authoritative path and must never contradict it; the invariant is
-stated with the entity. No other denormalisation is authorised in V1.
+stated with the entity. `response_supersession.request_id` (§2.21) is also carried, but it cannot drift:
+composite foreign keys tie it to both responses. No other denormalisation is authorised in V1.
 
 ---
 
@@ -304,7 +312,7 @@ everything the department did about it. It is a thin administrative header — d
 | `statutory_due_at` | the department's own deadline for the whole case (nullable; see OQ-5) |
 | `is_restricted` | boolean; restricted dossier flag |
 | `restriction_reason_note`, `restricted_by_user_id`, `restricted_at`, `restriction_lifted_at` | restriction metadata |
-| `closed_at`, `closed_by_user_id`, `closure_type_id`, `closure_note` | closure metadata |
+| `closed_at`, `closed_by_user_id`, `closure_type_id`, `closure_note` | closure metadata **of the most recent closure**; the current closure only while `lifecycle_state = CLOSED`. Earlier closure episodes live in `case_state_change` (§2.6) |
 | `notes` | free-text case notes (`PROJECT.md` §5.1); structured notes, calls and site visits go to `internal_record` |
 | `last_activity_at` | **maintained cache**, not a business fact — see below |
 | `merged_into_case_id` | nullable self-FK, set only with `closure_type = MERGED` |
@@ -352,8 +360,16 @@ recomputation — not a migration and not a data loss. Until then no production 
 `internal_record`, `final_result`, `case_access_grant` rows.
 **References.** `organization` (requester), `case_type`, `closure_type`, `user` (closer), itself (merge).
 **Invariants.**
-- `CLOSED` requires closure metadata and no `request` or `requirement` in a non-terminal state
-  (see §5.1); `CANCELLED` is the escape hatch that does not require that.
+- `CLOSED` requires closure metadata (`closed_at`, `closed_by_user_id`, `closure_type_id`). **Whether
+  unresolved work may remain is decided by the closure guards of `WORKFLOW.md` §9, which are
+  authoritative** (amendment A-3): a **normal** closure passes every guard, so no `request` and no
+  *blocking* `requirement` is left non-terminal (a non-blocking requirement may stay open — it holds
+  nothing open, §2.11); an **exceptional** closure is a Head override with a mandatory reason, recorded as
+  a `case_state_change` row (`reason_code = CLOSURE_GUARD_OVERRIDE`) and an `audit_event`, after which the
+  unresolved requests and requirements **keep their true states**. Closure never auto-fulfils,
+  auto-voids or auto-fails anything. *Closed with unresolved items* is derived (§9.1), never stored.
+  `CANCELLED` remains the state for a dossier that will not be pursued; its open items must first be
+  withdrawn or voided individually (§5.1).
 - `is_restricted` is a **case-level** flag, as `PROJECT.md` §13 requires; there is no per-document or
   per-letter ACL in V1. Visibility of a restricted case resolves to: its assigned users
   (`assignment`), Chief and Head (`user_role`), and any explicitly authorised users
@@ -369,6 +385,13 @@ accountability and stores JSONB — unsuitable for routine business reporting.
 **Key fields.** `id`, `case_id`, `from_state`, `to_state`, `reason_code`, `note`,
 `occurred_at`, `recorded_at`, `actor_user_id`.
 **Invariants.** Append-only. `case.lifecycle_state` always equals the `to_state` of the latest row.
+**Closure episodes.** Every closure (`to_state = CLOSED`) and every reopening (`CLOSED → ACTIVE`) is its
+own row, so a case closed, reopened and closed again shows both closure episodes, each with its actor,
+time, reason code and note — and a closure that overrode guards is identifiable by its
+`reason_code = CLOSURE_GUARD_OVERRIDE`. This table is the authoritative episode history; no per-episode
+field is added. The `case.closed_*` columns describe only the most recent closure and are overwritten by
+the next one; the earlier values remain in that transition's `audit_event` (`before_state` /
+`after_state`).
 
 ### 2.7 `assignment`
 
@@ -391,10 +414,20 @@ mutable "responsible employee" foreign key in the model.
 **Invariants.**
 - **Never updated to reassign.** Reassignment = close the current row (`valid_until`, `end_reason`)
   and insert a new one. The old row stays forever.
-- At most one `ACTIVE` `RESPONSIBLE` assignment per scoped entity at any instant. Enforced with an
-  `EXCLUDE` constraint over `(case_id WITH =, tstzrange(valid_from, valid_until) WITH &&)` filtered to
-  `assignment_role = RESPONSIBLE AND status = 'ACTIVE'` (requires `btree_gist`). This enforces
-  *non-overlapping history*, which a simple partial unique index on `valid_until IS NULL` would not.
+- At most one `RESPONSIBLE` assignment per scoped entity at any instant — **across the whole timeline,
+  not only among current rows.** This enforces *non-overlapping history*, which a simple partial unique
+  index on `valid_until IS NULL` would not. **Pre-schema constraint requirement** (amendment A-7):
+  - **one exclusion per scope** — separate `EXCLUDE USING gist` constraints for `case_id`, `request_id`
+    and `requirement_id`, each `(<scope column> WITH =, tstzrange(valid_from, valid_until, '[)') WITH &&)`
+    over rows where that column is non-null and the role is `RESPONSIBLE` (requires `btree_gist`);
+  - **`ENDED` rows participate**; only `VOID` rows (recorded in error) are excluded. Filtering to `ACTIVE`
+    would let a back-dated or corrected row overlap responsibility that has already ended;
+  - **half-open intervals** `[valid_from, valid_until)`, `NULL` upper bound = open-ended, so a handover at
+    instant *t* (old row ends at *t*, new row starts at *t*) is not an overlap;
+  - `CHECK (valid_until IS NULL OR valid_until > valid_from)` — an empty range overlaps nothing and would
+    silently bypass the exclusion;
+  - the "role is `RESPONSIBLE`" predicate must be evaluable on the row itself, because a constraint cannot
+    join to the `assignment_role` lookup; how that is expressed is a schema decision.
 - **Temporary cover does not end the responsible assignment.** A `TEMPORARY_COVER` row coexists with
   it and points at it via `covers_assignment_id`, so the record still shows who the substantive owner
   was during an absence. Whether cover carries the owner's authority is a permissions question, not a
@@ -472,6 +505,15 @@ becomes an aggregate. Not worth it before the requirement is proven. Note the de
 `correspondence.case_id` (where the paper is filed) may differ from `response.request.case_id` (which
 obligation it discharges). That is allowed and intended.
 
+**Cross-case responses disclose nothing of the letter (amendment A-6).** The letter, its metadata, its
+files and the other responses it carries are **always governed by the owning case**
+(`correspondence.case_id`) — never by the case of a response that references it. A `response` in case B
+belongs to case B and exposes its own facts there (type, outcome, conclusiveness, dates, summary, the
+requirements it raised). A case-B viewer who cannot see case A sees nothing of the carrying letter — not
+its numbers, subject, files or audit, and no marker that it exists elsewhere. If case B genuinely needs
+the file, it is shared by an explicit, authorised, **version-pinned** `document_link` into a case-B
+context (`DOCUMENT_MODEL.md` §4.8). No `case ↔ correspondence` junction is introduced for this.
+
 ### 2.9 `request`
 
 **Purpose.** An official request **sent by the department to an external authority**, tracked as an
@@ -521,12 +563,15 @@ withdrawal/void who-when-why triples,
 **Closure rule.** A request may move to `CLOSED` only when *all* of the following hold:
 1. it has at least one `ACTIVE` `response` flagged `is_conclusive` (or it is being closed as
    `WITHDRAWN` / `VOID`, which are different states, not closure); **and**
-2. every `requirement` whose `source_response_id` belongs to this request is in a terminal state
-   (`FULFILLED`, `WAIVED`, `VOID`, `FAILED`); **and**
+2. every **blocking** `requirement` (`is_blocking = true`) whose `source_response_id` belongs to this
+   request is in a terminal state (`FULFILLED`, `WAIVED`, `VOID`, `FAILED`); **and**
 3. a user with the right to close it records `closed_by_user_id` and `closed_at`.
 
 Condition 2 is the rule that keeps the branching workflow honest: an authority's "final opinion" does
-not close our tracking while the conditions it attached are still open.
+not close our tracking while the blocking conditions it attached are still open. **A non-blocking
+requirement holds nothing open** — not its request, not its branch, not readiness for the final result,
+not case closure — so `is_blocking` has one meaning at every level (amendment A-3; `WORKFLOW.md` §9.2). It
+stays visible wherever open work is listed.
 
 ### 2.10 `response`
 
@@ -545,9 +590,10 @@ Seeded: (`APPROVED` | `REJECTED` | `CONDITIONAL` | `NOT_APPLICABLE` | `UNDETERMI
 (defaulted from `response_type.is_conclusive_default`, stored on the row because it drives lifecycle),
 `summary` (the clerk's structured reading of the letter; **not** a copy of the letter),
 `response_date date` (date on the letter), `received_at`, `recorded_at`, `recorded_by_user_id`,
-`supersedes_response_id` (nullable self-FK),
 `status` (`ACTIVE` | `SUPERSEDED` | `VOID`), `void_reason_id`, `void_note`, `voided_by_user_id`,
 `voided_at`.
+*(v1 carried `supersedes_response_id` here. It is replaced by `response_supersession`, §2.21 —
+amendment A-1.)*
 
 **Two dimensions, never one (decision C-2, accepted).** *What kind of communication arrived* and *what
 it decided* are different facts, and a single mixed field destroys one of them. `PROJECT.md` §5.5's
@@ -585,8 +631,8 @@ can legitimately list `UNDETERMINED` responses as needing attention; it must nev
 `NOT_APPLICABLE` ones.
 
 **Supersession is structural, not a type.** There is no `REVISION` type code. A revised opinion is a
-new `response` with `response_type = OPINION` and `supersedes_response_id` pointing at the earlier
-row — the relationship carries the fact, so it cannot disagree with a label. Likewise, there is **no
+new `response` with `response_type = OPINION` and a `response_supersession` edge (§2.21) from it to the
+earlier row — the relationship carries the fact, so it cannot disagree with a label. Likewise, there is **no
 `ResponseVersion` entity** (decision C-2, reaffirmed; rationale in §5.3).
 
 Vocabularies live in lookup tables precisely so they can be refined during workflow design without a
@@ -594,13 +640,18 @@ migration. What may **not** change without revisiting this document is the *sepa
 axes.
 
 **Owns.** `requirement` rows it raises.
-**References.** `request`, `correspondence`, itself (supersession), lookups, `user`.
+**References.** `request`, `correspondence`, `response_supersession` (as superseding or superseded
+response), lookups, `user`.
 **Invariants.**
 - **Business facts are immutable.** After insert, only the status transitions
-  (`ACTIVE → SUPERSEDED`, `ACTIVE → VOID`) and their who/when/why columns may be written. Every such
-  write is audited.
-- `supersedes_response_id` ⟹ same `request_id`, and the superseded row moves to `SUPERSEDED`
-  (it is never deleted, never edited, and remains fully readable).
+  (`ACTIVE → SUPERSEDED`, `ACTIVE → VOID`, and `SUPERSEDED → ACTIVE` when the edge that superseded it is
+  retracted — §2.21, amendment A-10) and their who/when/why columns may be written. Every such write is
+  audited.
+- Supersession is recorded **only** as `response_supersession` edges (§2.21): same `request_id` only, and
+  each superseded row moves to `SUPERSEDED` in the same transaction (it is never deleted, never edited,
+  and remains fully readable). Recording a supersession between two responses that already exist is an
+  edge insert — no response row is rewritten. A non-`VOID` response is `SUPERSEDED` exactly when it has an
+  `ACTIVE` incoming edge.
 - `correspondence.direction = 'IN'`.
 - **N:1 to correspondence is intentional** — one incoming letter may carry several responses, possibly
   against requests in different cases. This is the mechanism that makes a `case ↔ correspondence`
@@ -635,7 +686,8 @@ opinion removed the need for this requirement, per `PROJECT.md` §5.6),
 `failure_reason_note`,
 `created_at`, `created_by_user_id`, `row_version`.
 
-**Owns.** `requirement_evidence` rows; child `request` rows point back at it.
+**Owns.** `requirement_evidence` rows; `requirement_resolution_correction` rows (§2.22); child `request`
+rows point back at it.
 **References.** `case`, `response` (source), `organization` ×2, lookups, `user`.
 **Invariants.**
 - `requirement_origin_type = 'RESPONSE' ⟹ source_response_id IS NOT NULL`, and
@@ -683,16 +735,19 @@ map may satisfy two authorities' requirements, and one requirement may need seve
 `id`, `requirement_id` **NOT NULL**,
 `evidence_type` (`RESPONSE` | `DOCUMENT` | `INTERNAL_ACT`),
 `response_id`, `document_id`, `internal_record_id` — nullable **exclusive arc**,
-`document_version_id` (nullable — pins the exact version that was accepted as proof; see §7),
+`document_version_id` (nullable — pins the exact version that was accepted as proof; **required when
+`evidence_type = DOCUMENT`**, amendment A-5; see §7),
 `note`, `is_primary boolean`,
 `recorded_by_user_id`, `recorded_at`,
 `status` (`ACTIVE` | `RETRACTED`), `retracted_by_user_id`, `retracted_at`, `retraction_note`.
 
 **Invariants.**
 - `CHECK (num_nonnulls(response_id, document_id, internal_record_id) = 1)` and matching `evidence_type`.
-- `document_version_id IS NOT NULL ⟹ document_version.document_id = document_id`.
+- `document_version_id IS NOT NULL ⟹ document_version.document_id = document_id`;
+  `evidence_type = 'DOCUMENT' ⟹ document_version_id IS NOT NULL`.
 - Evidence is **retracted**, never deleted — a requirement that was wrongly marked fulfilled must show
-  that it once was, and why that was withdrawn.
+  that it once was, and why that was withdrawn. The requirement itself is returned to an open state
+  through a resolution correction (§2.22); evidence rows are retracted one by one, never cascaded.
 - `requirement.status = 'FULFILLED'` requires at least one `ACTIVE` evidence row **or** an explicit
   `resolution_note` (some fulfilments are self-evident from a child request's response, which is
   itself recorded as evidence of type `RESPONSE`).
@@ -752,9 +807,12 @@ layout change does not require recomputing history),
   A corrected file is a **new version**, so the original remains retrievable.
 - `UNIQUE (document_id, version_no)`.
 - `UNIQUE (document_id, content_hash)` — re-uploading identical bytes **to the same logical document**
-  does not create a new version. This is what makes the atomic upload sequence of `PROJECT.md` §22
-  (temp → hash → verify → move → commit metadata → audit) safe to retry: a retry converges on the same
-  row instead of creating a phantom version 2.
+  does not create a new version. This is what stops a retried upload of the atomic sequence of
+  `PROJECT.md` §22 (temp → hash → verify → move → commit metadata → audit) from creating a phantom
+  version 2: a retry onto an existing document converges on the same row. It does **not** by itself make
+  the whole upload command idempotent — a retried *first* upload has no `document_id` to converge on and
+  would create a second document, link and audit trail; command-level retries use a durable operation
+  identifier (`ARCHITECTURE.md` §12.6).
   **The constraint is scoped to `document_id` on purpose.** Two *different* documents may legitimately
   reference identical bytes — the same map filed as an attachment of an incoming letter and as an annex
   issued by another authority — and nothing here prevents that. What the constraint forbids is only the
@@ -776,6 +834,21 @@ layout change does not require recomputing history),
 - At most one `ACTIVE` version per document at a time → partial unique index on
   `document_version(document_id) WHERE status = 'ACTIVE'`. Superseded and withdrawn versions remain,
   with their bytes.
+- **The current version is the `ACTIVE` version — there is no current-version pointer** (amendment A-9).
+  A `document.current_version_id` column is rejected: it would form a circular `document ↔
+  document_version` foreign-key pair that every first upload must defer (the pattern §2.5 rejects for
+  `case ↔ correspondence`), and it would be a second truth beside `status`.
+- **Reinstatement (amendment A-9).** When a document has no `ACTIVE` version — normally because its
+  `ACTIVE` version was just withdrawn as erroneous or recalled — its **newest version that is not
+  `WITHDRAWN`** may be made current again: `SUPERSEDED → ACTIVE`. It is the **same row, the same bytes and
+  the same creation facts** (`version_no`, `original_filename`, `content_hash`, `uploaded_at`,
+  `uploaded_by_user_id`, `supersedes_version_id` are untouched); nothing is re-uploaded and no version is
+  created, so `UNIQUE (document_id, content_hash)` is never in the way. The withdrawn version keeps its own
+  withdrawal who/when/why; the reinstatement is a `STATE_CHANGE` audit event with a mandatory reason. To
+  reach an older version, the newer one is first reinstated and then withdrawn with its own reason, so
+  every step is on the record. Upload, withdrawal of the `ACTIVE` version and reinstatement are serialised
+  per document (the `document` row is locked or version-checked); the partial unique index is the database
+  backstop. Workflow and authority: `DOCUMENT_MODEL.md` §5.2, §8.2.
 - `content_hash` is recorded at upload and is what `audit_event.document_hash` refers to, so an audit
   entry can be tied to exact bytes.
 - *Optional:* content addressing already deduplicates implicitly. A separate `storage_object` table
@@ -791,8 +864,9 @@ several contexts without being copied.
 
 **Key fields.**
 `id`, `document_id` **NOT NULL**,
-`document_version_id` **NULLABLE** — NULL means "follows the document's current active version";
-set means "pinned to exactly this version" (used for evidence and issued results),
+`document_version_id` **NULLABLE** — set means "pinned to exactly this version"; NULL means "floating"
+— permitted only for non-historical working placements in the document's home case (see the pinning
+invariants below, amendment A-5),
 `correspondence_id`, `requirement_id`, `request_id`, `response_id`, `final_result_id`,
 `internal_record_id`, `case_id` — nullable **exclusive arc**,
 `document_link_role_id` → `document_link_role` (`PRIMARY_LETTER` | `ATTACHMENT` | `ANNEX` |
@@ -812,8 +886,26 @@ set means "pinned to exactly this version" (used for evidence and issued results
 - At most one `ACTIVE` link per document with `is_origin = true` → partial unique index.
 - At most one `ACTIVE` `PRIMARY_LETTER` link per correspondence → partial unique index.
 - Links are **removed** (status), never deleted, so "this map used to be filed under that letter" stays
-  answerable.
-- Permission scoping for a document resolves *through* its links; if that ever becomes slow, add a
+  answerable. **A `REMOVED` link is history only and grants access to nothing** — a wrong placement
+  (including a wrong-case link) is corrected by removing it, never kept `ACTIVE` to preserve access.
+- **Pinning (amendment A-5).** A link that records what belonged to an official or decided act is
+  **pinned**, so a later version can never change what that act is shown to contain:
+  - every link to a `correspondence`, whatever its role (`PRIMARY_LETTER`, `ATTACHMENT`, `ANNEX`,
+    `SUPPORTING`) → `CHECK (correspondence_id IS NULL OR document_version_id IS NOT NULL)`;
+  - every `REQUIREMENT_EVIDENCE` link; every `FINAL_RESULT_DOCUMENT` link no later than issue;
+  - every link whose context lies outside the document's **home case** — the case its `ACTIVE`
+    `is_origin` link resolves to. Linking into another case is a disclosure of exactly the pinned
+    version, nothing more.
+- **Floating links** (`document_version_id IS NULL`) exist only for non-historical working placements
+  (`SUPPORTING` / `WORKING_COPY`, or the `FINAL_RESULT_DOCUMENT` of a `DRAFT` result) **inside the home
+  case**, and **new versions are added only through a context in the home case**. Together these
+  guarantee that a floating link never exposes a version introduced under another case. A floating link
+  may be frozen once (set to a version it exposes) and is never re-pinned or unpinned.
+- **Authorization is per version, not per document.** A user may access a `document_version` only
+  through a visible `ACTIVE` link that exposes it: a pinned link exposes exactly its version; a floating
+  link exposes the document's versions (all of which entered through the home case). Version history,
+  filenames, version metadata, search, exports and downloads all obey the same rule — the full rule is
+  `DOCUMENT_MODEL.md` §10.1. Permission scoping resolves *through* links; if that ever becomes slow, add a
   materialised `document_case_visibility` view — never a denormalised `document.case_id`.
 
 ### 2.16 `final_result`
@@ -839,6 +931,11 @@ approved by whom, and which letter conveyed it to the requester.
 - At most one `ISSUED` result per case at a time (partial unique index). Superseded and revoked results
   stay, fully readable.
 - A correction or appeal outcome is a **new row** with `supersedes_final_result_id` set — never an edit.
+- **Replacement issue is one atomic operation (amendment A-4).** `supersedes_final_result_id` may name
+  only the case's currently `ISSUED` result. Issuing the replacement moves that result to `SUPERSEDED`
+  and the replacement to `ISSUED` in one transaction — old first, so the partial unique index never sees
+  two — preserving every document, pin and history of the old one (`WORKFLOW.md` §8.6). An existing
+  `ISSUED` result therefore never blocks its own replacement.
 - `case.lifecycle_state = 'CLOSED'` does not *require* an issued result (a case may be cancelled or
   withdrawn); whether it should is **OQ-6**.
 
@@ -868,9 +965,16 @@ what value*. Designed in from the start, as required.
 authority for the whole log,
 `id uuid` (stable external identifier),
 `occurred_at`, `recorded_at`,
-`actor_user_id` (nullable — NULL only for `SYSTEM` actions), `actor_kind` (`USER` | `SYSTEM` | `JOB`),
+`actor_user_id` (nullable — **the initiating person**; NULL only when no person initiated the event,
+i.e. `JOB`), `actor_kind` (`USER` | `SYSTEM` | `JOB`) — **how the change was executed** (amendment A-8):
+`USER` = the person's own act; `SYSTEM` = a mechanical consequence executed inside that person's command
+(case activation, request issued/answered, requirement started, a result superseded by its replacement),
+still attributed in `actor_user_id` to the person whose decision caused it, and marked `SYSTEM` so they are
+not recorded as having decided the consequence itself; `JOB` = a scheduled or background run with no
+initiating person (integrity sweep, cleanup). A consequence shares the initiating event's
+`correlation_id`,
 `actor_username_snapshot`, `actor_display_name_snapshot`, `actor_roles_snapshot text[]` — **identity as
-it was at the time**, so later renames or role changes cannot rewrite history,
+it was at the time** (of the initiating person), so later renames or role changes cannot rewrite history,
 `session_id`, `client_host` (workstation/IP on the LAN),
 `action_code` (`CREATE` | `UPDATE` | `STATE_CHANGE` | `LINK` | `UNLINK` | `UPLOAD` | `DOWNLOAD` |
 `WITHDRAW` | `VOID` | `ASSIGN` | `LOGIN` | `LOGOUT` | `EXPORT` | `PRINT` | `PERMISSION_DENIED`),
@@ -940,6 +1044,92 @@ auditable),
 - The authorization rules that consume this table (who may grant, what a grant permits) belong to
   `PERMISSIONS.md`. This model only guarantees the data exists and is historical.
 
+### 2.21 `response_supersession` *(amendment A-1)*
+
+**Purpose.** Records that one response replaces another. It replaces v1's single
+`response.supersedes_response_id` column, which could represent only one predecessor — so it could not
+record one later official letter replacing two conflicting earlier ones (`WORKFLOW.md` §4.5) — and which
+sat on an immutable row, so a supersession between two responses that already exist could not be
+recorded without rewriting a business fact.
+
+**Key fields.**
+`id`, `superseding_response_id` **NOT NULL** → `response`, `superseded_response_id` **NOT NULL** →
+`response`, `request_id` **NOT NULL** (the request both belong to — carried so the same-request rule is a
+real constraint), `note` (nullable), `recorded_by_user_id`, `recorded_at`,
+`status` (`ACTIVE` | `RETRACTED`), `retracted_by_user_id`, `retracted_at`, `retraction_note` (the same
+retraction triple `requirement_evidence` uses — amendment A-10), plus the common columns (§1.4).
+Append-only: never deleted; the only write after insert is `ACTIVE → RETRACTED` with its triple.
+
+**References.** `response` ×2, `request`, `user`.
+**Invariants.**
+- `CHECK (superseding_response_id <> superseded_response_id)` — no self-supersession.
+- `UNIQUE (superseded_response_id) WHERE status = 'ACTIVE'` — a response has at most one `ACTIVE`
+  incoming edge, which also rules out duplicate edges. One response may supersede **several** (C
+  supersedes A **and** B = two rows). Retracted edges stay as history and do not count.
+- **Same request only.** Composite foreign keys `(superseding_response_id, request_id)` and
+  `(superseded_response_id, request_id)` → `response (id, request_id)` (with `UNIQUE (id, request_id)` on
+  `response`). Cross-request supersession is not allowed: one letter replacing answers on two requests is
+  two responses, each superseding within its own request.
+- **Both responses are `ACTIVE` when the edge is recorded**, and the superseded one moves
+  `ACTIVE → SUPERSEDED` in the same transaction. `VOID` and already-`SUPERSEDED` responses take no part in
+  new edges.
+- **Retraction and restoration — errors only (amendment A-10, closes OQ-16).** An `ACTIVE` edge is
+  retracted when it was recorded in error:
+  - **by consequence** — voiding the superseding response as a registration error (`WORKFLOW.md` §4.7)
+    retracts all of its `ACTIVE` outgoing edges in the same transaction, attributed to the person voiding
+    it (`actor_kind = SYSTEM`);
+  - **explicitly** — a Chief retracts an edge that was itself recorded in error (e.g. the wrong direction
+    chosen when resolving a conflict), with a mandatory `retraction_note`.
+
+  In the same transaction the superseded response, now without an `ACTIVE` incoming edge, returns
+  `SUPERSEDED → ACTIVE`. A supersession that was *true* is never retracted to express a later change of
+  position — that is a new response superseding the newer one. A superseded response that is itself a
+  registration error has its incoming edge retracted first, then is voided.
+- **No cycles, by construction.** Edges are recorded only between `ACTIVE` responses, and a response is
+  `SUPERSEDED` exactly while its one `ACTIVE` incoming edge exists. In any cycle of `ACTIVE` edges each
+  response would have to have been `ACTIVE` when its outgoing edge was recorded, yet `SUPERSEDED`
+  continuously since its incoming edge was recorded — so each edge would have been recorded strictly after
+  the next edge around the cycle, which is impossible. Restoration does not break this: it removes an edge from the `ACTIVE` set.
+  This holds provided status checks, inserts and retractions run under the case-level serialization of
+  `ARCHITECTURE.md` §12.5.
+- A restored response re-enters its request's evaluation like any `ACTIVE` response (conclusiveness,
+  conflict detection, request consequences — `WORKFLOW.md` §3.2, §4.5). Because it changes which answer is
+  in force, retraction on a `CLOSED` case is preceded by reopening, as recording a supersession is.
+
+### 2.22 `requirement_resolution_correction` *(amendment A-2)*
+
+**Purpose.** Records that a requirement's terminal state (`FULFILLED`, `WAIVED`, `VOID` or `FAILED`) was
+**recorded in error** and has been withdrawn, returning the requirement to `OPEN` or `IN_PROGRESS`. It
+resolves the v1 contradiction between "terminal states are final" (§5.4) and the need to correct a
+requirement mistakenly marked fulfilled (`PERMISSIONS.md` §24.2) — without erasing the erroneous
+resolution, without any terminal-to-terminal shortcut, and without fabricating a replacement requirement
+or an official act.
+
+**Key fields.**
+`id`, `requirement_id` **NOT NULL**,
+`corrected_status` (`FULFILLED` | `WAIVED` | `VOID` | `FAILED`), `restored_status` (`OPEN` |
+`IN_PROGRESS`),
+**a verbatim snapshot of the requirement's resolution columns as they stood** — `corrected_resolved_at`,
+`corrected_resolved_by_user_id`, `corrected_resolution_note`, `corrected_waiver_authorised_by_user_id`,
+`corrected_waiver_reason_id`, `corrected_void_reason_id`, `corrected_voided_by_user_id`,
+`corrected_void_source_response_id`, `corrected_failure_reason_note`,
+`reason_code` (`WRONG_EVIDENCE` | `WRONG_REQUIREMENT` | `CLERICAL_ERROR`) **NOT NULL**, `note` **NOT
+NULL**, `corrected_by_user_id`, `corrected_at`, `recorded_at`. Append-only.
+
+**References.** `requirement`, `user`, lookups, `response` (the snapshot's void source).
+**Invariants.**
+- Written in the **same transaction** as the requirement's correction transition (`WORKFLOW.md` §5.2,
+  Q7). The requirement's resolution columns are cleared in that transaction; their prior values survive
+  here, and in full in the transition's `audit_event`.
+- **Errors only.** The corrected terminal state was false when it was recorded. A terminal state that
+  was true when recorded and has since been overtaken by events is still a **new requirement** (§5.4).
+- **Evidence is not cascaded.** Each `requirement_evidence` row that was wrong is retracted on its own,
+  with its own reason (§2.12); evidence that remains valid stays `ACTIVE`.
+- **The causal chain is untouched.** The requirement keeps its id, `source_response_id`, child requests
+  and evidence history (§6.4). Several corrections of one requirement over time are several rows.
+- The correct terminal state, if any, is then reached by the ordinary transition with its own evidence,
+  reason and authority — a mistaken `FULFILLED` that should have been `WAIVED` still needs a waiver.
+
 ---
 
 ## 3. Relationship Map
@@ -980,14 +1170,16 @@ CASE  (the dossier)
       ├── 0:N  ASSIGNMENT
       └── 0:N  RESPONSE
            ├── N:1  CORRESPONDENCE  incoming letter      **[changed: N:1, not 1:1]**
-           ├── 0:1  RESPONSE        supersedes_response_id
+           ├── 0:N  RESPONSE_SUPERSESSION  as superseding — may replace several   **[A-1]**
+           ├── 0:N  RESPONSE_SUPERSESSION  as superseded — at most one ACTIVE      **[A-1, A-10]**
            └── 0:N  REQUIREMENT
                 ├── N:1  RESPONSE           source_response_id (exactly one source)
                 ├── 0:N  REQUEST            child requests    **[changed: 0:N, may be zero]**
                 ├── 0:N  ASSIGNMENT
+                ├── 0:N  REQUIREMENT_RESOLUTION_CORRECTION                         **[A-2]**
                 └── 0:N  REQUIREMENT_EVIDENCE
                      ├── N:1 RESPONSE   | 
-                     ├── N:1 DOCUMENT   |  exclusive arc (+ optional pinned DOCUMENT_VERSION)
+                     ├── N:1 DOCUMENT   |  exclusive arc (+ pinned DOCUMENT_VERSION, required for DOCUMENT)
                      └── N:1 INTERNAL_RECORD
 
 CORRESPONDENCE  (the paper)
@@ -996,11 +1188,11 @@ CORRESPONDENCE  (the paper)
  ├── 0:1  CORRESPONDENCE             supersedes_correspondence_id
  ├── 0:N  REQUEST                    requests dispatched by this letter
  ├── 0:N  RESPONSE                   responses carried by this letter
- └── 0:N  DOCUMENT_LINK ──▶ DOCUMENT its main body + attachments
+ └── 0:N  DOCUMENT_LINK ──▶ DOCUMENT its main body + attachments, each pinned to a version  **[A-5]**
 
 DOCUMENT
- ├── 1:N  DOCUMENT_VERSION           immutable; ≤1 ACTIVE
- └── 1:N  DOCUMENT_LINK              M:N to business contexts; exactly one ACTIVE is_origin
+ ├── 1:N  DOCUMENT_VERSION           immutable; ≤1 ACTIVE; added only through the home case
+ └── 1:N  DOCUMENT_LINK              M:N to business contexts; exactly one ACTIVE is_origin (= home case)
 
 DOCUMENT ◀──M:N──▶ { CORRESPONDENCE | REQUIREMENT | REQUEST | RESPONSE | FINAL_RESULT |
                      INTERNAL_RECORD | CASE(SUPPORTING only) }      via DOCUMENT_LINK
@@ -1083,7 +1275,8 @@ erDiagram
     REQUEST ||--o{ ASSIGNMENT : "is assigned through"
     REQUEST ||--o{ DOCUMENT_LINK : "references"
 
-    RESPONSE |o--o{ RESPONSE : "supersedes"
+    RESPONSE ||--o{ RESPONSE_SUPERSESSION : "supersedes via"
+    RESPONSE ||--o{ RESPONSE_SUPERSESSION : "is superseded via"
     RESPONSE ||--o{ REQUIREMENT : "raises"
     RESPONSE ||--o{ REQUIREMENT_EVIDENCE : "proves"
     RESPONSE ||--o{ DOCUMENT_LINK : "references"
@@ -1092,6 +1285,7 @@ erDiagram
     REQUIREMENT ||--o{ REQUIREMENT_EVIDENCE : "is proven by"
     REQUIREMENT ||--o{ ASSIGNMENT : "is assigned through"
     REQUIREMENT ||--o{ DOCUMENT_LINK : "is evidenced by"
+    REQUIREMENT ||--o{ REQUIREMENT_RESOLUTION_CORRECTION : "has corrected resolutions"
 
     DOCUMENT ||--|{ DOCUMENT_VERSION : "has versions"
     DOCUMENT ||--|{ DOCUMENT_LINK : "is placed by"
@@ -1262,8 +1456,19 @@ erDiagram
         timestamptz received_at "business time"
         timestamptz recorded_at "system time"
         uuid recorded_by_user_id FK
-        uuid supersedes_response_id FK
         text status "ACTIVE SUPERSEDED VOID"
+    }
+
+    RESPONSE_SUPERSESSION {
+        uuid id PK
+        uuid superseding_response_id FK
+        uuid superseded_response_id FK "unique among ACTIVE edges"
+        uuid request_id FK "same request for both responses"
+        uuid recorded_by_user_id FK
+        timestamptz recorded_at
+        text status "ACTIVE RETRACTED"
+        uuid retracted_by_user_id FK
+        timestamptz retracted_at
     }
 
     REQUIREMENT {
@@ -1285,6 +1490,19 @@ erDiagram
         uuid void_source_response_id FK "opinion that removed the need"
     }
 
+    REQUIREMENT_RESOLUTION_CORRECTION {
+        uuid id PK
+        uuid requirement_id FK
+        text corrected_status "FULFILLED WAIVED VOID FAILED"
+        text restored_status "OPEN IN_PROGRESS"
+        timestamptz corrected_resolved_at "verbatim snapshot of the withdrawn resolution"
+        uuid corrected_resolved_by_user_id FK
+        text reason_code "WRONG_EVIDENCE WRONG_REQUIREMENT CLERICAL_ERROR"
+        text note
+        uuid corrected_by_user_id FK
+        timestamptz corrected_at
+    }
+
     REQUIREMENT_EVIDENCE {
         uuid id PK
         uuid requirement_id FK
@@ -1292,7 +1510,7 @@ erDiagram
         uuid response_id FK "exclusive arc"
         uuid document_id FK "exclusive arc"
         uuid internal_record_id FK "exclusive arc"
-        uuid document_version_id FK "optional pinned version"
+        uuid document_version_id FK "pinned version - required for DOCUMENT evidence"
         boolean is_primary
         text status "ACTIVE RETRACTED"
         uuid recorded_by_user_id FK
@@ -1329,7 +1547,7 @@ erDiagram
     DOCUMENT_LINK {
         uuid id PK
         uuid document_id FK
-        uuid document_version_id FK "null follows current version"
+        uuid document_version_id FK "pinned - null floats in the home case only"
         uuid correspondence_id FK "exclusive arc"
         uuid requirement_id FK "exclusive arc"
         uuid request_id FK "exclusive arc"
@@ -1446,10 +1664,13 @@ rows is not a state — it is derived (§9).
 - **`REGISTERED` → `ACTIVE`** happens on the first substantive action; it is not a separate approval.
 - **`ON_HOLD`** requires `hold_reason_note` and optionally `hold_until`. Deadlines are not silently
   suspended by it — whether a hold pauses statutory clocks is **OQ-5**.
-- **`CLOSED`** requires closure metadata (`closed_at`, `closed_by_user_id`, `closure_type_id`) and, by
-  rule, no `request` or `requirement` left in a non-terminal state. A case that must be closed with
-  open branches is `CANCELLED`, not `CLOSED` — the distinction is what keeps "open work" reports
-  truthful.
+- **`CLOSED`** requires closure metadata (`closed_at`, `closed_by_user_id`, `closure_type_id`). A
+  **normal** closure passes every closure guard of `WORKFLOW.md` §9.2 — no request and no blocking
+  requirement left non-terminal. An **exceptional** closure is a Head override with a mandatory reason
+  (`WORKFLOW.md` §9.4): the unresolved requests and requirements keep their **true** states — an `OPEN`
+  requirement stays `OPEN` — and the case derives as *closed with unresolved items* (§9.1). Forcing
+  records to `FULFILLED`, `VOID` or `FAILED` to pass a guard is what this rule exists to prevent; the
+  override record is what keeps "open work" reports truthful (amendment A-3).
 - **`CANCELLED`** is the administrative escape hatch (withdrawn by applicant, duplicate, merged). It
   requires a `closure_type` and does not require clean branches, but the open requests and
   requirements must each be explicitly `WITHDRAWN` or `VOID` — they are not swept up by a cascade.
@@ -1460,13 +1681,14 @@ rows is not a state — it is derived (§9).
   continuous. It requires a mandatory reason on the `case_state_change` row, is restricted to Chief and
   Head (`PROJECT.md` §12), and is an audited action (`PROJECT.md` §15 lists "Case reopened"). Closure
   metadata from the previous closure is retained, not cleared — the `case_state_change` history is what
-  shows the case was closed once and reopened.
+  shows the case was closed once and reopened, and it keeps every closure episode when the case is closed
+  again (§2.6).
 
 ### 5.2 Request lifecycle
 
 ```
-  DRAFT ──dispatch letter sent──▶ SENT ──conclusive ACTIVE response──▶ ANSWERED ──all source
-                                   │                                      │       requirements
+  DRAFT ──dispatch letter sent──▶ SENT ──conclusive ACTIVE response──▶ ANSWERED ──all blocking
+                                   │                                      │       source requirements
                                    │                                      │       terminal──▶ CLOSED
                                    ├──we recall the request──▶ WITHDRAWN  │
                                    └──entered in error──────▶ VOID ◀──────┘
@@ -1476,9 +1698,10 @@ rows is not a state — it is derived (§9).
 - `SENT` → `ANSWERED` requires at least one `ACTIVE` response with `is_conclusive = true`.
   Non-conclusive responses (acknowledgement, partial answer, clarification, deadline extension) leave
   the request in `SENT` and are visible as *derived* "partially answered".
-- `ANSWERED` → `CLOSED` is the closure rule in §2.9: **every requirement raised by any response to
-  this request must be terminal**. This is what stops a branch being declared finished while its
-  conditions are outstanding.
+- `ANSWERED` → `CLOSED` is the closure rule in §2.9: **every blocking requirement raised by any response
+  to this request must be terminal**. This is what stops a branch being declared finished while its
+  conditions are outstanding; a non-blocking requirement holds nothing open. `WORKFLOW.md` §3.2 defines the
+  system consequences that return a request from `CLOSED` when work genuinely reappears under it (R8, R9).
 - `WITHDRAWN` needs a withdrawal reason, an actor and normally a withdrawal letter (a
   `correspondence` of kind `WITHDRAWAL` whose `parent_correspondence_id` is the original dispatch).
 - `VOID` is for data-entry errors only — the request never really existed.
@@ -1495,8 +1718,9 @@ Reasoning:
    *new letter that supersedes an older one*. Modelling it as a version would falsify what happened.
 2. **Versioning belongs where the artefact is genuinely re-issued in place** — that is the *file*
    (`document_version`), not the *communication event*.
-3. **Supersession is a business relationship, not a revision counter.** `supersedes_response_id` keeps
-   both rows first-class and independently referenceable: requirements raised by the *old* response
+3. **Supersession is a business relationship, not a revision counter.** A `response_supersession` edge
+   (§2.21) keeps both rows first-class and independently referenceable, and lets one later letter replace
+   several earlier ones: requirements raised by the *old* response
    still point at the old response, which is exactly what is needed to explain why a child request was
    sent before the revision arrived.
 4. A `response_version` table would duplicate what `audit_event` (for correction of clerical fields)
@@ -1513,7 +1737,7 @@ How each case in the brief is represented:
 | Additional document only | `ADDITIONAL_DOCUMENT` | `NOT_APPLICABLE` | the file is a `document` linked to that response's correspondence |
 | Conditions imposed | `ADDITIONAL_REQUIREMENT` | `CONDITIONAL` | raises one or more `requirement` rows |
 | Final opinion | `OPINION` | `APPROVED` / `REJECTED` / `CONDITIONAL` | `is_conclusive = true` — the trigger for `ANSWERED` |
-| **Revised response** | the kind of act of the *new* letter | as newly decided | new row with `supersedes_response_id` → old row; the old row becomes `SUPERSEDED`, not deleted, not edited. **There is no `REVISION` type** — supersession is the relationship, not a label |
+| **Revised response** | the kind of act of the *new* letter | as newly decided | new row plus a `response_supersession` edge → each old row it replaces (one or several); each old row becomes `SUPERSEDED`, not deleted, not edited. **There is no `REVISION` type** — supersession is the relationship, not a label |
 | Superseded response | unchanged | unchanged | the old row, `status = SUPERSEDED`, still queryable, still the source of any requirements it raised |
 | Letter registered but not yet read | as far as known, else `OTHER` | `UNDETERMINED` | flags follow-up work; distinct from `NOT_APPLICABLE` |
 | Clerical mistake at data entry | — | — | `status = VOID` + who/when/why, then a corrected new row; never an in-place rewrite of business facts |
@@ -1560,9 +1784,16 @@ one of those writes produces an `audit_event` with `before_state`/`after_state`.
 - Voiding the source response does **not** cascade: the application must present the affected
   requirements for human decision (`VOID` if the demand disappeared, unchanged if the revised response
   repeats it).
-- All four terminal states are final; a requirement that must come back is a **new requirement**
-  (optionally noting the previous one in `description`), so the historical record of the first one
-  stays intact.
+- All four terminal states are final **as business outcomes**; a requirement that must come back because
+  circumstances changed is a **new requirement** (optionally noting the previous one in `description`),
+  so the historical record of the first one stays intact. There is **no terminal-to-terminal
+  transition**.
+- **The one exception is an error** (amendment A-2): a terminal state that was false when recorded is
+  withdrawn by the correction transition `→ OPEN | IN_PROGRESS` (`WORKFLOW.md` §5.2, Q7), which writes a
+  `requirement_resolution_correction` row (§2.22) preserving the withdrawn resolution verbatim, with the
+  corrector and a mandatory reason. From then on the requirement is an ordinary open requirement: it
+  blocks according to `is_blocking`, counts in progress and overdue, and reaches its correct terminal
+  state, if any, by the ordinary transition with that transition's own guards.
 
 ### 5.5 Correspondence lifecycle (supporting)
 
@@ -1575,27 +1806,32 @@ never edited into a different letter and its `registry_number` is never reused.
 
 ```
    upload ──▶ ACTIVE ──new version uploaded──▶ SUPERSEDED   (bytes retained)
-                 │
+                 │  ▲                               │
+                 │  └───────────────────────────────┘  reinstated (A-9): no ACTIVE version remains;
+                 │                                     the newest non-withdrawn version; same row, same bytes
                  └──uploaded in error / recalled──▶ WITHDRAWN (bytes retained, reason recorded)
 ```
 
 - Version rows are **immutable**; a correction is `version_no + 1`, never an overwrite of the file or
-  the row.
+  the row. Making an earlier file current again is **reinstatement** of its existing row (§2.14), never a
+  re-upload.
 - At most one `ACTIVE` version per document; superseded versions remain downloadable to anyone
-  entitled to the history.
+  entitled to them — that is, to a user with a visible `ACTIVE` link that exposes that version (§2.15).
+- A new version is added only through a context in the document's home case (§2.15).
 - `WITHDRAWN` needs `withdrawal_reason_id`, `withdrawn_by_user_id`, `withdrawn_at`.
 - Bytes are **never** deleted by ordinary business operations. Any physical removal is a retention
   action outside this model (**OQ-9**), and it must leave the metadata row and its hash in place.
-- Links are unaffected by versioning: a `document_link` with `document_version_id = NULL` follows the
-  current active version, while an evidence link with a pinned `document_version_id` keeps pointing at
-  the exact file that was accepted as proof.
+- Pinned links are unaffected by versioning: a letter's attachment keeps showing the file that arrived
+  with that letter, and an evidence link keeps pointing at the exact file that was accepted as proof.
+  Only a floating working placement in the home case presents the newer version as current (§2.15).
 
 ### 5.7 Assignment and final result (supporting)
 
 - **Assignment**: `ACTIVE` (`valid_until IS NULL`) → `ENDED` (with `end_reason_id`); `VOID` only for
   assignments recorded in error. Reassignment never updates the assignee column of an existing row.
 - **Final result**: `DRAFT → ISSUED` (requires `decided_by`, `approved_by`, `issued_at`); then
-  `SUPERSEDED` by a newer result, or `REVOKED` with reason. `VOID` for entry errors.
+  `SUPERSEDED` by a newer result — in the same transaction that issues the replacement (§2.16) — or
+  `REVOKED` with reason. `VOID` for entry errors.
 
 ---
 
@@ -1632,14 +1868,14 @@ Case `C-2026/114` — requester: *Applicant Org*; department = the `is_own_organ
 | 11 | `request` **REQ-U** (child) | `case_id=C-2026/114`, `target_organization_id=Utility Authority`, **`source_requirement_id=REQ'T-1`**, `dispatch_correspondence_id=K-OUT-030`, `status=SENT` → `REQ'T-1.status=IN_PROGRESS` |
 | 12 | `correspondence` **K-IN-040** | `direction=IN`, `sender=Utility Authority`, `parent_correspondence_id=K-OUT-030`, `received_at=2026-04-02` |
 | 13 | `document` **DOC-MAP** + `document_version` v1 | `document_kind=MAP`, `issuing_organization_id=Utility Authority`, `content_hash=…`, `uploaded_by=Worker 1` |
-| 14 | `document_link` L1 | `document_id=DOC-MAP`, `correspondence_id=K-IN-040`, `role=ATTACHMENT`, **`is_origin=true`** |
+| 14 | `document_link` L1 | `document_id=DOC-MAP`, **`document_version_id=v1` (pinned — a letter placement)**, `correspondence_id=K-IN-040`, `role=ATTACHMENT`, **`is_origin=true`** (home case: C-2026/114) |
 | 15 | `response` **RSP-U1** | `request_id=REQ-U`, `correspondence_id=K-IN-040`, `response_type=INFORMATION`, `response_outcome=NOT_APPLICABLE` (the map *is* the answer; no verdict was due), **`is_conclusive=true`** |
 | 16 | `requirement_evidence` E1 | `requirement_id=REQ'T-1`, `evidence_type=RESPONSE`, `response_id=RSP-U1`, `is_primary=true` |
 | 17 | `requirement_evidence` E2 | `requirement_id=REQ'T-1`, `evidence_type=DOCUMENT`, `document_id=DOC-MAP`, **`document_version_id=v1` (pinned)** |
 | 18 | `REQ'T-1` | `status=FULFILLED`, `resolved_at=2026-04-03`, `resolved_by_user_id=Worker 1` |
 | 19 | `REQ-U` | `status=ANSWERED → CLOSED` (its own responses raised no requirements) |
 | 20 | `correspondence` **K-OUT-050** | `direction=OUT`, `kind=INFORMATIONAL`, `recipient=Architecture Authority`, `parent_correspondence_id=K-OUT-010` |
-| 21 | `document_link` L2 | `document_id=DOC-MAP` (**the same document — the file is not copied**), `correspondence_id=K-OUT-050`, `role=ANNEX`, `is_origin=false` |
+| 21 | `document_link` L2 | `document_id=DOC-MAP` (**the same document — the file is not copied**), **`document_version_id=v1` (pinned)**, `correspondence_id=K-OUT-050`, `role=ANNEX`, `is_origin=false` |
 | 22 | `correspondence` **K-IN-060** + `response` **RSP-A2** | `request_id=REQ-A`, `response_type=OPINION`, `response_outcome=APPROVED`, `is_conclusive=true` |
 | 23 | `REQ-A` | `status=ANSWERED`; closure permitted because `REQ'T-1` is terminal → `CLOSED` |
 | 24 | `final_result` **FR-1** | `case_id=C-2026/114`, `decision_type=APPROVAL`, `decided_by=Chief`, `approved_by=Head`, `status=ISSUED`, `dispatch_correspondence_id=K-OUT-070` |
@@ -1711,19 +1947,20 @@ still waiting for" (§9).
 | **Correspondence** | one **official communication event**: a letter that left or arrived, with its own number, date, sender and recipient | a file, and not one row per attachment | "Our letter №12-45 of 2026-03-05 to the Architecture Authority" / "Their reply №7/119 of 2026-03-20" |
 | **Document** | the **business identity of a file** — what it *is*, independent of revision | the bytes, and not the letter that carried it | "Utility communication map for site X, issued by the Utility Authority" |
 | **DocumentVersion** | one **immutable stored file**: exact bytes, hash, size, MIME type, original filename, uploader, upload time | a business concept — it has no opinion about *why* the file exists | "map_v1.pdf, 4.2 MB, sha256 ab12…, uploaded by Worker 1 on 2026-04-02" |
-| **DocumentLink** | a **placement** of a document into one business context, with a role, optionally pinned to a version | ownership — a document may have several placements | "DOC-MAP is an ATTACHMENT of letter K-IN-040" + "DOC-MAP v1 is REQUIREMENT_EVIDENCE for REQ'T-1" |
+| **DocumentLink** | a **placement** of a document into one business context, with a role; pinned to a version wherever it records history (letters, evidence, issued results, other cases), floating only as a working placement in the home case | ownership — a document may have several placements | "DOC-MAP v1 is an ATTACHMENT of letter K-IN-040" + "DOC-MAP v1 is REQUIREMENT_EVIDENCE for REQ'T-1" |
 
 ### 7.2 How they compose
 
 ```
 CASE  ─┬─▶ CORRESPONDENCE ──▶ DOCUMENT_LINK ──▶ DOCUMENT ──▶ DOCUMENT_VERSION (bytes on disk)
-       │       (letter)          (role=PRIMARY_LETTER)          v1  ACTIVE
-       │                    ──▶ DOCUMENT_LINK ──▶ DOCUMENT ──▶ v1  SUPERSEDED
-       │                         (role=ATTACHMENT)              v2  ACTIVE
+       │       (letter)          (role=PRIMARY_LETTER,          v1  ACTIVE
+       │                          pinned v1)
+       │                    ──▶ DOCUMENT_LINK ──▶ DOCUMENT ──▶ v1  SUPERSEDED  ← still what this letter shows
+       │                         (role=ATTACHMENT, pinned v1)   v2  ACTIVE
        ├─▶ REQUIREMENT ────▶ DOCUMENT_LINK ──▶ (same DOCUMENT, version-pinned)
-       ├─▶ FINAL_RESULT ───▶ DOCUMENT_LINK ──▶ DOCUMENT  (signed decision)
+       ├─▶ FINAL_RESULT ───▶ DOCUMENT_LINK ──▶ DOCUMENT  (signed decision, pinned at issue)
        ├─▶ INTERNAL_RECORD ▶ DOCUMENT_LINK ──▶ DOCUMENT  (site-visit photos)
-       └─▶ DOCUMENT_LINK (role=SUPPORTING only) ──▶ DOCUMENT
+       └─▶ DOCUMENT_LINK (role=SUPPORTING/WORKING_COPY only) ──▶ DOCUMENT
              ↑ the deliberately narrow exception; everything else must name a real context
 ```
 
@@ -1742,7 +1979,8 @@ An official letter arriving with a main PDF, an Excel annex, a map and two drawi
 - **5** `document_version` rows (v1 of each, with hash, size, MIME type and original filename);
 - **5** `document_link` rows to that correspondence — one with role `PRIMARY_LETTER` (partial-unique
   per correspondence), four with `ATTACHMENT`/`ANNEX`, ordered by `ordinal`, each with
-  `is_origin = true` for its own document.
+  `is_origin = true` for its own document and each **pinned to its v1**, so the letter's composition is
+  reproducible exactly as registered.
 
 ### 7.4 One file, several business contexts
 
@@ -1758,15 +1996,17 @@ The Utility Authority sends a corrected map. Two facts must both be true afterwa
 force, and the old map is still retrievable as what was relied on earlier.
 
 - **If the correction arrives as a new letter** (the normal case): a new `correspondence`, a new
-  `response` on the same request carrying the kind of act the new letter is, with
-  `supersedes_response_id` → the old response, and a **new `document_version` (v2)** on the same
-  `document` if it is genuinely the same artefact re-issued — otherwise a new `document` entirely. v1
-  becomes `SUPERSEDED`; its bytes stay.
+  `response` on the same request carrying the kind of act the new letter is, with a
+  `response_supersession` edge → the old response, and a **new `document_version` (v2)** on the same
+  `document` if it is genuinely the same artefact re-issued **and the new letter is filed in the
+  document's home case** — otherwise a new `document` entirely (identical bytes are still stored once).
+  v2 is linked to the new letter, pinned. v1 becomes `SUPERSEDED`; its bytes stay.
 - **Evidence stays honest**: `requirement_evidence` E2 pinned `document_version_id = v1`, so the record
   still says *"this requirement was closed on the strength of v1"*. A caseworker who accepts v2 as the
   new proof adds a second evidence row; they do not rewrite the first.
-- **Display links stay current**: links with `document_version_id = NULL` (e.g. the attachment link on
-  the letter) automatically show v2.
+- **Letters stay historically exact** (amendment A-5): K-IN-040's attachment link is pinned to v1, so
+  reopening that letter still shows the map that actually arrived with it; the new letter shows v2. Only
+  a floating working placement in the home case (a `WORKING_COPY`) presents v2 as current.
 
 ### 7.6 Storage split
 
@@ -1784,9 +2024,10 @@ Three consequences worth stating plainly, because all three are easy to get wron
   the full list of consequences is in §2.14 and must be read before any cleanup job is written;
 - **business withdrawal and physical garbage collection are separate concepts** — withdrawing a version
   changes its status and nothing on disk;
-- a retried upload (`PROJECT.md` §22) converges on the same `(document_id, content_hash)` row rather
-  than creating a phantom version 2, while two *different* documents may still legitimately share the
-  same bytes.
+- a retried upload (`PROJECT.md` §22) onto an existing document converges on the same
+  `(document_id, content_hash)` row rather than creating a phantom version 2, while two *different*
+  documents may still legitimately share the same bytes (a retried *first* upload needs the command-level
+  operation identifier of `ARCHITECTURE.md` §12.6).
 
 ---
 
@@ -1796,12 +2037,15 @@ What the design guarantees, and the mechanism that guarantees it.
 
 | What must not be lost | Mechanism | Consequence |
 |---|---|---|
-| **Old responses** | `response` rows are immutable and append-only; a revision is a *new row* with `supersedes_response_id`; the old row becomes `SUPERSEDED`, never deleted, never edited | The record still shows what the authority said on 20 March, which is what justified the requirement raised that day |
+| **Old responses** | `response` rows are immutable and append-only; a revision is a *new row* plus `response_supersession` edges to every response it replaces; each old row becomes `SUPERSEDED`, never deleted, never edited | The record still shows what the authority said on 20 March, which is what justified the requirement raised that day |
+| **What a letter contained** | every `document_link` on a `correspondence` is version-pinned (§2.15) | Reopening a letter years later shows exactly the files registered with it, even after revised versions exist |
 | **Old document versions** | `document_version` rows are immutable; a correction is `version_no + 1`; the previous version becomes `SUPERSEDED` and its bytes are retained | "What exactly did we rely on when we closed that requirement?" is answerable byte-for-byte, via the pinned `document_version_id` |
 | **Old assignments** | `assignment` is temporal (`valid_from`/`valid_until`); reassignment closes a row and inserts another; an `EXCLUDE` constraint enforces non-overlap rather than allowing an in-place update | "Who was responsible on 12 April?" is a single range query; nobody's past responsibility is erased by a handover |
 | **Withdrawn records** | Every entity has a withdrawal/void state with a **who/when/why triple** (`*_at`, `*_by_user_id`, `*_reason_id`, `*_note`) instead of a delete | A recalled letter, a retracted piece of evidence and a mistaken request all remain visible, with the reason attached |
 | **Superseded correspondence** | `supersedes_correspondence_id` + `status = SUPERSEDED`; `registry_number` is never reused | The registry stays continuous; a corrected letter does not silently overwrite the one the authority actually received first |
 | **Requirements that were released or unmet** | `WAIVED` (with authoriser), `FAILED` (with reason) and `VOID` (with `void_reason` and, where applicable, `void_source_response_id`) are four distinct terminal states with `FULFILLED`; what a report excludes is driven by `void_reason.counts_as_business_outcome`, never by the state alone (§2.11) | Released and unmet obligations stay part of the case's history, with the name of whoever released them and the later response that made a requirement irrelevant |
+| **Requirement resolutions recorded in error** | the correction transition writes a `requirement_resolution_correction` row with a verbatim copy of the withdrawn resolution, the corrector and a mandatory reason (§2.22); evidence is retracted, not deleted | The record shows that the requirement was once recorded as fulfilled, who recorded it, why that was wrong and who corrected it — while no current statistic counts it as fulfilled |
+| **Closure episodes** | every closure and reopening is a `case_state_change` row; an override closure carries `CLOSURE_GUARD_OVERRIDE` (§2.6) | "Was this case closed before, by whom, was a guard overridden, and why was it reopened?" stays answerable after the case is closed again |
 | **Identity of people** | Users are `DEACTIVATED`, never deleted; `audit_event` additionally stores `actor_username_snapshot`, `actor_display_name_snapshot` and `actor_roles_snapshot` | Renaming or deactivating a user cannot retroactively change who did what, or in what capacity |
 | **Master data over time** | Organizations are deactivated, not deleted; renames create `organization_alias` rows; lookup rows are deactivated with `valid_from`/`valid_to` | Historical letters keep resolving to the party and vocabulary that existed at the time |
 | **Business vs system time** | `occurred_at` and `recorded_at` families are separate columns (§1.4) | Back-dated registration is representable honestly: the letter is dated 2 March, we learned of it on 3 March, we recorded it on 4 March |
@@ -1834,7 +2078,8 @@ rich operational messages come from queries over rows that staff are already obl
 | *"Overdue: Utility Authority, 6 days"* | `request.due_at < now()` with no `ACTIVE` conclusive response — computed at read time, **never stored** as a status |
 | *"Requirement overdue"* | `requirement.due_at < now()` and `status IN ('OPEN','IN_PROGRESS')` |
 | *"Partially answered (2 letters received, no final opinion)"* | count of `ACTIVE` responses on the request vs `is_conclusive` flag |
-| *"Ready for final result"* | no `requirement` in the case with `is_blocking = true` and `status IN ('OPEN','IN_PROGRESS')`; every `request` terminal (`CLOSED`/`WITHDRAWN`/`VOID`); no `final_result` with `status = 'ISSUED'` |
+| *"Ready for final result"* | no `requirement` in the case with `is_blocking = true` and `status IN ('OPEN','IN_PROGRESS')`; every `request` terminal (`CLOSED`/`WITHDRAWN`/`VOID`); no `final_result` with `status = 'ISSUED'` — except when issuing a replacement that names the `ISSUED` result it supersedes (§2.16) |
+| *"Closed with unresolved items (1 request, 1 blocking requirement)"* — `closed_with_unresolved_items` | `case.lifecycle_state = 'CLOSED'` and any `request` in `DRAFT`/`SENT`/`ANSWERED` or `requirement` in `OPEN`/`IN_PROGRESS`, split by `is_blocking`. If the latest closure's `case_state_change.reason_code = CLOSURE_GUARD_OVERRIDE`, it is an authorised exception; a normal closure can leave only non-blocking requirements open. Derived, **never stored** |
 | *"Blocked — awaiting Utility Authority (child request of requirement R-1)"* | the causality walk of §6.3 from the open requirement down to its child request's `target_organization_id` and `status` |
 | *"On hold until 2026-05-01 — awaiting applicant"* | `case.lifecycle_state = 'ON_HOLD'`, `hold_until`, `hold_reason_note` |
 | *"Responsible: Worker 1 (covered by Worker 2 until 2026-04-20)"* | `assignment` rows: `ACTIVE` `RESPONSIBLE` + any `ACTIVE` `TEMPORARY_COVER` pointing at it |
@@ -1872,6 +2117,9 @@ only confirms it.
 ### 9.4 Dashboard support (`PROJECT.md` §19)
 
 Every V1 dashboard list resolves to a query over existing rows. None of them needs a new status field.
+The operational lists below (waiting, open, overdue) cover cases in `REGISTERED`, `ACTIVE` or `ON_HOLD`.
+Items left unresolved on a `CLOSED` case by an authorised override are reported through
+`closed_with_unresolved_items` (§9.1), not as live work — otherwise they would sit on "overdue" forever.
 
 | Dashboard item | Resolved from |
 |---|---|
@@ -1903,7 +2151,7 @@ column rather than something buried in free text.
 | Case subject | `case.title`, `case.subject` (full-text) |
 | Responsible employee | current `ACTIVE` `RESPONSIBLE` `assignment.assignee_user_id`; historical responsibility is searchable too, via the same table |
 | Status | `case.lifecycle_state` (+ derived progress, §9.1) |
-| Document metadata | `document.title`, `document_kind`, `document_version.original_filename`, `mime_type`, `document_date` |
+| Document metadata | `document.title`, `document_kind`, `document_version.original_filename`, `mime_type`, `document_date` — version-level facets match only versions exposed to the searcher (§2.15) |
 | Year | `case.registered_at`, `correspondence.letter_date` — derived by range, not stored as a `year` column |
 | Requirement status | `requirement.status` |
 | Final decision / final response number | `final_result.result_number`, `decision_type` |
@@ -2027,6 +2275,13 @@ a `request_deadline_change` history table is needed. *Assumed:* the extension le
 change is visible in `audit_event`.
 *Why deferrable:* additive history table; the current representation already records the fact.
 
+**OQ-16 — Restoring a response whose superseding response is later voided. — CLOSED by amendment A-10
+(§2.21, `DECISIONS.md` ADR-028).** It was not safely deferrable after all: with
+`UNIQUE (superseded_response_id)`, a response superseded by an entry later voided could never be superseded
+correctly again, and the request would show no answer in force. Resolved by a retraction triple on
+`response_supersession`, a partial unique index over `ACTIVE` edges, and restoration
+`SUPERSEDED → ACTIVE` when the incoming edge is retracted; acyclicity re-checked in §2.21.
+
 ### 10.2 Workflow / permissions / UI questions — deferred by design
 
 These belong to `WORKFLOW.md`, `PERMISSIONS.md` or the Search phase. They change **no** table.
@@ -2074,7 +2329,7 @@ only, and the `case_id` arc in `document_link` is restricted by `CHECK` to `SUPP
 `document_version`; editing a registered letter's number "because it was typed wrong".
 *Consequence:* the system can no longer explain decisions that were correct at the time. A requirement
 raised by the old response now appears to have come from nowhere.
-*Rule:* append. New response row + `supersedes_response_id`; new assignment row + `valid_until` on the
+*Rule:* append. New response row + `response_supersession` edge(s); new assignment row + `valid_until` on the
 old; new `document_version`; `VOID` + new row for immutable entities. The only in-place writes are
 status transitions with a who/when/why triple, and every one is audited.
 
@@ -2161,8 +2416,8 @@ map directly. Responsible employee → request-scoped `assignment`; sent date �
 the two options the spec offers ("versioned or represented as separate immutable events"); the rationale
 is §5.3. Classification is split across `response_type` and `response_outcome` per decision C-2, and all
 eight of the spec's values remain representable — the mapping grid is in §2.10.
-Supersession → `supersedes_response_id`, with the earlier row retained and visible. No
-`ResponseVersion`.
+Supersession → `response_supersession` edges (amendment A-1), with the earlier rows retained and
+visible. No `ResponseVersion`.
 
 **`PROJECT.md` §5.6 — Requirement**: `id`, `case_id`, `source_response_id`,
 `raised_by_organization_id` (requesting organization), `description`,
@@ -2182,7 +2437,8 @@ requirement, final decision, supporting attachment) is a `document_link` arc.
 correspondence's links; the incoming side is the links of the correspondence behind each of its
 responses. Both are reachable in one join from `request`, which is what makes the spec's
 "official_request.pdf / attachment.xlsx" then "architecture_response.pdf / scheme.pdf / map.pdf" view a
-query rather than a folder.
+query rather than a folder. Where a response's letter is filed in another case, its files appear only to
+viewers of that owning case (§2.8, amendment A-6).
 
 **`PROJECT.md` §11, §12, §14, §15**: assignment history → `assignment` (with `TEMPORARY_COVER` for
 absence); roles → `role` + temporal `user_role`; accounts deactivated never deleted, local or directory
@@ -2217,8 +2473,10 @@ informational letter is never forced to carry a verdict — `NOT_APPLICABLE` ("n
 they drive different follow-up. Vocabularies may be refined in later phases; **the separation of the two
 axes may not**. A single mixed classification field is now prohibited. The UI may simplify the
 presentation; the data model keeps both dimensions. Response records remain **immutable**, a later
-official response is a new record referencing the earlier one through `supersedes_response_id`, and
-**`ResponseVersion` is not introduced**. *(Recorded: §2.10, §5.3.)*
+official response is a new record referencing the earlier one(s) through supersession — originally the
+`supersedes_response_id` column, now `response_supersession` edges so that one response may supersede
+several (amendment A-1, §12.7; the decision itself is unchanged) — and **`ResponseVersion` is not
+introduced**. *(Recorded: §2.10, §2.21, §5.3.)*
 
 **C-3 — ACCEPTED. Four Case concepts are relationships or derivations, never mutable columns.**
 Responsible employee → the current active `RESPONSIBLE` `assignment`, with assignment history remaining
@@ -2246,6 +2504,8 @@ elsewhere in the spec, not to expand scope:
 | `case_access_grant` | §13 "specifically authorized users" |
 | `case_state_change` | §10 reopening + §19 operational lists |
 | `internal_record` | §12 "add comments and notes"; §5.7 "supporting attachment" needs a non-correspondence context |
+| `response_supersession` *(A-1)* | §5.5 "a newer response may supersede or modify an earlier response" — including one letter replacing several |
+| `requirement_resolution_correction` *(A-2)* | §5.6 lifecycle + §7 "marked incorrect … with reason, user, timestamp" applied to a mistaken requirement resolution; §12 Chief "correct certain structured records" |
 | lookup tables | §1.4 vocabulary rule; keeps §5.5/§5.6 vocabularies evolvable without migrations |
 
 ### 12.4 `PROJECT.md` §29 — AI development rules
@@ -2303,6 +2563,50 @@ With decisions C-1, C-2 and C-3 accepted, the requirement-state semantics correc
 **Next phase:** `WORKFLOW.md` (state transitions, request dependencies, requirement lifecycle, closure
 rules) and `PERMISSIONS.md`, per `PROJECT.md` §30 Phase 2. Neither is started here.
 
+### 12.7 Post-review amendment record (v1.1)
+
+**Trigger.** An independent architecture review (2026-09-17) passed the architecture and found **three
+implementation blockers** caused by contradictions across the frozen documents, plus related serious
+findings. The amendments below are the minimum that makes the seven documents describe one system. Two of
+them change a cardinality or add an entity, which §12.6 says reopens the model. This section is the
+detailed amendment record; the decisions are logged in `/docs/DECISIONS.md` (ADR-009 … ADR-017,
+ADR-027, ADR-028), which is now the authoritative decision log.
+Nothing outside this list changed: stack, modular monolith, PostgreSQL, content-addressed local storage,
+pull-based backups and every other v1 decision stand.
+
+| # | Amendment | Resolves | Kind | Where |
+|---|---|---|---|---|
+| **A-1** | `response.supersedes_response_id` **replaced** by the `response_supersession` edge table (no self-supersession, `UNIQUE (superseded_response_id)`, same request via composite FKs, both `ACTIVE` when recorded, acyclic by construction). `ResponseVersion` still not introduced; responses still immutable | **B2** — one later response could not honestly supersede two conflicting ones, and supersession between existing responses required editing an immutable row | **structural** (0:1 → M:N edge) | §2.10, §2.21, §3, §4.1, §5.3, OQ-16 |
+| **A-2** | `requirement_resolution_correction` **added**, with one correction transition (terminal → `OPEN`/`IN_PROGRESS`, errors only, Chief) that preserves the withdrawn resolution verbatim. No terminal-to-terminal transition exists | **B2** — "terminal states are final" contradicted the permitted correction of a requirement wrongly marked fulfilled | **structural** (new entity) | §2.11, §2.12, §2.22, §5.4, §8 |
+| **A-3** | Case `CLOSED` invariant aligned with `WORKFLOW.md` §9: normal closure passes all guards; a Head override leaves unresolved records in their true states; `closed_with_unresolved_items` derived. Request closure counts **blocking** requirements only, so `is_blocking` has one meaning everywhere. Closure episodes documented as `case_state_change` rows | **B3** — two contradictory closure definitions; the non-blocking contradiction; closure history after reopen | invariant change, no new column | §2.5, §2.6, §2.9, §5.1, §5.2, §9.1, §9.4 |
+| **A-4** | Final-result replacement: issuing a replacement supersedes the named `ISSUED` result in the same transaction; readiness no longer blocks its own replacement | **B3** — reopen/replace deadlock | invariant clarification | §2.16, §5.7, §9.1 |
+| **A-5** | Version pinning and version-scoped authorization: every correspondence placement pinned (CHECK); evidence and issued-result links pinned; links outside the document's home case pinned; floating links and new versions confined to the home case; access checked per `document_version`; `REMOVED` links grant nothing; document evidence requires a pinned version | **B1** — a floating letter attachment could show a later file, and document-level authorization exposed every version | constraints + authorization rule, no new column | §2.12, §2.14, §2.15, §5.6, §6.2, §7, §9.5 |
+| **A-6** | Cross-case responses: the carrying letter and its files stay governed by the owning case; files are shared only by an explicit pinned link; no junction | **B1** — cross-case disclosure; closes `DOCUMENT_MODEL.md` OQ-D7 | visibility rule | §2.8, §12.1 |
+| **A-7** | Assignment non-overlap as a pre-schema constraint requirement: one exclusion per scope, `ENDED` rows included, half-open intervals, no empty ranges | related finding — the v1 `EXCLUDE` covered only `case_id` and only `ACTIVE` rows | constraint specification | §2.7 |
+| **A-8** | Audit actor semantics: `actor_user_id` is the initiating person, NULL only for `JOB`; `actor_kind` says how the change was executed | related finding — v1 said `SYSTEM` ⟹ no user, `WORKFLOW.md` attributed consequences to the triggering person | field semantics, no new column | §2.18 |
+| **A-9** *(pre-schema pass)* | Document version reinstatement: the current version remains "the one `ACTIVE` version" (no pointer column); when none is `ACTIVE`, the newest non-withdrawn version may return `SUPERSEDED → ACTIVE` — same row, same bytes, no re-upload; serialised per document | `DOCUMENT_MODEL.md` §8.3 said v1 "becomes `ACTIVE` again" with no such transition, and `UNIQUE (document_id, content_hash)` forbids re-uploading v1's bytes | one transition, **no new field or table** | §2.14, §5.6 |
+| **A-10** *(pre-schema pass)* | Response supersession retraction: `response_supersession` gains `status` (`ACTIVE`/`RETRACTED`) and a retraction triple; uniqueness becomes a partial index over `ACTIVE` edges; voiding a superseding response (or a Chief retracting an edge recorded in error) retracts the edge and restores the superseded response `SUPERSEDED → ACTIVE`; acyclicity re-proved | **OQ-16** — a response superseded by a later-voided entry could never be superseded correctly again; the graph was stuck | **4 columns** on an A-1 entity + one transition | §2.10, §2.21, §3, §4.1, §10 |
+
+**Recorded elsewhere, no domain change:** case-level serialization of closure-relevant writes
+(`ARCHITECTURE.md` §12.5); durable operation identity for retried commands (`ARCHITECTURE.md` §12.6); the
+backup recovery-point invariant (`DOCUMENT_MODEL.md` §6.7); informational late responses, the new request
+consequence R9 and the correction transition Q7 (`WORKFLOW.md` §3.2, §4.6, §5.2); immediate suspension on
+departure (`PERMISSIONS.md` §25); bounded type detection (`SECURITY.md` §10.1); no physical GC in V1
+(`DOCUMENT_MODEL.md` §12.4).
+
+**Amendment review.**
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Every reference to `supersedes_response_id` replaced across all documents | **Yes** — the name now appears only in historical notes explaining what A-1 replaced |
+| 2 | Cardinalities consistent in prose, relationship map and ER diagram | **Yes** — `response ↔ response` is M:N through `response_supersession`, each response with at most one `ACTIVE` incoming edge (A-10); two new entity blocks added (22 in the full diagram) |
+| 3 | Causal chain unaffected | **Yes** — neither new entity touches `response.request_id`, `requirement.source_response_id` or `request.source_requirement_id`; a correction keeps the requirement's id and chain |
+| 4 | `WAIVED`/`VOID`/`FAILED` semantics unchanged | **Yes** — A-2 adds no terminal-to-terminal transition; each terminal state is still reached only by its own transition, guards and authority |
+| 5 | No stored progress, no second truth | **Yes** — `closed_with_unresolved_items` and "home case" are derived; no status or cache column added |
+| 6 | Remaining domain-model blockers | **None.** OQ-16 closed by A-10 |
+| 7 | *(A-9)* Can v1 become current again after an erroneous v2, with no duplicate bytes? | **Yes** — v2 `WITHDRAWN` (its own who/when/why), v1 reinstated `SUPERSEDED → ACTIVE`; no new `document_version`, `UNIQUE (document_id, content_hash)` untouched, v2 stays in history |
+| 8 | *(A-9, A-10)* Is any creation fact or byte rewritten? | **No** — both amendments write only status transitions (and, for A-10, the edge's retraction triple) |
+
 ---
 
 ## Appendix A — Self-review against the acceptance questions
@@ -2313,7 +2617,7 @@ rules) and `PERMISSIONS.md`, per `PROJECT.md` §30 Phase 2. Neither is started h
 | 2 | Can a Response create a Requirement? | **Yes** | `requirement.source_response_id`, `1:N`, with `requirement_origin_type = 'RESPONSE'`; §6.2 row 9 |
 | 3 | Can that Requirement create a child Request to another Organization? | **Yes** | `request.source_requirement_id` + a different `target_organization_id`; §6.2 row 11 |
 | 4 | Can the system reconstruct **why** that child Request exists? | **Yes** | The upward walk `request → requirement → response → request …` in §6.3, ending at a root request with `source_requirement_id IS NULL`; all real indexed foreign keys |
-| 5 | Can one Request receive multiple responses without overwriting history? | **Yes** | `request 1:N response`, rows immutable and append-only, revision via `supersedes_response_id` (no `REVISION` type, no `ResponseVersion`), old row `SUPERSEDED` not deleted; §5.3 |
+| 5 | Can one Request receive multiple responses without overwriting history? | **Yes** | `request 1:N response`, rows immutable and append-only, revision via `response_supersession` edges (amendment A-1; no `REVISION` type, no `ResponseVersion`), old rows `SUPERSEDED` not deleted; §5.3 |
 | 6 | Can one correspondence contain several files? | **Yes** | `correspondence 1:N document_link → document`, one `PRIMARY_LETTER` plus any number of attachments/annexes with `ordinal`; §7.3 |
 | 7 | Can a revised file exist without deleting the original? | **Yes** | `document_version` v2 `ACTIVE`, v1 `SUPERSEDED` with bytes retained; evidence links pin the exact version relied on; §7.5 |
 | 8 | Can responsibility for a Case change without losing history? | **Yes** | Temporal `assignment` rows with `valid_from`/`valid_until`, `assigned_by`, `end_reason`, non-overlap enforced by an `EXCLUDE` constraint; temporary cover coexists with the responsible row; §2.7 |
@@ -2350,7 +2654,11 @@ No answer is "no", so no revision of the model was required by this review.
 | **Requirement** | A condition that must be met before a branch can continue. The branch point of the workflow. |
 | **Document** | The business identity of a file, independent of its revisions. |
 | **DocumentVersion** | One immutable stored file: bytes on disk, metadata in PostgreSQL. |
-| **DocumentLink** | A placement of a document into one business context, with a role, optionally version-pinned. |
+| **DocumentLink** | A placement of a document into one business context, with a role; version-pinned wherever it records history, floating only as a working placement in the home case. |
+| **Home case** | The case a document's `ACTIVE` `is_origin` link resolves to. Floating links and new versions are confined to it; links elsewhere are pinned (§2.15). Derived, not stored. |
+| **Supersession edge** | A `response_supersession` row: one response replaces another on the same request. One response may replace several; an edge recorded in error is retracted, restoring the response it superseded (§2.21). |
+| **Reinstatement** | Making an existing, non-withdrawn `document_version` current again (`SUPERSEDED → ACTIVE`) after the version that superseded it was withdrawn. Same row, same bytes; nothing is re-uploaded (§2.14). |
+| **Closed with unresolved items** | A `CLOSED` case that still has non-terminal requests or requirements — only through a Head override, or non-blocking requirements after a normal closure. Derived (§9.1). |
 | **Conclusive response** | A response that discharges its request (`is_conclusive = true`), typically a final opinion or refusal. |
 | **Blocking requirement** | A requirement that prevents the case from reaching a final result (`is_blocking = true`). |
 | **Own organization** | The department itself, held as the single `organization` row with `is_own_organization = true`. |

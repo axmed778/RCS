@@ -3,7 +3,13 @@
 **Status:** Draft v1 (design only — no code, no migrations, no scaffolding, no packages installed)
 **Authoritative inputs (all frozen v1):** `/docs/PROJECT.md`, `/docs/DOMAIN_MODEL.md`,
 `/docs/WORKFLOW.md`, `/docs/PERMISSIONS.md`, `/docs/DOCUMENT_MODEL.md`, `/docs/SECURITY.md`.
-**Records decisions in:** `/docs/DECISIONS.md` (not written by this task — see §22).
+**Records decisions in:** `/docs/DECISIONS.md` — the authoritative decision log, created in the pre-schema
+pass (2026-09-17). The candidate numbers in §22 are superseded by its numbering.
+**Post-review amendments (2026-09-17):** the architecture itself passed review unchanged. Corrected
+here: case-level serialization of closure-relevant writes (§12.5); durable operation identity for
+retried commands (§12.2, §12.6); backup recovery-point invariant (§15); per-scope assignment exclusion
+(§7.6); per-version download authorization (§11.2); no physical GC in V1 (§8.5, §12.2). Domain side in
+`DOMAIN_MODEL.md` §12.7.
 
 ---
 
@@ -383,7 +389,7 @@ them afterwards requires a dump and reload.
 
 | Extension | Status |
 |---|---|
-| **`btree_gist`** | **Required.** `DOMAIN_MODEL.md` §2.7 specifies an `EXCLUDE` constraint over `(case_id WITH =, tstzrange(valid_from, valid_until) WITH &&)` to enforce non-overlapping responsible assignments, and that constraint cannot be created without it. This is a frozen dependency, not a preference |
+| **`btree_gist`** | **Required.** `DOMAIN_MODEL.md` §2.7 specifies `EXCLUDE` constraints — **one per assignment scope** (`case_id`, `request_id`, `requirement_id`), over half-open `tstzrange(valid_from, valid_until, '[)')` intervals, **including `ENDED` rows** and excluding only `VOID` — to enforce non-overlapping responsible assignments across history, and those constraints cannot be created without it. This is a frozen dependency, not a preference, and its exact shape is a pre-schema constraint requirement (amendment A-7) |
 | `pg_trgm` | **Future decision, not automatic** (§13.3). It is a standard contrib module with low operational risk, but it is not adopted until fuzzy matching is shown to be needed |
 | `pgcrypto` | not needed — password hashing happens in the application (`SECURITY.md` §6.2) |
 | `uuid-ossp` | not needed — UUIDv7 is generated in the application or by a built-in function where the server version provides one (§7.7) |
@@ -474,7 +480,7 @@ exhaustion, independent monitoring (§17.3).
 |---|---|---|
 | Object exists + size matches | frequent (nightly) | **critical** — alert an administrator; modify nothing |
 | Full re-hash, rolling by oldest `integrity_checked_at` | continuous background sweep, throttled, off-hours | **critical** — alert; modify nothing |
-| Orphan scan (objects with no metadata row) | occasional | informational |
+| Orphan scan (objects with no metadata row) | occasional | informational — reported and **retained**; V1 performs no physical garbage collection (`DOCUMENT_MODEL.md` §12.4) |
 | **Full verification after every restore** | on restore | gate before declaring the system usable (§15.5) |
 
 **The sweep repairs nothing automatically.** An automatic "fix" for a hash mismatch means either
@@ -509,8 +515,8 @@ Modules are **namespaces with rules**, not processes:
 | **Cases** | `case`, `case_state_change`, `assignment`, `case_access_grant`, closure/reopen rules | Users, Organizations |
 | **Correspondence** | `correspondence` registration | Cases, Organizations, Documents |
 | **Requests** | `request`, lifecycle, dispatch linkage | Cases, Correspondence, Organizations |
-| **Responses** | `response`, supersession, classification | Requests, Correspondence |
-| **Requirements** | `requirement`, `requirement_evidence`, lifecycle | Responses, Requests, Documents |
+| **Responses** | `response`, `response_supersession`, classification | Requests, Correspondence |
+| **Requirements** | `requirement`, `requirement_evidence`, `requirement_resolution_correction`, lifecycle | Responses, Requests, Documents |
 | **Final result** | `final_result`, issue/supersede/revoke | Cases, Documents |
 | **Documents** | `document`, `document_version`, `document_link`, upload protocol, object store | — (used by many) |
 | **Search** | query construction, read models | most read models |
@@ -644,7 +650,7 @@ Downloads    ──"may I serve this?"─┘
 | **One component implements `can()`** (`PERMISSIONS.md` §14.2). Role checks are **never** scattered through controllers, views or components (A7) | |
 | **Every entry point calls it** — pages, endpoints, search, document metadata, downloads, exports, audit viewer (`SECURITY.md` §7.1) | |
 | **Search filters at the query level**, by asking the policy for a scope predicate — never by fetching rows and discarding them (`PERMISSIONS.md` §27.2, `SECURITY.md` §7.4) | |
-| **Downloads authorise against the context they were requested through**, every time (`DOCUMENT_MODEL.md` §10.1) | |
+| **Downloads authorise against the context they were requested through, and only for a version that context's link exposes**, every time (`DOCUMENT_MODEL.md` §10.1) — version history, version metadata, search matches and exports use the same per-version predicate | |
 | Roles and grants are read **at action time**, not from a login claim (`PERMISSIONS.md` §27.3) | |
 | Denials emit a `PERMISSION_DENIED` audit event | |
 
@@ -667,7 +673,8 @@ re-implementation.
 | Register response | `response` + resulting `requirement` rows + request state consequence (R3) + audit |
 | Create requirement | `requirement` + audit |
 | Link document | `document` / `document_version` metadata + `document_link` + audit |
-| Close case | `case` state + `case_state_change` + audit (after guards) |
+| Close case | `case` state + `case_state_change` + audit (after guards, under the case lock — §12.5) |
+| Issue a final result (incl. a replacement) | old result `ISSUED → SUPERSEDED`, then new result `DRAFT → ISSUED` + pins + audit — one transaction, old first (`WORKFLOW.md` §8.6) |
 | Update assignment | end old row + insert new row + audit — **never an in-place reassignment** |
 
 If the audit write fails, **the business operation fails** (`SECURITY.md` §9.1). There is no path that
@@ -695,12 +702,14 @@ Bytes on a filesystem are not part of a PostgreSQL transaction. The frozen order
 | Failure point | Result | Why acceptable |
 |---|---|---|
 | During streaming or before rename | no object, no rows | nothing happened |
-| After rename, before commit | **object with no metadata row** | invisible, harmless, collectable — the benign direction |
+| After rename, before commit | **object with no metadata row** | invisible, harmless, **retained and reported** — the benign direction. V1 never collects objects (`DOCUMENT_MODEL.md` §12.4) |
 | Never | **metadata row with no bytes** | this is the failure this ordering exists to prevent (invariant 11) |
 
-**Idempotency:** the key is `(document_id, content_hash)` (`DOCUMENT_MODEL.md` §7.4), so a retried upload
-converges on the same row rather than creating a phantom version 2 — while two *different* documents may
-still legitimately share bytes.
+**Version convergence:** `(document_id, content_hash)` (`DOCUMENT_MODEL.md` §7.4) makes a retried upload
+onto an existing document converge on the same row rather than creating a phantom version 2 — while two
+*different* documents may still legitimately share bytes. **It does not make the upload command
+idempotent**: a retried first upload after an uncertain commit has no `document_id` to converge on. That
+is §12.6.
 
 ### 12.3 Streaming uploads
 
@@ -736,7 +745,59 @@ Thirteen people can work on the same case. `DOMAIN_MODEL.md` gives every busines
 
 **State transitions are the real contention point**, not text edits: two people closing the same case, or
 both marking the same requirement fulfilled. The version check plus the workflow guards
-(`WORKFLOW.md` §1, §3, §5) together make the second attempt fail cleanly and explain why.
+(`WORKFLOW.md` §1, §3, §5) together make the second attempt fail cleanly and explain why — **for races on
+one row**. Races across rows are §12.5.
+
+### 12.5 Cross-row guards — case-level serialization *(post-review; requirement, not implementation)*
+
+`row_version` protects one row against a lost update. It **cannot** protect a rule that reads several
+rows. A Chief's transaction evaluates closure guards G1–G5 and finds no open blocking requirement, while
+another transaction concurrently creates one; each commit is valid in isolation, both succeed, and the
+case is closed over a live obligation (write skew). The same shape exists for final-result readiness
+(D1), request closure (R4 reads the request's requirements), cancellation (T6) and response supersession
+(two opposite edges recorded at once would form a cycle — `DOMAIN_MODEL.md` §2.21).
+
+**Requirement.** Every operation that **evaluates** a case-scoped cross-row guard, and every operation
+that **adds, removes or changes closure-relevant work** in that case, acquires **the same case-level
+lock** inside its transaction — conceptually a row lock on the `case` row — before reading or writing
+anything else of that case.
+
+| Evaluates a cross-row guard | Changes closure-relevant work |
+|---|---|
+| close (T5) and its override; cancel (T6); reopen (T7) | create, withdraw, void or close a request; the request consequences R2, R3, R7, R8, R9 |
+| issue a final result (F2), including a replacement (F3) | create a requirement; any requirement transition (Q2–Q7); a change of `is_blocking` |
+| close a request (R4) | register, supersede or void a response |
+| record or retract a response supersession | issue, revoke or void a final result |
+
+| Rule | |
+|---|---|
+| **One convention** for all of the above. Mixing conventions (a lock here, serializable isolation there) reopens the skew | |
+| **Lock first**, before any read the guard depends on | |
+| **Two cases, fixed order.** One letter can carry responses for two cases (`DOMAIN_MODEL.md` §2.8); an operation touching both acquires both case locks in a deterministic order (e.g. by `case.id`) so it cannot deadlock | |
+| **Short.** One use case, one short transaction (§12.1). At 13 users contention is negligible | |
+| Serializable isolation with retry is an acceptable **alternative** only if applied to this whole set of operations | |
+
+The mechanism is an implementation decision. The shared convention is not.
+
+### 12.6 Retried commands — durable operation identity *(post-review; requirement, not implementation)*
+
+A mutation whose response is lost can be retried after an **uncertain** commit. Unique business
+constraints do not make that safe for creations: a retried first upload creates a second logical document,
+a second link and a second audit trail; a retried "register response" registers the letter twice.
+
+**Requirement.** Each mutation command that a client can retry — at minimum uploads, correspondence and
+response registration, and request and requirement creation — carries an **operation identifier**
+generated once when the form or upload is prepared, not per attempt. The server records it **durably, in
+the same transaction as the command's effects**, unique per operation and bound to the actor, together
+with the command kind and a reference to the result. A retry presenting an identifier already recorded
+returns the original result and executes nothing. A retry after a rolled-back attempt finds no record and
+runs normally.
+
+**Deliberately small:** one table in the application's own database, checked inside the use-case
+transaction — the same kind of technical table as the job table (§14.2), not a domain entity. No generic
+idempotency platform, no distributed coordination, no cache. `UNIQUE (document_id, content_hash)` stays
+what it is: a data-quality constraint against phantom versions. Retention of operation records and the
+exact list of covered commands are schema/implementation decisions.
 
 ---
 
@@ -916,7 +977,7 @@ flowchart LR
     end
 
     subgraph S["SECOND MACHINE"]
-        SNAP["Backup store<br/>DB dumps + WAL<br/>object mirror<br/>release archive"]
+        SNAP["Backup store<br/>DB base backups + WAL archive<br/>retained object set<br/>published recovery points<br/>release archive"]
         TEST["Restore verification<br/>+ upgrade rehearsal"]
     end
 
@@ -934,29 +995,46 @@ flowchart LR
 
 | Item | Method | Note |
 |---|---|---|
-| **PostgreSQL** | periodic base backup + **continuous WAL archiving** | WAL archiving is what turns a 24-hour RPO into minutes at almost no cost (§15.6) |
-| **Document objects** | **incremental file sync** | objects are **immutable and content-addressed**, so sync is append-only, cheap, and can run continuously with no consistency risk — nothing is ever modified in place |
+| **PostgreSQL** | periodic **physical** base backup + **continuous WAL archiving** | WAL archiving is what turns a 24-hour RPO into minutes at almost no cost (§15.6). A logical dump, if also taken, is a recovery point on its own and **never** a base for WAL replay |
+| **Document objects** | **incremental file sync** into the retained object set | objects are **immutable and content-addressed**, so sync is append-only and cheap, and the retained set is never pruned in V1. Copy ordering alone does **not** make a recovery point consistent — §15.4 does |
+| **Offline copies** | a **valid combined recovery point** (§15.4) — database state plus every object it references | a rotated drive holding a database without its objects is not a backup of the evidence |
 | **Configuration** | versioned copy, secrets **excluded** | secrets follow §15.4 |
 | **Secrets** | **not in the automated backup** — sealed, offline, two-person custody | `SECURITY.md` §13.2 |
 | **Release artifacts** | archived per release on the second machine and on offline media | §16.3 — this is what makes rebuild-without-Internet possible |
 | **Technical logs** | best-effort | not evidence; not a restore dependency |
 
-### 15.4 Ordering — the rule that makes restores consistent
+### 15.4 The recovery-point invariant — what makes restores consistent
+
+*(Corrected post-review. v1 stated "back up the object store before the database". Counterexample: the
+object copy finishes at 22:00, an upload commits at 22:01, the database backup at 22:02 includes its
+metadata — and the retained objects lack its bytes.)*
 
 From `DOCUMENT_MODEL.md` §6.7:
 
-> **Back up the object store *before* (or continuously ahead of) the database. Restore the database to a
-> point in time, then ensure the object store is at or ahead of that point.**
+> **Every object referenced by the selected database recovery point must exist, and verify against its
+> hash, in the retained object set.** A combined recovery point is valid only once that has been checked.
 
-Safe precisely because objects are immutable: a store "ahead" of the database holds extra files and no
-wrong ones. An object with no metadata row is invisible and harmless; a metadata row with no object is a
-broken evidence record. **The asymmetry decides the order.**
+An object with no metadata row is invisible and harmless; a metadata row with no object is a broken
+evidence record. **The asymmetry decides which way the check must go** — from the database recovery
+point to its required objects. With the base backup + WAL method of §15.3:
+
+| Rule | |
+|---|---|
+| The **required object set** of a recovery point is every `content_hash` of every `document_version` row in the database as of that point, in any status | |
+| A WAL recovery target is **published** as a recovery point only once its required object set is present and verified — an **object-complete boundary**. The newest WAL beyond that boundary is retained but not yet offered | |
+| An object copy pass that **begins after** a target has been reached finds every object that target references, because objects are durable before their metadata commits and never deleted (`DOCUMENT_MODEL.md` §7.2, §12.4). Verification still confirms it | |
+| Equivalent alternative: a transactionally consistent snapshot, its object set copied and verified afterwards (`DOCUMENT_MODEL.md` §6.7, strategy A) | |
+| How a boundary is established and recorded is a backup-tooling decision (`DECISIONS.md` DEF-01); that it is **verified, not assumed** is not | |
 
 ### 15.5 After any restore
 
-1. Restore database to the chosen point; 2. ensure objects are at or ahead of it; 3. **run the full
-integrity sweep** (§8.5) before declaring the system usable; 4. **record the gap** — what period was
-lost — outside the restored system, so the note survives the next restore (`SECURITY.md` §9.6).
+1. Choose a **published** recovery point (§15.4); 2. restore the database to it; 3. restore at least its
+required object set from the retained objects — extra objects are harmless; 4. **run the full integrity
+sweep** (§8.5) before declaring the system usable; 5. **record the gap** — what period was lost — outside
+the restored system, so the note survives the next restore (`SECURITY.md` §9.6).
+
+A database restored beyond the latest published recovery point in an emergency is **not** a consistent
+restore: every missing object is a critical integrity finding (I1), and the gap must be recorded as such.
 
 ### 15.6 Proposed RPO / RTO — for discussion, not contractual
 
@@ -968,6 +1046,7 @@ lost — outside the restored system, so the note survives the next restore (`SE
 |---|---|---|
 | **Database RPO** | **≤ 15 minutes** | continuous WAL archiving to the second machine. Without WAL archiving, a nightly dump alone means **RPO ≈ 24 h** — a full day of registrations re-keyed from paper |
 | **Document RPO** | **≤ 1 hour, approaching continuous** | frequent incremental sync; cheap because objects are immutable (§15.3) |
+| **Combined RPO** (database + the documents it references) | bounded by the latest **published** recovery point (§15.4) | a WAL position newer than the last verified object-complete boundary is not yet a consistent recovery point, so the effective RPO is the larger of the two cadences above |
 | **RTO — application process failure** | **minutes** | service restart |
 | **RTO — restore from backup** | **hours, within one business day** | tested procedure + the second machine |
 | **RTO — total primary loss** | **1–2 business days** | manual promotion of the second machine or rebuild from the release archive |
@@ -1174,9 +1253,9 @@ Not a coverage target. **High-value tests on the things that would be expensive 
 | **Domain unit tests** | state machines and invariants from `WORKFLOW.md`: request transitions R1–R8, requirement transitions Q1–Q6, `WAIVED`/`VOID`/`FAILED` semantics, closure guards G1–G5, final-result guards D1–D4 | **highest** — these encode the business rules and are cheap to test |
 | **Workflow tests** | multi-step scenarios: the §6.2 causal chain end to end; parallel branches progressing independently; a requirement voided by a later response leaving its child request intact | **highest** — this is what the system *is* |
 | **Permission tests** | a matrix driven from `PERMISSIONS.md` §26: for each role × action × relationship, assert allow/deny — **against the real `can()` component**, not a re-implementation | **highest** — a silent authorization regression is the worst defect class here |
-| **Database integration tests** | against a **real PostgreSQL**: exclusive-arc `CHECK`s reject bad rows, partial unique indexes hold (one `ACTIVE` version per document, one `PRIMARY_LETTER` per correspondence, one `ISSUED` result per case), the `EXCLUDE` constraint rejects overlapping responsible assignments, FKs are `RESTRICT` | **high** — these prove A3, and they are the tests an ORM change would otherwise silently break |
-| **Document storage tests** | hash correctness; `(document_id, content_hash)` idempotency (retry does not create v2); two documents sharing bytes is allowed; interrupted upload leaves no metadata; atomic rename; withdrawal does not delete bytes | **high** |
-| **Concurrency tests** | two simultaneous updates → one succeeds, one gets a conflict, **never silent overwrite**; two clerks racing to close the same case | **high** |
+| **Database integration tests** | against a **real PostgreSQL**: exclusive-arc `CHECK`s reject bad rows, partial unique indexes hold (one `ACTIVE` version per document, one `PRIMARY_LETTER` per correspondence, one `ISSUED` result per case), the per-scope `EXCLUDE` constraints reject overlapping responsible assignments — including against `ENDED` history and at exact handover instants — the correspondence-pin `CHECK` rejects an unpinned letter placement, `response_supersession` rejects self-, duplicate- and cross-request edges, FKs are `RESTRICT` | **high** — these prove A3, and they are the tests an ORM change would otherwise silently break |
+| **Document storage tests** | hash correctness; `(document_id, content_hash)` convergence (retry does not create v2); a retried **first** upload with the same operation identifier creates no second document (§12.6); two documents sharing bytes is allowed; interrupted upload leaves no metadata; atomic rename; withdrawal does not delete bytes; a new version cannot be added outside the home case; a version not exposed by a visible link cannot be downloaded, listed or searched | **high** |
+| **Concurrency tests** | two simultaneous updates → one succeeds, one gets a conflict, **never silent overwrite**; two clerks racing to close the same case; **a case closure racing the creation of a blocking requirement** — never both committed (§12.5); a replacement final result racing a revocation | **high** |
 | **Audit tests** | every audited action writes its event; a failed audit write fails the operation; the runtime role **cannot** `UPDATE`/`DELETE` audit rows | **high** |
 | **End-to-end tests** | a handful of critical journeys: register incoming letter → create case; register response → raise requirement → child request → fulfil; close case; restricted-case visibility | **medium**, deliberately few — expensive to maintain |
 | **Restore / backup verification** | a procedure, exercised for real (§15.5, `SECURITY.md` G-10) | **operational, not automated in V1** |
@@ -1222,7 +1301,7 @@ confidential.
 | F2 | **Application process down** | proxy returns a clear error page, not a blank | work on paper | service restart (auto-restart policy); check logs |
 | F3 | **PostgreSQL unavailable** | application health shows DB unreachable; **requests fail clearly, no partial writes** | work on paper | restart; if corrupt → F5 |
 | F4 | **Document volume full** | **uploads rejected with an explicit error before any metadata is written.** Reads continue | continue everything except uploading | free space / extend volume; the health page should have warned first (§17.3) |
-| F5 | **PostgreSQL corruption** | errors surface; **do not attempt repair-in-place first** | paper register | restore from backup + WAL to the latest safe point (§15.4); then integrity sweep (§15.5) |
+| F5 | **PostgreSQL corruption** | errors surface; **do not attempt repair-in-place first** | paper register | restore from backup + WAL to the latest **published** recovery point (§15.4); then integrity sweep (§15.5) |
 | F6 | **Object store corruption / missing objects** | integrity sweep reports **critical**; downloads of affected versions **fail with an integrity error, never serve wrong bytes** | everything except the affected documents | restore objects from backup — **verifiable**, because content addressing means a restored object is either byte-identical or not the object |
 | F7 | **Ransomware on a workstation** | limited to that user's authority through the application; **cannot reach the store or the database** (`SECURITY.md` §14.4) | continue on other workstations | clean the workstation; revoke sessions; review audit |
 | F8 | **Ransomware / compromise on the server** | severe | paper register | **restore from the offline copy the primary cannot write** (§15.2) — this is the scenario that justifies the whole backup topology |
@@ -1374,6 +1453,9 @@ enforce a dependency direction.
 ## 22. ADR candidates
 
 To be recorded in `/docs/DECISIONS.md` — **not written by this task.**
+*Now recorded (pre-schema pass).* `DECISIONS.md` uses its own numbering (ADR-001 …, DEF-xx, PS-1); the
+numbers below are historical candidate labels only, and its "Numbering map" section shows where each one
+went. Where they differ, `DECISIONS.md` governs.
 
 | # | Decision | Status here | Depends on |
 |---|---|---|---|
@@ -1476,6 +1558,9 @@ Any future change that breaks one of these requires a decision record in `DECISI
 | **18** | No message broker is required | §14.2 |
 | **19** | The architecture stays maintainable by a small IT/development team | §1.1, §5, §9.2, §16.4 |
 | **20** | Failure is visible rather than silently corrupting records | §19, A4 |
+| **21** | Case-scoped cross-row guards and the writes that affect them share one case-level serialization convention | §12.5 *(post-review)* |
+| **22** | A backup is a recovery point only when every object its database state references exists and verifies | §15.4 *(post-review)* |
+| **23** | A retried command after an uncertain commit executes at most once | §12.6 *(post-review)* |
 
 ---
 
@@ -1558,7 +1643,7 @@ sequenceDiagram
     A->>DB: BEGIN
     A->>DB: SELECT/INSERT document
     A->>DB: INSERT document_version — UNIQUE(document_id, content_hash)
-    A->>DB: INSERT document_link (context + role, pinned if evidential)
+    A->>DB: INSERT document_link (context + role, pinned per DOCUMENT_MODEL 4.4)
     A->>DB: INSERT audit_event (UPLOAD, with content hash)
     A->>DB: COMMIT
     end
@@ -1570,7 +1655,7 @@ sequenceDiagram
         A-->>U: success (idempotent retry)
     else failure after rename, before commit
         A->>DB: ROLLBACK
-        A-->>U: clear error — object is an invisible orphan, collected later
+        A-->>U: clear error — object is an invisible orphan, retained (no GC in V1)
     else object volume full / write fails
         A-->>U: upload REJECTED — no metadata row created
     end
@@ -1578,7 +1663,9 @@ sequenceDiagram
 
 **The invariant this flow exists to protect:** there is no path that produces a `document_version` row
 without durable bytes behind it (invariant 11). The benign failure — an object with no row — is
-invisible and collectable; the malign one is prevented by ordering.
+invisible and retained; the malign one is prevented by ordering. A retried request carries the same
+operation identifier (§12.6), so an upload whose commit succeeded but whose response was lost is not
+executed twice.
 
 ---
 
@@ -1590,7 +1677,7 @@ invisible and collectable; the malign one is prevented by ordering.
 | 2 | Can it operate for a week with no Internet? | **Yes** | no runtime fetches, bundled assets, internal CA with no Internet revocation URLs (§16.1, `SECURITY.md` §18.3) |
 | 3 | Can the primary server be rebuilt without downloading packages? | **Yes** | the offline release bundle carries the self-contained app, frontend assets, migrations, PostgreSQL and nginx packages, and install scripts (§16.2–§16.3) |
 | 4 | Can an update be rehearsed before touching production? | **Yes** | the second machine as pre-production, migrations run there first, against a restored copy (§16.5, §16.7) |
-| 5 | Can database and documents be restored consistently? | **Yes** | objects backed up ahead of the database; restore DB to a point, objects at or ahead; integrity sweep afterwards (§15.4–§15.5) |
+| 5 | Can database and documents be restored consistently? | **Yes** *(mechanism corrected post-review)* | a recovery point is published only when every object its database state references exists and verifies in the retained object set; restore the database to it, restore those objects, integrity sweep afterwards (§15.4–§15.5) |
 | 6 | Can one server fail without permanently losing the system? | **Yes** | second machine + offline copy; manual promotion, 1–2 business days (§15.1, §19 F13) |
 | 7 | Is there a backup the primary cannot destroy? | **Yes** | pull-based (the primary holds no write credential) plus an offline copy (§15.2) |
 | 8 | Can a developer understand it without knowing five platforms? | **Yes** | two ecosystems (C#/.NET, PostgreSQL), one process, server-rendered pages, explicit SQL (§3.1, §9.2) |
@@ -1622,6 +1709,14 @@ not later "simplified" away:
 One decision is **blocked** on an input this document must not guess: **PS-1, database collation**
 (§7.6, §23.1). It is a genuine pre-schema blocker and requires testing against the department's real
 organization names.
+
+**Post-review (2026-09-17).** The independent review passed this architecture — modular monolith,
+ASP.NET Core, server rendering, PostgreSQL, local content-addressed storage, native services, pull-based
+backups, no cloud, broker, SPA or external search — and none of that changed. It found three places
+where this document relied on a rule that does not hold: optimistic concurrency cannot protect cross-row
+guards (§12.5); a unique constraint cannot make a first-upload retry idempotent (§12.6); and "objects
+before database" cannot make a recovery point consistent (§15.4). Each is corrected as a requirement,
+without selecting new technology.
 
 ---
 
