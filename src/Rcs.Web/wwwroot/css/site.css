@@ -579,3 +579,26 @@ form.form { max-width: 860px; }
     .workspace-summary { padding: 0 16px 16px; }
     .list-toolbar { flex-wrap: wrap; }
 }
+
+/* Document controls use the existing shell, cards and form typography. */
+.doc-list { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--border, #334155); }
+.doc-list__head, .doc-item__main, .doc-list__actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.doc-list__head { justify-content: space-between; }
+.doc-list__title { font-weight: 600; }
+.doc-items { list-style: none; padding: 0; margin: .75rem 0; }
+.doc-item { padding: .65rem 0; overflow-wrap: anywhere; }
+.doc-item__title { flex: 1; min-width: 8rem; }
+.doc-item__meta, .doc-list__empty { font-size: .85rem; color: var(--muted, #94a3b8); margin-top: .4rem; }
+.doc-history { margin: .75rem 0; padding: .5rem 0; }
+.doc-history summary, details.card > summary { cursor: pointer; overflow-wrap: anywhere; }
+.is-withdrawn { opacity: .7; }
+.doc-choice { display: flex; align-items: start; gap: .75rem; padding: .75rem; overflow-wrap: anywhere; }
+.doc-choice input { width: auto; margin-top: .35rem; }
+.doc-choice .hint { display: block; }
+.doc-choices { border: 1px solid var(--border, #334155); border-radius: .5rem; }
+.dropzone { border: 1px dashed var(--muted, #94a3b8); padding: 1rem; border-radius: .5rem; }
+.dropzone.is-dragging { outline: 2px solid #60a5fa; }
+.upload-progress { display: flex; gap: 1rem; align-items: center; }
+.upload-progress[hidden] { display: none; }
+.upload-progress progress { width: 100%; }
+.node-documents { min-width: 0; }

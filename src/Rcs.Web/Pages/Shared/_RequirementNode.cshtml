@@ -85,11 +85,11 @@
         </div>
     }
 
-    @if (requirement.Evidence.Count > 0)
+    @if (requirement.Evidence.Any(item => item.DocumentVersionId is null))
     {
         <div class="node__meta">
             <strong>@T["Requirement.Evidence"]:</strong>
-            @foreach (var evidence in requirement.Evidence)
+            @foreach (var evidence in requirement.Evidence.Where(item => item.DocumentVersionId is null))
             {
                 var source = evidence.ResponseId is { } responseId ? workspace.FindResponse(responseId) : null;
                 <div>
@@ -109,6 +109,9 @@
             }
         </div>
     }
+
+    @* Document evidence: each file pinned to the exact version accepted as proof (DOCUMENT_MODEL.md §4.6). *@
+    <partial name="_DocumentList" model='Model.Documents.ListFor(workspace, DocumentTargetKind.Requirement, requirement.Id, DocumentLinkRoleCodes.RequirementEvidence, DocumentLinkRoleCodes.RequirementEvidence, isOpen && Model.May(BusinessAction.RecordRequirementEvidence), "Documents.Evidence")' />
 
     @if (requirement.SourceResponseId is { } sourceId && workspace.FindResponse(sourceId) is { } sourceResponse)
     {
@@ -150,7 +153,7 @@
         <ul class="tree">
             @foreach (var child in requirement.ChildRequests)
             {
-                <li><partial name="_RequestNode" model="new RequestNodeView(child, workspace)" /></li>
+                <li><partial name="_RequestNode" model="new RequestNodeView(child, workspace, Model.Documents)" /></li>
             }
         </ul>
     }

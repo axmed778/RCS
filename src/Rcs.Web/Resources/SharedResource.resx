@@ -1414,4 +1414,145 @@
   <data name="Graph.ResponseReceived" xml:space="preserve"><value>Cavab alınıb</value></data>
   <data name="Graph.Related" xml:space="preserve"><value>Əlaqəli elementlər</value></data>
   <data name="Shell.Search" xml:space="preserve"><value>İşlərdə axtar</value></data>
+  <data name="Documents.Title" xml:space="preserve"><value>Sənədlər</value></data>
+  <data name="Documents.AcceptedFamilies" xml:space="preserve"><value>PDF, KMZ, Word, Excel, AutoCAD və ArchiCAD faylları saxlanılır. Fayllar yalnız endirilir; önbaxış yoxdur.</value></data>
+  <data name="Documents.AlsoUsed" xml:space="preserve"><value>Bu işdə digər əlaqələr</value></data>
+  <data name="Documents.AttachAction" xml:space="preserve"><value>Əlavə et</value></data>
+  <data name="Documents.AttachExisting" xml:space="preserve"><value>Mövcud faylı seç</value></data>
+  <data name="Documents.AttachInto" xml:space="preserve"><value>Əlavə edilən yer</value></data>
+  <data name="Documents.AttachIntro" xml:space="preserve"><value>Sənədin dəqiq faylını seçin. Fayl yenidən yüklənmir.</value></data>
+  <data name="Documents.CaseSupporting" xml:space="preserve"><value>İşin köməkçi sənədləri</value></data>
+  <data name="Documents.ChooseVersion" xml:space="preserve"><value>Faylı seçin</value></data>
+  <data name="Documents.Context.IncomingLetter" xml:space="preserve"><value>Daxil olan məktub</value></data>
+  <data name="Documents.Context.OutgoingLetter" xml:space="preserve"><value>Göndərilən məktub</value></data>
+  <data name="Documents.Context.ResponseLetter" xml:space="preserve"><value>Cavab məktubu</value></data>
+  <data name="Documents.CorrectionHint" xml:space="preserve"><value>Səhv yeri və ya rolu düzəldin. Əvvəlki əlaqə tarixçədə saxlanılır.</value></data>
+  <data name="Documents.CorrectPlacement" xml:space="preserve"><value>Əlaqəni düzəlt</value></data>
+  <data name="Documents.Download" xml:space="preserve"><value>Endir</value></data>
+  <data name="Documents.DownloadTitle" xml:space="preserve"><value>Bu kontekstdə göstərilən dəqiq faylı endir</value></data>
+  <data name="Documents.DropHint" xml:space="preserve"><value>Faylı seçin və ya buraya sürükləyin. Maksimum {0} MB.</value></data>
+  <data name="Documents.EditMetadata" xml:space="preserve"><value>Sənəd məlumatlarını düzəlt</value></data>
+  <data name="Documents.Evidence" xml:space="preserve"><value>Tələbin sübutları</value></data>
+  <data name="Documents.FloatingExplanation" xml:space="preserve"><value>Bu işçi əlaqə sənədin cari faylını göstərir. Əvvəlki fayllar tarixçədə qalır.</value></data>
+  <data name="Documents.LetterFiles" xml:space="preserve"><value>Məktub və əlavələri</value></data>
+  <data name="Documents.MacroEnabled" xml:space="preserve"><value>Makrolu Office faylı — yalnız endirmə</value></data>
+  <data name="Documents.MetadataWarning" xml:space="preserve"><value>Başlıq və məlumatların dəyişməsi sənədin istifadə edildiyi bütün yerlərdə görünəcək.</value></data>
+  <data name="Documents.NoCurrentVersion" xml:space="preserve"><value>Cari fayl yoxdur</value></data>
+  <data name="Documents.None" xml:space="preserve"><value>Hələ sənəd əlavə edilməyib.</value></data>
+  <data name="Documents.NoPlacement" xml:space="preserve"><value>Əlavə yer seçilməyib</value></data>
+  <data name="Documents.NothingToAttach" xml:space="preserve"><value>Əlavə etmək üçün uyğun fayl yoxdur.</value></data>
+  <data name="Documents.OutgoingLetterFiles" xml:space="preserve"><value>Göndərilən məktubun faylları</value></data>
+  <data name="Documents.Pinned" xml:space="preserve"><value>Dəqiq fayl saxlanılıb</value></data>
+  <data name="Documents.PinnedExplanation" xml:space="preserve"><value>Bu əlaqə dəqiq bir faylı göstərir. Sonrakı yükləmələr onu dəyişmir.</value></data>
+  <data name="Documents.PinnedTitle" xml:space="preserve"><value>Sonrakı yükləmələr bu məktubun və ya sübutun faylını dəyişmir.</value></data>
+  <data name="Documents.Reason" xml:space="preserve"><value>Səbəb</value></data>
+  <data name="Documents.Reinstate" xml:space="preserve"><value>Əvvəlki faylı cari et</value></data>
+  <data name="Documents.Removed" xml:space="preserve"><value>Əlaqə geri götürülüb</value></data>
+  <data name="Documents.RemovedCount" xml:space="preserve"><value>Geri götürülmüş əlaqələr ({0})</value></data>
+  <data name="Documents.RemovePlacement" xml:space="preserve"><value>Əlaqəni geri götür</value></data>
+  <data name="Documents.ResponseLetterFiles" xml:space="preserve"><value>Cavab məktubunun faylları</value></data>
+  <data name="Documents.ResultEvidence" xml:space="preserve"><value>Yekun qərarın sənədləri</value></data>
+  <data name="Documents.RetentionHint" xml:space="preserve"><value>Sənəd geri götürülür, fayllar isə müddətsiz saxlanılır. Silinmə aparılmır.</value></data>
+  <data name="Documents.RetractEvidence" xml:space="preserve"><value>Sübutu geri götür</value></data>
+  <data name="Documents.RevisedLetterWarning" xml:space="preserve"><value>Yeni rəsmi məktub yeni yazışma kimi qeydə alınmalıdır. Burada yalnız eyni sənədin düzəldilmiş skanı və ya faylı yüklənir.</value></data>
+  <data name="Documents.Save" xml:space="preserve"><value>Yadda saxla</value></data>
+  <data name="Documents.Saved" xml:space="preserve"><value>Dəyişiklik yadda saxlanıldı.</value></data>
+  <data name="Documents.Share" xml:space="preserve"><value>Başqa işə təqdim et</value></data>
+  <data name="Documents.Shared" xml:space="preserve"><value>Seçilmiş fayl digər işə təqdim edildi.</value></data>
+  <data name="Documents.ShareWarning" xml:space="preserve"><value>Seçilmiş dəqiq fayl və sənəd məlumatları seçilən işi görən əməkdaşlara açılacaq. Digər fayllar paylaşılmır. Səbəb yazın.</value></data>
+  <data name="Documents.Target" xml:space="preserve"><value>Əlaqənin yeri</value></data>
+  <data name="Documents.TargetCase" xml:space="preserve"><value>Qəbul edən iş</value></data>
+  <data name="Documents.ReinstatePrevious" xml:space="preserve"><value>Eyni zamanda əvvəlki versiyanı yenidən cari et</value></data>
+  <data name="Documents.MoveToCase" xml:space="preserve"><value>Düzgün işə köçür</value></data>
+  <data name="Documents.MoveToCaseHint" xml:space="preserve"><value>Fayl tamamilə səhv işə qeyd edilib. Yerləşdirmə ləğv edilir, fayl seçilmiş işə dəstəkləyici sənəd kimi köçürülür və o iş faylın əsas işi olur. Bu, açıqlama qərarıdır və tarixçədə qalır.</value></data>
+  <data name="Documents.TooLarge" xml:space="preserve"><value>Fayl {0} MB həddini aşır.</value></data>
+  <data name="Documents.Unclassified" xml:space="preserve"><value>Format dəqiqləşdirilməyib — yalnız endirmə</value></data>
+  <data name="Documents.Upload" xml:space="preserve"><value>Fayl yüklə</value></data>
+  <data name="Documents.UploadAction" xml:space="preserve"><value>Yüklə və saxla</value></data>
+  <data name="Documents.UploadInto" xml:space="preserve"><value>Yüklənən yer</value></data>
+  <data name="Documents.UploadVersion" xml:space="preserve"><value>Düzəldilmiş fayl yüklə</value></data>
+  <data name="Documents.VersionIntro" xml:space="preserve"><value>Yeni fayl əvvəlkini əvəz etmir. Tarixi məktublar və sübutlar öz dəqiq fayllarını saxlayır.</value></data>
+  <data name="Documents.VersionPlacement" xml:space="preserve"><value>Yeni faylın əlavə olunacağı yer</value></data>
+  <data name="Documents.VersionPlacementHint" xml:space="preserve"><value>Cari faylı izləyən işçi əlaqə yoxdursa, yeni faylın görünməsi üçün yer seçilməlidir.</value></data>
+  <data name="Documents.WithdrawDocument" xml:space="preserve"><value>Sənədi geri götür</value></data>
+  <data name="Documents.WithdrawVersion" xml:space="preserve"><value>Bu faylı geri götür</value></data>
+  <data name="Documents.WorkFiles" xml:space="preserve"><value>İşçi sənədlər</value></data>
+  <data name="Documents.Float" xml:space="preserve"><value>Bu işçi əlaqədə cari faylı göstər</value></data>
+  <data name="Field.DocumentDate" xml:space="preserve"><value>Sənədin tarixi</value></data>
+  <data name="Field.DocumentKind" xml:space="preserve"><value>Sənədin növü</value></data>
+  <data name="Field.DocumentReference" xml:space="preserve"><value>Sənədin istinad nömrəsi</value></data>
+  <data name="Field.DocumentRole" xml:space="preserve"><value>Faylın rolu</value></data>
+  <data name="Field.DocumentTitle" xml:space="preserve"><value>Sənədin başlığı</value></data>
+  <data name="Field.EvidenceNote" xml:space="preserve"><value>Sübut haqqında qeyd</value></data>
+  <data name="Field.File" xml:space="preserve"><value>Fayl</value></data>
+  <data name="FinalResult.DocumentOverrideNote" xml:space="preserve"><value>Sənədsiz təsdiqin səbəbi</value></data>
+  <data name="FinalResult.NoDocumentWarning" xml:space="preserve"><value>İmzalanmış qərarın faylı əlavə edilməyib. İstisnanın səbəbini yazın; sənəd sonradan əlavə edilməlidir.</value></data>
+  <data name="DocumentKind.LETTER_BODY" xml:space="preserve"><value>Məktub</value></data>
+  <data name="DocumentKind.MAP" xml:space="preserve"><value>Xəritə</value></data>
+  <data name="DocumentKind.DRAWING" xml:space="preserve"><value>Çertyoj</value></data>
+  <data name="DocumentKind.SPREADSHEET" xml:space="preserve"><value>Cədvəl</value></data>
+  <data name="DocumentKind.PHOTO" xml:space="preserve"><value>Foto</value></data>
+  <data name="DocumentKind.CERTIFICATE" xml:space="preserve"><value>Arayış</value></data>
+  <data name="DocumentKind.PERMIT" xml:space="preserve"><value>İcazə</value></data>
+  <data name="DocumentKind.OTHER" xml:space="preserve"><value>Digər</value></data>
+  <data name="DocumentLinkRole.PRIMARY_LETTER" xml:space="preserve"><value>Əsas məktub</value></data>
+  <data name="DocumentLinkRole.ATTACHMENT" xml:space="preserve"><value>Əlavə</value></data>
+  <data name="DocumentLinkRole.ANNEX" xml:space="preserve"><value>Qoşma</value></data>
+  <data name="DocumentLinkRole.REQUIREMENT_EVIDENCE" xml:space="preserve"><value>Tələbin sübutu</value></data>
+  <data name="DocumentLinkRole.FINAL_RESULT_DOCUMENT" xml:space="preserve"><value>Yekun qərarın sənədi</value></data>
+  <data name="DocumentLinkRole.SUPPORTING" xml:space="preserve"><value>Köməkçi sənəd</value></data>
+  <data name="DocumentLinkRole.WORKING_COPY" xml:space="preserve"><value>İşçi nüsxə</value></data>
+  <data name="DocumentVersionStatus.ACTIVE" xml:space="preserve"><value>Cari fayl</value></data>
+  <data name="DocumentVersionStatus.SUPERSEDED" xml:space="preserve"><value>Əvvəlki fayl</value></data>
+  <data name="DocumentVersionStatus.WITHDRAWN" xml:space="preserve"><value>Geri götürülmüş fayl</value></data>
+  <data name="DocumentStatus.ACTIVE" xml:space="preserve"><value>Aktiv</value></data>
+  <data name="DocumentStatus.WITHDRAWN" xml:space="preserve"><value>Geri götürülüb</value></data>
+  <data name="DocumentLinkStatus.ACTIVE" xml:space="preserve"><value>Aktiv</value></data>
+  <data name="DocumentLinkStatus.REMOVED" xml:space="preserve"><value>Geri götürülüb</value></data>
+  <data name="WithdrawalReason.UPLOADED_IN_ERROR" xml:space="preserve"><value>Qeydiyyat səhvi</value></data>
+  <data name="WithdrawalReason.DUPLICATE" xml:space="preserve"><value>Təkrar qeyd</value></data>
+  <data name="WithdrawalReason.WRONG_FILE" xml:space="preserve"><value>Səhv fayl</value></data>
+  <data name="WithdrawalReason.RECALLED_BY_ISSUER" xml:space="preserve"><value>Geri çağırılıb</value></data>
+  <data name="WithdrawalReason.OTHER" xml:space="preserve"><value>Digər səbəb</value></data>
+  <data name="EntityType.document" xml:space="preserve"><value>Sənəd</value></data>
+  <data name="EntityType.document_version" xml:space="preserve"><value>Sənəd faylı</value></data>
+  <data name="EntityType.document_link" xml:space="preserve"><value>Sənəd əlaqəsi</value></data>
+  <data name="Error.final_result.document_required" xml:space="preserve"><value>İmzalanmış qərarı əlavə edin və ya sənədsiz təsdiqin səbəbini yazın.</value></data>
+  <data name="Error.document.select_file" xml:space="preserve"><value>Fayl seçin.</value></data>
+  <data name="Error.document.upload_failed" xml:space="preserve"><value>Faylı saxlamaq mümkün olmadı. Yenidən cəhd edin.</value></data>
+  <data name="Error.document.upload_incomplete" xml:space="preserve"><value>Yükləmə tamamlanmadı. Faylı yenidən yükləyin.</value></data>
+  <data name="Error.document.no_file" xml:space="preserve"><value>Yüklənəcək fayl seçilməyib.</value></data>
+  <data name="Error.document.empty_file" xml:space="preserve"><value>Boş fayl yükləmək olmaz.</value></data>
+  <data name="Error.document.too_large" xml:space="preserve"><value>Fayl icazə verilən ölçü həddini aşır (maksimum 500 MB).</value></data>
+  <data name="Error.document.storage_unavailable" xml:space="preserve"><value>Fayl yaddaşı hazır deyil. Administratora müraciət edin.</value></data>
+  <data name="Error.document.integrity_failure" xml:space="preserve"><value>Saxlanmış faylı yoxlamaq mümkün olmadı. Administratora müraciət edin.</value></data>
+  <data name="Error.document.evidence_link_retract_instead" xml:space="preserve"><value>Sübut əlaqəsini dəyişmək üçün sübutu geri götürün.</value></data>
+  <data name="Error.document.has_current_version" xml:space="preserve"><value>Sənədin artıq cari faylı var.</value></data>
+  <data name="Error.document.last_link_withdraw_instead" xml:space="preserve"><value>Son əlaqəni götürmək üçün sənədi geri götürün.</value></data>
+  <data name="Error.document.link_not_active" xml:space="preserve"><value>Bu əlaqə artıq aktiv deyil.</value></data>
+  <data name="Error.document.not_reinstatable" xml:space="preserve"><value>Bu faylı cari etmək mümkün deyil.</value></data>
+  <data name="Error.document.origin_link_move_instead" xml:space="preserve"><value>İlkin əlaqəni başqa yerə köçürün və ya sənədi geri götürün.</value></data>
+  <data name="Error.document.reinstatement_reason_required" xml:space="preserve"><value>Əvvəlki faylın bərpası üçün səbəb yazın.</value></data>
+  <data name="Error.document.removal_reason_required" xml:space="preserve"><value>Əlaqənin geri götürülməsi üçün səbəb yazın.</value></data>
+  <data name="Error.document.version_already_withdrawn" xml:space="preserve"><value>Fayl artıq geri götürülüb.</value></data>
+  <data name="Error.document.version_pinned_by_decision" xml:space="preserve"><value>Bu fayl verilmiş qərarın sübutudur. Düzəliş üçün qərar əvəzlənməlidir.</value></data>
+  <data name="Error.document.withdrawal_reason_required" xml:space="preserve"><value>Geri götürülmənin səbəbini seçin.</value></data>
+  <data name="Error.document.already_evidence" xml:space="preserve"><value>Bu fayl artıq sübut kimi əlavə edilib.</value></data>
+  <data name="Error.document.already_placed" xml:space="preserve"><value>Bu fayl artıq burada əlavə edilib.</value></data>
+  <data name="Error.document.cited_as_evidence" xml:space="preserve"><value>Sənəd sübut kimi istifadə olunur. Əvvəlcə müvafiq sübutu düzəldin.</value></data>
+  <data name="Error.document.disclosure_reason_required" xml:space="preserve"><value>Başqa işə təqdimatın səbəbini yazın.</value></data>
+  <data name="Error.document.evidence_locked_by_resolution" xml:space="preserve"><value>Həll edilmiş tələbin sübutunu dəyişmək üçün əvvəlcə tələbin nəticəsi düzəldilməlidir.</value></data>
+  <data name="Error.document.evidence_not_active" xml:space="preserve"><value>Sübut artıq aktiv deyil.</value></data>
+  <data name="Error.document.final_result_closed" xml:space="preserve"><value>Bu yekun qərarın sənədləri dəyişdirilə bilməz.</value></data>
+  <data name="Error.document.move_same_place" xml:space="preserve"><value>Başqa yer və ya rol seçin.</value></data>
+  <data name="Error.document.no_current_version" xml:space="preserve"><value>Sənədin cari faylı yoxdur.</value></data>
+  <data name="Error.document.not_active" xml:space="preserve"><value>Sənəd aktiv deyil.</value></data>
+  <data name="Error.document.not_home_case" xml:space="preserve"><value>Bu dəyişiklik sənədin ilkin işində aparılmalıdır.</value></data>
+  <data name="Error.document.primary_letter_exists" xml:space="preserve"><value>Bu məktubun əsas faylı artıq var. Əvvəlcə səhv əlaqəni düzəldin.</value></data>
+  <data name="Error.document.requirement_resolved" xml:space="preserve"><value>Tələb artıq həll edilib.</value></data>
+  <data name="Error.document.role_not_allowed_here" xml:space="preserve"><value>Seçilmiş rol bu yer üçün uyğun deyil.</value></data>
+  <data name="Error.document.use_evidence_command" xml:space="preserve"><value>Faylı tələbin sübutu vasitəsilə əlavə edin.</value></data>
+  <data name="Error.document.version_needs_placement" xml:space="preserve"><value>Yeni fayl üçün əlavə olunacağı yeri seçin.</value></data>
+  <data name="Error.document.version_withdrawn" xml:space="preserve"><value>Geri götürülmüş fayl yeni sübut kimi əlavə edilə bilməz.</value></data>
+  <data name="Error.notfound.document" xml:space="preserve"><value>Sənəd tapılmadı.</value></data>
 </root>

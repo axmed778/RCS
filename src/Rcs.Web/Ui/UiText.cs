@@ -42,6 +42,15 @@ public sealed class UiText(IStringLocalizer<SharedResource> localizer, BusinessC
 
     public string Text(string? value) => string.IsNullOrWhiteSpace(value) ? this["Common.None"].Value : value;
 
+    /// <summary>A byte count for people: B, KB, MB or GB with one decimal.</summary>
+    public string FileSize(long bytes) => bytes switch
+    {
+        < 1024 => string.Create(CultureInfo.InvariantCulture, $"{bytes} B"),
+        < 1024 * 1024 => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1024.0:0.#} KB"),
+        < 1024L * 1024 * 1024 => string.Create(CultureInfo.InvariantCulture, $"{bytes / (1024.0 * 1024):0.#} MB"),
+        _ => string.Create(CultureInfo.InvariantCulture, $"{bytes / (1024.0 * 1024 * 1024):0.##} GB"),
+    };
+
     // ------------------------------------------------------------- progress
 
     public string Progress(ProgressMessage message)

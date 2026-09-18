@@ -81,12 +81,6 @@ public static class CaseClosureRules
 }
 
 /// <summary>Final-result transitions F1–F5 and the issue guards D1–D4 (WORKFLOW.md §8).</summary>
-/// <remarks>
-/// D4 — at least one ACTIVE document link with role FINAL_RESULT_DOCUMENT — is <b>not evaluated in this build</b>:
-/// the document store does not exist yet, so there is nothing to read. It is not silently passed either; the
-/// caller records that it was not evaluable, the same way the progress ladder records the rows it cannot reach.
-/// When documents arrive, D4 joins <see cref="CanIssue"/> with its override, and nothing else here changes.
-/// </remarks>
 public static class FinalResultRules
 {
     /// <summary>F1: a draft may be started whenever the case is open to work. A draft has no effect on anything (§8.1).</summary>
@@ -96,25 +90,38 @@ public static class FinalResultRules
         : RuleCheck.Ok;
 
     /// <summary>
-    /// F2. D1 (readiness, §7.4) is overridable by the Head with a mandatory reason; D2 and D3 are not
-    /// overridable and are satisfied by the act of issuing, which records both the decision and the approval.
+    /// F2. D1 (readiness, §7.4) and D4 (the signed decision is on file) are overridable by the Head with a mandatory
+    /// reason; D2 and D3 are not overridable and are satisfied by the act of issuing, which records both the decision
+    /// and the approval.
     /// </summary>
     /// <param name="isReadyForFinalResult">§7.4, computed over the whole case under the case lock.</param>
     /// <param name="readinessOverrideNote">The Head's reason for issuing over an unready case; null when not overriding.</param>
-    public static RuleCheck CanIssue(FinalResultStatus status, bool isReadyForFinalResult, string? readinessOverrideNote)
+    /// <param name="activeResultDocuments">
+    /// D4: ACTIVE <c>FINAL_RESULT_DOCUMENT</c> links on this result — the signed decision, each pinned to one exact version.
+    /// </param>
+    /// <param name="documentOverrideNote">
+    /// The Head's mandatory reason for issuing before the signed decision is on file ("the document must follow",
+    /// §8.3). Null when not overriding.
+    /// </param>
+    public static RuleCheck CanIssue(
+        FinalResultStatus status,
+        bool isReadyForFinalResult,
+        string? readinessOverrideNote,
+        int activeResultDocuments,
+        string? documentOverrideNote)
     {
         if (status != FinalResultStatus.Draft)
         {
             return RuleCheck.Fail("final_result.not_draft");
         }
 
-        if (isReadyForFinalResult)
+        if (!isReadyForFinalResult && string.IsNullOrWhiteSpace(readinessOverrideNote))
         {
-            return RuleCheck.Ok;
+            return RuleCheck.Fail("final_result.case_not_ready");
         }
 
-        return string.IsNullOrWhiteSpace(readinessOverrideNote)
-            ? RuleCheck.Fail("final_result.case_not_ready")
+        return activeResultDocuments == 0 && string.IsNullOrWhiteSpace(documentOverrideNote)
+            ? RuleCheck.Fail("final_result.document_required")
             : RuleCheck.Ok;
     }
 

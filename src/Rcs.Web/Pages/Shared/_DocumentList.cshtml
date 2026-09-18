@@ -1,0 +1,95 @@
+@model DocumentListView
+@using Rcs.Application.Documents
+@using Rcs.Domain.Documents
+@using Rcs.Web.Documents
+@{
+    var active = Model.Placements.Where(placement => placement.IsActive).ToArray();
+    var removed = Model.Placements.Where(placement => !placement.IsActive).ToArray();
+}
+@* Files of one context. Visually subordinate to the workflow: a compact list inside the node, details on their own page. *@
+<div class="doc-list">
+    <div class="doc-list__head">
+        <span class="doc-list__title">@T[Model.HeadingKey ?? "Documents.Title"]</span>
+        @if (Model.CanAdd && Model.UploadTarget is { } target)
+        {
+            <span class="doc-list__actions">
+                <a class="btn btn--small" href="/cases/@Model.CaseId/documents/upload?target=@DocumentTargetCodec.Format(target)&role=@Model.UploadRole">@T["Documents.Upload"]</a>
+                @if (Model.AttachRole is { } attachRole)
+                {
+                    <a class="btn btn--small" href="/cases/@Model.CaseId/documents/attach?target=@DocumentTargetCodec.Format(target)&role=@attachRole">@T["Documents.AttachExisting"]</a>
+                }
+            </span>
+        }
+    </div>
+    @if (active.Length == 0)
+    {
+        <p class="doc-list__empty">@T["Documents.None"]</p>
+    }
+    else
+    {
+        <ul class="doc-items">
+            @foreach (var placement in active)
+            {
+                var shown = placement.Shown;
+                <li class="doc-item @(shown?.Status == DocumentVersionStatus.Withdrawn || placement.DocumentStatus != DocumentStatus.Active ? "is-withdrawn" : string.Empty)">
+                    <div class="doc-item__main">
+                        <span class="badge badge--plain">@T.Code("DocumentLinkRole", placement.RoleCode)</span>
+                        <a class="doc-item__title" href="/cases/@Model.CaseId/documents/@placement.LinkId">@FileTypePolicy.Sanitize(placement.Title)</a>
+                        @if (shown is not null)
+                        {
+                            <a class="btn btn--small" href="/cases/@Model.CaseId/documents/@placement.LinkId/versions/@shown.Id/download"
+                               title="@T["Documents.DownloadTitle"]">@T["Documents.Download"]</a>
+                        }
+                    </div>
+                    <div class="doc-item__meta">
+                        @if (shown is not null)
+                        {
+                            <span class="mono">@FileTypePolicy.Sanitize(shown.OriginalFileName)</span>
+                            <span> · @T.FileSize(shown.ByteSize) · @T.Date(shown.UploadedAt)</span>
+                            @if (placement.IsPinned)
+                            {
+                                <span class="badge badge--info" title="@T["Documents.PinnedTitle"]">@T["Documents.Pinned"]</span>
+                            }
+                            @if (shown.IsMacroEnabled)
+                            {
+                                <span class="badge badge--warn">@T["Documents.MacroEnabled"]</span>
+                            }
+                            @if (shown.Family == FileFamily.Unclassified)
+                            {
+                                <span class="badge badge--plain">@T["Documents.Unclassified"]</span>
+                            }
+                            @if (shown.Status == DocumentVersionStatus.Withdrawn)
+                            {
+                                <span class="badge badge--danger">@T["DocumentVersionStatus.WITHDRAWN"]</span>
+                                <span>@T.Code("WithdrawalReason", shown.WithdrawalReasonCode) @shown.WithdrawalNote</span>
+                            }
+                        }
+                        else
+                        {
+                            <span>@T["Documents.NoCurrentVersion"]</span>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+    @if (removed.Length > 0)
+    {
+        @* Removed placements are history: kept visible, never a way to the bytes (DOCUMENT_MODEL.md §10.2). *@
+        <details class="doc-history">
+            <summary>@T.Format("Documents.RemovedCount", removed.Length)</summary>
+            <ul class="doc-items">
+                @foreach (var placement in removed)
+                {
+                    <li class="doc-item is-withdrawn">
+                        <div class="doc-item__main">
+                            <span class="badge badge--plain">@T.Code("DocumentLinkRole", placement.RoleCode)</span>
+                            <span>@FileTypePolicy.Sanitize(placement.Title)</span>
+                        </div>
+                        <div class="doc-item__meta">@T["Documents.Removed"] @T.Date(placement.RemovedAt) · @placement.RemovedBy?.DisplayName — @placement.RemovalReason</div>
+                    </li>
+                }
+            </ul>
+        </details>
+    }
+</div>

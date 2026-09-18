@@ -60,8 +60,8 @@
     </div></section>
     <aside class="inspector" aria-label="@T["Graph.Inspector"]" hidden>
         <div class="inspector-heading"><span class="inspector-icon" aria-hidden="true">▤</span><div><div class="eyebrow" data-inspector-type></div><h2 data-inspector-title></h2></div></div>
-        <div class="inspector-tabs"><button type="button" class="is-active" data-inspector-tab="details" aria-pressed="true">@T["Graph.Details"]</button><button type="button" data-inspector-tab="history" aria-pressed="false">@T["Graph.History"] <span data-history-count></span></button></div>
-        <div class="inspector-content" data-inspector-details></div><div class="inspector-content" data-inspector-history hidden></div>
+        <div class="inspector-tabs"><button type="button" class="is-active" data-inspector-tab="details" aria-pressed="true">@T["Graph.Details"]</button><button type="button" data-inspector-tab="documents" aria-pressed="false">@T["Documents.Title"]</button><button type="button" data-inspector-tab="history" aria-pressed="false">@T["Graph.History"] <span data-history-count></span></button></div>
+        <div class="inspector-content" data-inspector-details></div><div class="inspector-content" data-inspector-history hidden></div><div class="inspector-content" data-inspector-documents hidden></div>
     </aside>
     <div class="workspace-source">
     <div class="card" id="case-@header.Id" data-graph-node data-kind="case" data-entity="@header.Id" data-title="@header.CaseNumber" data-label="@T["Workspace.Header.Case"]" data-meta="@header.Title" data-status="@T.CaseState(header.State)" data-tone="case">
@@ -84,6 +84,7 @@
         {
             <p class="node__meta"><strong>@T["Workspace.Notes"]:</strong> @notes</p>
         }
+        <partial name="_DocumentList" model='Model.DocumentList(DocumentTargetKind.Case, header.Id, DocumentLinkRoleCodes.Supporting, headingKey: "Documents.CaseSupporting")' />
     </div>
 
     <div class="section-title">@T["Workspace.OriginalLetter"]</div>
@@ -107,6 +108,7 @@
             {
                 <p class="node__meta">@letterSubject</p>
             }
+            <partial name="_DocumentList" model='Model.DocumentList(DocumentTargetKind.Correspondence, letter.Id, Model.LetterUploadRole(letter.Id), headingKey: "Documents.LetterFiles")' />
         </div>
     }
 
@@ -134,7 +136,7 @@
                             }
                         </div>
                     }
-                    <partial name="_RequestNode" model="new RequestNodeView(request, workspace)" />
+                    <partial name="_RequestNode" model="new RequestNodeView(request, workspace, Model.Documents)" />
                 </li>
             }
         </ul>
@@ -198,6 +200,14 @@
                     {
                         <div class="node__meta"><strong>@T["FinalResult.RevocationReason"]:</strong> @revocation</div>
                     }
+                    @{
+                        // DOCUMENT_MODEL.md §4.7: the exact versions this decision relies on, each pinned.
+                        var resultDocuments = Model.Documents.For(DocumentTargetKind.FinalResult, result.Id);
+                        var mayAttach = result.Status is FinalResultStatus.Draft or FinalResultStatus.Issued
+                            && AuthorizationPolicy.Decide(workspace.Actor, BusinessAction.AttachFinalResultDocument, workspace.Relationship).IsAllowed;
+                        var hasResultDocument = resultDocuments.Any(placement => placement.IsActive && placement.RoleCode == DocumentLinkRoleCodes.FinalResultDocument);
+                    }
+                    <partial name="_DocumentList" model='Model.DocumentList(DocumentTargetKind.FinalResult, result.Id, DocumentLinkRoleCodes.FinalResultDocument, DocumentLinkRoleCodes.FinalResultDocument, mayAttach, "Documents.ResultEvidence")' />
 
                     @if (result.Status == FinalResultStatus.Draft && mayIssueResult)
                     {
@@ -210,6 +220,15 @@
                                 <div class="field">
                                     <label for="override-@result.Id">@T["FinalResult.OverrideNote"]</label>
                                     <textarea id="override-@result.Id" name="overrideNote" maxlength="2000" required></textarea>
+                                </div>
+                            }
+                            @if (!hasResultDocument)
+                            {
+                                @* Guard D4 (WORKFLOW.md §8.3): overridable by the Head, with a reason; the signed decision must follow. *@
+                                <div class="alert">@T["FinalResult.NoDocumentWarning"]</div>
+                                <div class="field">
+                                    <label for="document-override-@result.Id">@T["FinalResult.DocumentOverrideNote"]</label>
+                                    <textarea id="document-override-@result.Id" name="documentOverrideNote" maxlength="2000" required></textarea>
                                 </div>
                             }
                             <div class="actions">

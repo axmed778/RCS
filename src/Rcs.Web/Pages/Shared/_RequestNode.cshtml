@@ -47,6 +47,20 @@
         <div class="node__meta">@T["Request.RequestedItems"]: @items</div>
     }
 
+    @* The outgoing letter's files come from the letter itself (DOCUMENT_MODEL.md §3.2): one set of placements, shown
+       under every request the letter carried, never copied onto the request. *@
+    @if (request.DispatchLetter is { } outgoingLetter)
+    {
+        var letterRole = Model.Documents.For(DocumentTargetKind.Correspondence, outgoingLetter.Id)
+            .Any(placement => placement.IsActive && placement.RoleCode == DocumentLinkRoleCodes.PrimaryLetter)
+            ? DocumentLinkRoleCodes.Attachment : DocumentLinkRoleCodes.PrimaryLetter;
+        <partial name="_DocumentList" model='Model.Documents.ListFor(workspace, DocumentTargetKind.Correspondence, outgoingLetter.Id, letterRole, DocumentLinkRoleCodes.Annex, headingKey: "Documents.OutgoingLetterFiles")' />
+    }
+    @if (Model.Documents.For(DocumentTargetKind.Request, request.Id).Count > 0)
+    {
+        <partial name="_DocumentList" model='Model.Documents.ListFor(workspace, DocumentTargetKind.Request, request.Id, DocumentLinkRoleCodes.WorkingCopy, headingKey: "Documents.WorkFiles")' />
+    }
+
     @if (request.SourceRequirementId is { } parentId && workspace.FindRequirement(parentId) is { } parentRequirement)
     {
         <div class="node__meta"><strong>@T["Graph.ParentRequirement"]:</strong> <a href="#requirement-@parentId">@parentRequirement.Title</a></div>
@@ -77,7 +91,7 @@
             {
                 var responseAppearance = WorkflowAppearance.ForResponse(response);
                 <li>
-                    <div class="node node--response" id="response-@response.Id" data-graph-node data-kind="response" data-entity="@response.Id" data-title="@T.Code("ResponseType", response.TypeCode)" data-label="@T["Response.Title"]" data-meta="@(response.Letter is { } responseLetter ? T.Text(responseLetter.LetterNumber) + " · " + T.Date(responseLetter.LetterDate) : T["Letter.NotVisible"].Value)" data-summary="@response.Summary" data-status="@T[responseAppearance.LabelKey]" data-tone="@responseAppearance.Tone">
+                    <div class="node node--response" id="response-@response.Id" data-graph-node data-kind="response" data-entity="@response.Id" data-title="@T.Code("ResponseType", response.TypeCode)" data-label="@T["Response.Title"]" data-meta="@(response.Letter is { } metadataLetter ? T.Text(metadataLetter.LetterNumber) + " · " + T.Date(metadataLetter.LetterDate) : T["Letter.NotVisible"].Value)" data-summary="@response.Summary" data-status="@T[responseAppearance.LabelKey]" data-tone="@responseAppearance.Tone">
                         <div class="node__head">
                             <div>
                                 <div class="node__label">@T["Response.Title"]</div>
@@ -111,6 +125,18 @@
                         {
                             <div class="node__meta">@summary</div>
                         }
+                        @* Only a letter filed in this case shows its files here; one filed elsewhere discloses nothing (A-6). *@
+                        @if (response.Letter is { } responseLetter)
+                        {
+                            var responseLetterRole = Model.Documents.For(DocumentTargetKind.Correspondence, responseLetter.Id)
+                                .Any(placement => placement.IsActive && placement.RoleCode == DocumentLinkRoleCodes.PrimaryLetter)
+                                ? DocumentLinkRoleCodes.Attachment : DocumentLinkRoleCodes.PrimaryLetter;
+                            <partial name="_DocumentList" model='Model.Documents.ListFor(workspace, DocumentTargetKind.Correspondence, responseLetter.Id, responseLetterRole, headingKey: "Documents.ResponseLetterFiles")' />
+                        }
+                        @if (Model.Documents.For(DocumentTargetKind.Response, response.Id).Count > 0 || response.Letter is null)
+                        {
+                            <partial name="_DocumentList" model='Model.Documents.ListFor(workspace, DocumentTargetKind.Response, response.Id, DocumentLinkRoleCodes.Supporting, headingKey: "Documents.WorkFiles")' />
+                        }
 
                         @if (response.Status == ResponseStatus.Active && Model.May(BusinessAction.CreateRequirementFromResponse))
                         {
@@ -124,7 +150,7 @@
                             <ul class="tree">
                                 @foreach (var requirement in response.Requirements)
                                 {
-                                    <li><partial name="_RequirementNode" model="new RequirementNodeView(requirement, workspace)" /></li>
+                                    <li><partial name="_RequirementNode" model="new RequirementNodeView(requirement, workspace, Model.Documents)" /></li>
                                 }
                             </ul>
                         }

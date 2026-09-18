@@ -12,6 +12,8 @@ recovery-point invariant (§6.7); command idempotency (§7.4); bounded type dete
 garbage collection in V1 (§12.4). Recorded in `DOMAIN_MODEL.md` §12.7.
 **Pre-schema pass (2026-09-17):** version reinstatement replaces "v1 becomes ACTIVE again" (§5.2, §5.3,
 §7.4, §8.2, §8.3, §13.1). Decisions are logged in `/docs/DECISIONS.md`.
+**First implementation (2026-09-19, migration `0014_documents`):** see §21. No entity, column or rule of this
+document was changed; §21 records only the choices made *within* it.
 
 ---
 
@@ -1452,6 +1454,29 @@ worst, and nothing here needs to scale beyond one server.
 
 The one real performance consideration is the **integrity sweep** (§11.3), which reads every byte. It is
 sized by configuration and runs off-hours. Everything else is ordinary indexed queries over small tables.
+
+---
+
+## 21. Implementation notes (first document slice, 2026-09-19)
+
+What the first implementation chose where this document leaves room. Each is inside the frozen model.
+
+| Topic | As implemented | Why it is within the model |
+|---|---|---|
+| Schema | `document`, `document_version`, `document_link`, lookups `document_kind`, `document_link_role`, `withdrawal_reason`; the document arc of `requirement_evidence`; view `document_link_context` (the case each placement lies in) | exactly §2 and `DOMAIN_MODEL.md` §2.12–§2.15 |
+| `internal_record` arc | **deferred** with the `internal_record` table, as migration 0009 deferred the evidence arcs | the arc CHECK is widened when the table arrives |
+| Immutability | enforced by **column-level grants**: the runtime role may update only a version's status/withdrawal/integrity columns and a link's removal/freeze columns; no `DELETE` anywhere | §5.1, §8.4 |
+| Pinning | L1–L5, L8 and L9 are database constraints (fixed lookup ids, ADR-038). **Final-result placements are pinned from creation**, stricter than §4.7's "no later than issue", so issue never has to freeze anything | §4.4, §4.7 |
+| Floating placements | only `SUPPORTING` / `WORKING_COPY` on a case, request, response or requirement in the home case, and only when asked | §4.4 rule 4 |
+| Upload | authorize → stream to `TempPath` (SHA-256 and the size limit while streaming, one fixed buffer) → `fsync` → `link(2)` never-replace publish + directory `fsync` → one transaction (document, version, placement, evidence, audit, operation receipt). A metadata failure leaves the object unreferenced, retained and reported | §7.1, §7.2 |
+| Idempotency | upload, version upload, placement and evidence carry an operation id (ADR-020/039); a recorded id is answered before a byte is read | §7.4 |
+| Accepted formats | explicit extensions: `.pdf`, `.kmz`, `.doc` `.docx` `.docm`, `.xls` `.xlsx` `.xlsm`, `.dwg` `.dxf`, each with its content signature. Macro-enabled formats are marked. **ArchiCAD has no mapped extension until the department confirms it (ADR-042)**; like any unrecognised file it is stored as opaque bytes (`application/octet-stream`). Class E stays empty | §9.1–§9.3 |
+| Size limit | 500 MB = 524 288 000 bytes, configurable (`Rcs:Storage:MaxUploadBytes`) | ADR-042 |
+| Download | per request and per version through a named placement; refusals are indistinguishable from "not found" and audited as `PERMISSION_DENIED`; delivery is `attachment`, `application/octet-stream`, `nosniff`, `no-store`, sandbox CSP, no range requests; every download is audited with `document_hash` | §9.4, §10, §13.3 |
+| `withdrawal_reason` codes | **PROVISIONAL**: `UPLOADED_IN_ERROR`, `DUPLICATE`, `RECALLED_BY_ISSUER`, `OTHER` — for product-owner review | §2.19 lookups are refined without reopening the model |
+| Corrections | move a placement (same case, or an origin into another case — Chief), remove a non-origin placement, withdraw a version (optionally reinstating the previous one in the same act), reinstate, withdraw a whole document (removes its placements, never retracts evidence), edit title/metadata. Worker: own entry with no dependents; Chief otherwise (PROVISIONAL where `PERMISSIONS.md` names no rule) | §8.2, `PERMISSIONS.md` §24 |
+| Integrity | `Rcs.Web verify-documents [--rehash] [--orphans]` detects I1–I5; findings are `JOB` audit events; nothing is repaired or deleted. Scheduling is deferred | §11 |
+| Not built | preview, OCR, malware scanning, content search, export, separate file origin, scheduled integrity sweep | §9.5, §9.6, §14, §15 |
 
 ---
 

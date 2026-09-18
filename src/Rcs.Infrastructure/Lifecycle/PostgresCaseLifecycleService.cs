@@ -109,10 +109,21 @@ internal sealed class PostgresCaseLifecycleService(CommandRunner runner, Progres
             var overrideNote = Blank(command.ReadinessOverrideNote);
             var ready = await LifecycleSql.IsReadyForFinalResultAsync(
                 scope.UnitOfWork, caseRow, progress, scope.Now, result.SupersedesFinalResultId, ct);
-            if (FinalResultRules.CanIssue(result.Status, ready, overrideNote) is { IsAllowed: false } rule)
+            // D4 reads the real placements: ACTIVE FINAL_RESULT_DOCUMENT links, each pinned to one exact version
+            // (DOCUMENT_MODEL.md §4.7). A later version of the document can never change what this decision relied on.
+            var resultDocuments = await scope.UnitOfWork.Command("""
+                    SELECT count(*) FROM rcs.document_link
+                    WHERE final_result_id = @id AND status = 'ACTIVE' AND document_version_id IS NOT NULL
+                      AND document_link_role_id = (SELECT id FROM rcs.document_link_role WHERE code = 'FINAL_RESULT_DOCUMENT')
+                    """)
+                .With("id", result.Id).ScalarAsync<long>(ct);
+            var documentOverrideNote = Blank(command.DocumentOverrideNote);
+            if (FinalResultRules.CanIssue(result.Status, ready, overrideNote, (int)resultDocuments, documentOverrideNote) is { IsAllowed: false } rule)
             {
                 return Rule(rule);
             }
+
+            var documentOverridden = resultDocuments == 0;
 
             // §8.6: retire the result being replaced FIRST, so "at most one ISSUED" holds at every statement.
             if (result.SupersedesFinalResultId is { } supersedesId)
@@ -155,8 +166,11 @@ internal sealed class PostgresCaseLifecycleService(CommandRunner runner, Progres
                     approved_by_user_id = scope.Actor.UserId,
                     issued_at = scope.Now,
                     readiness_overridden = !ready,
+                    result_documents = resultDocuments,
+                    document_guard_overridden = documentOverridden,
                 },
-                ReasonNote: ready ? null : overrideNote), ct);
+                ReasonNote: string.Join(" · ", new[] { ready ? null : "D1: " + overrideNote, documentOverridden ? "D4: " + documentOverrideNote : null }
+                    .Where(note => note is not null)) is { Length: > 0 } notes ? notes : null), ct);
 
             return CommandResult<Guid>.Success(result.Id);
         }, cancellationToken);

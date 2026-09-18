@@ -21,6 +21,8 @@ using Rcs.Infrastructure.Commands;
 using Rcs.Infrastructure.Concurrency;
 using Rcs.Infrastructure.Configuration;
 using Rcs.Infrastructure.Development;
+using Rcs.Infrastructure.Documents;
+using Rcs.Application.Documents;
 using Rcs.Infrastructure.Identifiers;
 using Rcs.Infrastructure.Identity;
 using Rcs.Infrastructure.Idempotency;
@@ -94,6 +96,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IWorkflowService, PostgresWorkflowService>();
         services.AddSingleton<ICaseLifecycleService, PostgresCaseLifecycleService>();
         services.AddSingleton<ILifecycleQueries, PostgresLifecycleQueries>();
+
+        // Documents: the local content-addressed store and the services over it (DOCUMENT_MODEL.md; ADR-005).
+        services.AddSingleton<LocalContentStore>();
+        services.AddSingleton<IDocumentService, PostgresDocumentService>();
+        services.AddSingleton<IDocumentQueries, PostgresDocumentQueries>();
+        services.AddSingleton<IDocumentIntegrityService, DocumentIntegrityService>();
         services.AddSingleton<DemoDataSeeder>();
 
         return services;

@@ -33,6 +33,7 @@
     const inspector = workspace.querySelector('.inspector');
     const details = workspace.querySelector('[data-inspector-details]');
     const historyPanel = workspace.querySelector('[data-inspector-history]');
+    const documentsPanel = workspace.querySelector('[data-inspector-documents]');
     const activity = source.querySelector('[data-case-activity]');
     const nodes = Array.from(source.querySelectorAll('[data-graph-node]'));
     const byId = new Map();
@@ -73,6 +74,7 @@
             item.button.classList.toggle('is-selected', isSelected);
             item.button.setAttribute('aria-pressed', String(isSelected));
             item.node.hidden = !isSelected;
+            item.documents.hidden = !isSelected;
         });
         workspace.querySelector('[data-inspector-title]').textContent = entry.node.dataset.title;
         workspace.querySelector('[data-inspector-type]').textContent = entry.node.dataset.label;
@@ -84,7 +86,7 @@
         });
         workspace.querySelector('[data-history-count]').textContent = count ? String(count) : '';
         workspace.querySelector('[data-inspector-tab="history"]').hidden = count === 0;
-        if (!count) activeTab = 'details';
+        if (!count && activeTab === 'history') activeTab = 'details';
         showTab(activeTab);
         if (updateHash) window.history.replaceState(null, '', '#' + entry.node.id);
     }
@@ -93,6 +95,7 @@
         activeTab = name;
         details.hidden = name !== 'details';
         historyPanel.hidden = name !== 'history';
+        documentsPanel.hidden = name !== 'documents';
         workspace.querySelectorAll('[data-inspector-tab]').forEach(button => {
             const active = button.dataset.inspectorTab === name;
             button.classList.toggle('is-active', active);
@@ -164,6 +167,9 @@
     nodes.forEach(node => {
         node.querySelectorAll(':scope > .tree').forEach(nested => nested.remove());
         const entry = byId.get(node.id);
+        entry.documents = element('div', 'node-documents');
+        node.querySelectorAll(':scope > .doc-list').forEach(list => entry.documents.append(list));
+        documentsPanel.append(entry.documents);
         if (entry.children.length) {
             const related = element('div', 'related-nodes');
             related.append(element('h3', 'eyebrow', workspace.dataset.related));

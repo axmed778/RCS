@@ -127,10 +127,20 @@ public sealed class LifecycleRuleTests
     [Fact]
     public void IssuingOverAnUnreadyCaseNeedsAReasonAndOnlyADraftCanBeIssued()
     {
-        Assert.True(FinalResultRules.CanIssue(FinalResultStatus.Draft, isReadyForFinalResult: true, null).IsAllowed);
-        Assert.Equal("final_result.case_not_ready", FinalResultRules.CanIssue(FinalResultStatus.Draft, false, "  ").ViolationCode);
-        Assert.True(FinalResultRules.CanIssue(FinalResultStatus.Draft, false, "Orqan cavab verməyəcək").IsAllowed);
-        Assert.Equal("final_result.not_draft", FinalResultRules.CanIssue(FinalResultStatus.Issued, true, null).ViolationCode);
+        Assert.True(FinalResultRules.CanIssue(FinalResultStatus.Draft, isReadyForFinalResult: true, null, 1, null).IsAllowed);
+        Assert.Equal("final_result.case_not_ready", FinalResultRules.CanIssue(FinalResultStatus.Draft, false, "  ", 1, null).ViolationCode);
+        Assert.True(FinalResultRules.CanIssue(FinalResultStatus.Draft, false, "Orqan cavab verməyəcək", 1, null).IsAllowed);
+        Assert.Equal("final_result.not_draft", FinalResultRules.CanIssue(FinalResultStatus.Issued, true, null, 1, null).ViolationCode);
+    }
+
+    /// <summary>D4: the signed decision must be on file, unless the Head records why it will follow.</summary>
+    [Fact]
+    public void IssuingWithoutADecisionDocumentNeedsTheHeadsReason()
+    {
+        Assert.Equal("final_result.document_required", FinalResultRules.CanIssue(FinalResultStatus.Draft, true, null, 0, null).ViolationCode);
+        Assert.Equal("final_result.document_required", FinalResultRules.CanIssue(FinalResultStatus.Draft, true, null, 0, " ").ViolationCode);
+        Assert.True(FinalResultRules.CanIssue(FinalResultStatus.Draft, true, null, 0, "İmzalanmış qərar sabah skan ediləcək").IsAllowed);
+        Assert.True(FinalResultRules.CanIssue(FinalResultStatus.Draft, true, null, 2, null).IsAllowed);
     }
 
     [Fact]

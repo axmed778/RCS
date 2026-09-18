@@ -77,7 +77,16 @@ internal sealed record RequirementRowFull(
     string? FailureReasonNote,
     Guid CreatedByUserId);
 
-internal sealed record EvidenceRowFull(Guid Id, Guid RequirementId, Guid? ResponseId, string? Note, DateTimeOffset RecordedAt, UserRef RecordedBy);
+internal sealed record EvidenceRowFull(
+    Guid Id,
+    Guid RequirementId,
+    Guid? ResponseId,
+    string? Note,
+    DateTimeOffset RecordedAt,
+    UserRef RecordedBy,
+    Guid? DocumentId,
+    Guid? DocumentVersionId,
+    int RowVersion);
 
 /// <summary>Every row of one or more cases that the list, the workspace and derived progress need.</summary>
 internal sealed record CaseGraph(
@@ -227,7 +236,7 @@ internal static class CaseGraphLoader
                 reader.Uuid("created_by_user_id")), cancellationToken);
 
         var evidence = await new NpgsqlCommand("""
-            SELECT e.id, e.requirement_id, e.response_id, e.note, e.recorded_at,
+            SELECT e.id, e.requirement_id, e.response_id, e.note, e.recorded_at, e.document_id, e.document_version_id, e.row_version,
                    u.id AS recorded_by_id, u.display_name AS recorded_by_name
             FROM rcs.requirement_evidence AS e
             JOIN rcs.requirement AS q ON q.id = e.requirement_id
@@ -239,7 +248,10 @@ internal static class CaseGraphLoader
                 reader.UuidOrNull("response_id"),
                 reader.TextOrNull("note"),
                 reader.Instant("recorded_at"),
-                new UserRef(reader.Uuid("recorded_by_id"), reader.Text("recorded_by_name"))), cancellationToken);
+                new UserRef(reader.Uuid("recorded_by_id"), reader.Text("recorded_by_name")),
+                reader.UuidOrNull("document_id"),
+                reader.UuidOrNull("document_version_id"),
+                reader.Int("row_version")), cancellationToken);
 
         return new CaseGraph(letters, requests, responses, requirements, evidence);
     }

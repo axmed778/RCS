@@ -17,7 +17,7 @@ namespace Rcs.IntegrationTests.Workflow;
 /// </summary>
 public sealed class CaseLifecycleTests : IAsyncLifetime
 {
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Baku")));
 
     private SliceFixture fixture = null!;
 
@@ -193,6 +193,7 @@ public sealed class CaseLifecycleTests : IAsyncLifetime
 
         var replacement = SliceFixture.Succeeded(await fixture.Lifecycle.DraftFinalResultAsync(fixture.Chief, new DraftFinalResultCommand(
             fixture.NewOperation(), caseId, "APPROVAL", "Düzəliş edilmiş qərar", "Əvvəlki qərarda texniki səhv olub.", first)));
+        await fixture.AttachSignedDecisionAsync(caseId, replacement);
         SliceFixture.Succeeded(await fixture.Lifecycle.IssueFinalResultAsync(
             fixture.Head, new IssueFinalResultCommand(caseId, replacement, RowVersionOf(1), null)));
 
@@ -467,9 +468,13 @@ public sealed class CaseLifecycleTests : IAsyncLifetime
         return caseId;
     }
 
-    private async Task<Guid> DraftAsync(Guid caseId, string decisionType) =>
-        SliceFixture.Succeeded(await fixture.Lifecycle.DraftFinalResultAsync(fixture.Chief, new DraftFinalResultCommand(
+    private async Task<Guid> DraftAsync(Guid caseId, string decisionType)
+    {
+        var resultId = SliceFixture.Succeeded(await fixture.Lifecycle.DraftFinalResultAsync(fixture.Chief, new DraftFinalResultCommand(
             fixture.NewOperation(), caseId, decisionType, "Sintetik qərar mətni", "Sintetik əsaslandırma", null)));
+        await fixture.AttachSignedDecisionAsync(caseId, resultId);
+        return resultId;
+    }
 
     private async Task<Guid> IssuedResultAsync(Guid caseId, string decisionType)
     {

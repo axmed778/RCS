@@ -1,0 +1,131 @@
+@page "/cases/{caseId:guid}/documents/upload"
+@model Rcs.Web.Pages.Cases.DocumentUploadModel
+@using Rcs.Web.Documents
+@using System.Globalization
+@{
+    ViewData["Title"] = Model.IsVersion ? T["Documents.UploadVersion"].Value : T["Documents.Upload"].Value;
+    var maxMegabytes = (Model.MaxBytes / (1024 * 1024)).ToString(CultureInfo.InvariantCulture);
+}
+
+<div class="page-head">
+    <div>
+        <h1>@(Model.IsVersion ? T["Documents.UploadVersion"] : T["Documents.Upload"])</h1>
+        @if (Model.Placement is { } placement)
+        {
+            <p class="intro">@placement.Title</p>
+        }
+        else if (Model.Context is { } context)
+        {
+            <p class="intro">@T["Documents.UploadInto"]: <strong>@context.Label</strong></p>
+        }
+    </div>
+    <a class="btn" href="@Model.ReturnUrl">@T["Common.Back"]</a>
+</div>
+
+@if (Model.Placement is { KindCode: DocumentKindCodes.LetterBody })
+{
+    @* R5 / §8.3: a revised official letter is a new act, never a new version of the old file. *@
+    <div class="alert">@T["Documents.RevisedLetterWarning"]</div>
+}
+
+<form class="form card" method="post" action="@Model.FormAction" enctype="multipart/form-data" asp-antiforgery="false"
+      data-upload-form data-max-bytes="@Model.MaxBytes" data-too-large="@T.Format("Documents.TooLarge", maxMegabytes)"
+      data-failed="@T["Error.document.upload_failed"]">
+    @* The token comes first: the endpoint validates it before it reads a byte of the file (the file field is last). *@
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="operationId" value="@Model.OperationId" />
+    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+    <input type="hidden" name="formUrl" value="@Model.FormUrl" />
+
+    <div class="alert" data-upload-error @(Model.ErrorMessage is null ? "hidden" : string.Empty)>@Model.ErrorMessage</div>
+
+    @if (Model.IsVersion)
+    {
+        <p class="hint">@T["Documents.VersionIntro"]</p>
+        <div class="field">
+            <label for="placement">@T["Documents.VersionPlacement"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <select id="placement" name="placement">
+                <option value="">@T["Documents.NoPlacement"]</option>
+                @foreach (var option in Model.Contexts)
+                {
+                    <option value="@option.Value">@option.Label</option>
+                }
+            </select>
+            <span class="hint">@T["Documents.VersionPlacementHint"]</span>
+        </div>
+        <div class="field">
+            <label for="placementRole">@T["Field.DocumentRole"]</label>
+            <select id="placementRole" name="placementRole">
+                @foreach (var role in new[] { DocumentLinkRoleCodes.Attachment, DocumentLinkRoleCodes.Annex, DocumentLinkRoleCodes.PrimaryLetter, DocumentLinkRoleCodes.FinalResultDocument, DocumentLinkRoleCodes.Supporting, DocumentLinkRoleCodes.WorkingCopy })
+                {
+                    <option value="@role">@T.Code("DocumentLinkRole", role)</option>
+                }
+            </select>
+        </div>
+    }
+    else
+    {
+        <input type="hidden" name="target" value="@Model.Context!.Value" />
+        @if (Model.Context.Target.Kind is DocumentTargetKind.Case or DocumentTargetKind.Request or DocumentTargetKind.Response or DocumentTargetKind.Requirement)
+        {
+            <label><input type="checkbox" name="float" value="true" /> @T["Documents.Float"]</label>
+        }
+        <div class="field">
+            <label for="role">@T["Field.DocumentRole"]</label>
+            <select id="role" name="role">
+                @foreach (var role in Model.Context.Roles)
+                {
+                    <option value="@role" selected="@(role == Model.Role)">@T.Code("DocumentLinkRole", role)</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label for="title">@T["Field.DocumentTitle"]</label>
+            <input id="title" name="title" maxlength="300" required />
+        </div>
+        <div class="field">
+            <label for="kind">@T["Field.DocumentKind"]</label>
+            <select id="kind" name="kind">
+                @foreach (var kind in Model.Kinds)
+                {
+                    <option value="@kind.Code" selected="@(kind.Code == (Model.Role == DocumentLinkRoleCodes.PrimaryLetter ? DocumentKindCodes.LetterBody : DocumentKindCodes.Other))">@T.Code("DocumentKind", kind.Code)</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label for="reference">@T["Field.DocumentReference"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <input id="reference" name="reference" maxlength="200" />
+        </div>
+        @if (Model.Context.Roles.Contains(DocumentLinkRoleCodes.RequirementEvidence))
+        {
+            <div class="field">
+                <label for="note">@T["Field.EvidenceNote"] <span class="hint">(@T["Common.Optional"])</span></label>
+                <textarea id="note" name="note" maxlength="2000"></textarea>
+            </div>
+        }
+    }
+
+    <div class="field">
+        <label for="documentDate">@T["Field.DocumentDate"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <input id="documentDate" name="documentDate" type="date" />
+    </div>
+
+    @* Last on purpose: every other field is read before the bytes arrive. *@
+    <div class="field">
+        <label for="file">@T["Field.File"]</label>
+        <div class="dropzone" data-dropzone>
+            <input id="file" name="file" type="file" required />
+            <span class="hint">@T.Format("Documents.DropHint", maxMegabytes)</span>
+        </div>
+        <span class="hint">@T["Documents.AcceptedFamilies"]</span>
+    </div>
+
+    <div class="upload-progress" data-upload-progress hidden><progress max="100" value="0"></progress><output>0%</output></div>
+
+    <div class="actions">
+        <button class="btn btn--primary" type="submit" data-upload-submit>@T["Documents.UploadAction"]</button>
+        <a class="btn" href="@Model.ReturnUrl">@T["Action.Cancel"]</a>
+    </div>
+</form>
+
+<script src="~/js/upload.js" asp-append-version="true"></script>

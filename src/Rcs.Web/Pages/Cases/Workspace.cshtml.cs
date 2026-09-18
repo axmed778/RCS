@@ -1,5 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Rcs.Application.Cases;
+using Rcs.Application.Documents;
+using Rcs.Domain.Authorization;
+using Rcs.Domain.Documents;
+using Rcs.Domain.Vocabulary;
 using Rcs.Application.Lifecycle;
 using Rcs.Application.Workflow;
 using Rcs.Web.Review;
@@ -17,6 +21,7 @@ public sealed class WorkspaceModel(
     ILifecycleQueries lifecycleQueries,
     IWorkflowService workflow,
     ICaseLifecycleService lifecycle,
+    IDocumentQueries documents,
     CurrentActor actor,
     UiText text) : ReviewPageModel(actor, text)
 {
@@ -27,6 +32,21 @@ public sealed class WorkspaceModel(
 
     /// <summary>Every result of the case, newest first. Superseded and revoked ones stay readable (WORKFLOW.md §8.6).</summary>
     public IReadOnlyList<FinalResultView> FinalResults { get; private set; } = [];
+
+    /// <summary>Every placement in the case's contexts, with the versions each exposes (DOCUMENT_MODEL.md §10.1).</summary>
+    public CaseDocuments Documents { get; private set; } = CaseDocuments.Empty;
+
+    /// <summary>A letter's first file is its primary letter; everything after it is an attachment unless chosen otherwise.</summary>
+    public string LetterUploadRole(Guid letterId) =>
+        Documents.For(DocumentTargetKind.Correspondence, letterId).Any(placement => placement.IsActive && placement.RoleCode == DocumentLinkRoleCodes.PrimaryLetter)
+            ? DocumentLinkRoleCodes.Attachment
+            : DocumentLinkRoleCodes.PrimaryLetter;
+
+    /// <summary>The files of one context, ready for the inspector's list.</summary>
+    public DocumentListView DocumentList(DocumentTargetKind kind, Guid id, string uploadRole, string? attachRole = null, bool canAdd = true, string? headingKey = null) =>
+        new(CaseId, Documents.For(kind, id), new DocumentTarget(kind, id), uploadRole,
+            canAdd && Workspace is not null && AuthorizationPolicy.Decide(Workspace.Actor, BusinessAction.UploadDocument, Workspace.Relationship).IsAllowed,
+            attachRole, headingKey);
 
     [TempData]
     public string? ActionError { get; set; }
@@ -46,6 +66,7 @@ public sealed class WorkspaceModel(
 
         Workspace = result.Value;
         FinalResults = await lifecycleQueries.ListFinalResultsAsync(Actor.Context, CaseId, HttpContext.RequestAborted);
+        Documents = (await documents.GetCaseDocumentsAsync(Actor.Context, CaseId, HttpContext.RequestAborted)).Value ?? CaseDocuments.Empty;
         return Page();
     }
 
@@ -84,7 +105,7 @@ public sealed class WorkspaceModel(
     }
 
     /// <summary>F2 — the Head issues the result, recording the decision and the single approval (ADR-040).</summary>
-    public async Task<IActionResult> OnPostIssueResultAsync(Guid finalResultId, int rowVersion, string? overrideNote)
+    public async Task<IActionResult> OnPostIssueResultAsync(Guid finalResultId, int rowVersion, string? overrideNote, string? documentOverrideNote)
     {
         if (!HasActor)
         {
@@ -92,7 +113,7 @@ public sealed class WorkspaceModel(
         }
 
         var result = await lifecycle.IssueFinalResultAsync(
-            Actor.Context, new IssueFinalResultCommand(CaseId, finalResultId, rowVersion, overrideNote), HttpContext.RequestAborted);
+            Actor.Context, new IssueFinalResultCommand(CaseId, finalResultId, rowVersion, overrideNote, documentOverrideNote), HttpContext.RequestAborted);
         if (!result.Succeeded)
         {
             ActionError = Text.Error(result.Error!);

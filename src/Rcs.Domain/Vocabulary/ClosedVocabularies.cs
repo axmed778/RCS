@@ -55,6 +55,28 @@ public enum DocumentVersionStatus
     [DbCode("WITHDRAWN")] Withdrawn,
 }
 
+/// <summary><c>document.status</c> — DOMAIN_MODEL.md §2.13. A withdrawn or void document stays a valid historical row.</summary>
+public enum DocumentStatus
+{
+    [DbCode("ACTIVE")] Active = 1,
+    [DbCode("WITHDRAWN")] Withdrawn,
+    [DbCode("VOID")] Void,
+}
+
+/// <summary><c>document_link.status</c> — DOMAIN_MODEL.md §2.15. A REMOVED link is history only and grants nothing.</summary>
+public enum DocumentLinkStatus
+{
+    [DbCode("ACTIVE")] Active = 1,
+    [DbCode("REMOVED")] Removed,
+}
+
+/// <summary><c>requirement_evidence.status</c> — DOMAIN_MODEL.md §2.12. Evidence is retracted, never deleted.</summary>
+public enum EvidenceStatus
+{
+    [DbCode("ACTIVE")] Active = 1,
+    [DbCode("RETRACTED")] Retracted,
+}
+
 /// <summary><c>final_result.status</c> — DOMAIN_MODEL.md §2.16; WORKFLOW.md §8.</summary>
 public enum FinalResultStatus
 {

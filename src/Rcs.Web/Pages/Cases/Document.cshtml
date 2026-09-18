@@ -1,0 +1,160 @@
+@page "/cases/{caseId:guid}/documents/{linkId:guid}"
+@model Rcs.Web.Pages.Cases.DocumentModel
+@using Rcs.Web.Documents
+@{
+    ViewData["Title"] = T["Documents.Title"].Value;
+}
+@if (Model.Placement is { } placement)
+{
+    <div class="page-head">
+        <div><h1>@FileTypePolicy.Sanitize(placement.Title)</h1><p class="intro">@Model.ContextOf(placement.Target)?.Label · @T.Code("DocumentLinkRole", placement.RoleCode)</p></div>
+        <a class="btn" href="/cases/@Model.CaseId">@T["Common.Back"]</a>
+    </div>
+    @if (Model.ActionError is { } error) { <div class="alert" role="alert">@error</div> }
+    @if (Model.ActionNotice is { } notice) { <div class="alert">@notice</div> }
+    @if (!placement.IsActive)
+    {
+        <div class="alert">@T["Documents.Removed"] · @placement.RemovedBy?.DisplayName · @T.Date(placement.RemovedAt) — @placement.RemovalReason</div>
+    }
+    <div class="card">
+        <p>@T.Code("DocumentKind", placement.KindCode) · @placement.DocumentReference</p>
+        <p>@placement.Description</p>
+        <p class="hint">@T[placement.IsPinned ? "Documents.PinnedExplanation" : "Documents.FloatingExplanation"]</p>
+        @foreach (var version in placement.Versions)
+        {
+            <details class="doc-history" open="@(version == placement.Shown)">
+                <summary>@FileTypePolicy.Sanitize(version.OriginalFileName) · @T.Date(version.UploadedAt) · @T.Code("DocumentVersionStatus", version.Status.ToCode())</summary>
+                <p>@T.FileSize(version.ByteSize) · @version.UploadedBy.DisplayName</p>
+                @if (version.IsMacroEnabled) { <p class="badge badge--warn">@T["Documents.MacroEnabled"]</p> }
+                @if (version.Family == FileFamily.Unclassified) { <p class="hint">@T["Documents.Unclassified"]</p> }
+                @if (version.Status == DocumentVersionStatus.Withdrawn)
+                {
+                    <p>@T.Code("WithdrawalReason", version.WithdrawalReasonCode) · @version.WithdrawnBy?.DisplayName · @T.Date(version.WithdrawnAt) — @version.WithdrawalNote</p>
+                }
+                @if (placement.IsActive)
+                {
+                    <a class="btn" href="/cases/@Model.CaseId/documents/@placement.LinkId/versions/@version.Id/download">@T["Documents.Download"] — @FileTypePolicy.Sanitize(version.OriginalFileName)</a>
+                    @if (placement.IsHomeCase && Model.May(BusinessAction.CorrectDocument) && version.Status != DocumentVersionStatus.Withdrawn)
+                    {
+                        <details class="doc-history"><summary>@T["Documents.WithdrawVersion"]</summary>
+                            <form method="post" asp-page-handler="WithdrawVersion" class="form" data-single-submit>
+                                <input type="hidden" name="versionId" value="@version.Id" /><input type="hidden" name="rowVersion" value="@version.RowVersion" />
+                                <label>@T["Documents.Reason"] <select name="reasonCode" required>@foreach (var reason in Model.WithdrawalReasons) { <option value="@reason.Code">@T.Code("WithdrawalReason", reason.Code)</option> }</select></label>
+                                <label>@T["Field.Note"] <textarea name="note" maxlength="2000" required></textarea></label>
+                                @if (version.Status == DocumentVersionStatus.Active && Model.VisibleVersions.Any(other => other.VersionNo < version.VersionNo && other.Status == DocumentVersionStatus.Superseded))
+                                {
+                                    @* ADR-027: the previous version becomes current again in the same act, only when asked, with a reason. *@
+                                    <label><input type="checkbox" name="reinstatePrevious" value="true" checked /> @T["Documents.ReinstatePrevious"]</label>
+                                    <label>@T["Documents.Reason"] <textarea name="reinstatementReason" maxlength="2000"></textarea></label>
+                                }
+                                <button class="btn" type="submit">@T["Documents.WithdrawVersion"]</button>
+                            </form>
+                        </details>
+                    }
+                    @if (Model.IsChief && Model.OtherCases.Count > 0)
+                    {
+                        <details class="doc-history"><summary>@T["Documents.Share"]</summary>
+                            <p class="hint">@T["Documents.ShareWarning"]</p>
+                            <form method="post" asp-page-handler="Share" class="form" data-single-submit>
+                                <input type="hidden" name="versionId" value="@version.Id" /><input type="hidden" name="operationId" value="@Model.OperationId" />
+                                <label>@T["Documents.TargetCase"] <select name="targetCaseId">@foreach (var other in Model.OtherCases) { <option value="@other.Id">@other.CaseNumber — @other.Title</option> }</select></label>
+                                <label>@T["Documents.Reason"] <textarea name="reason" required maxlength="2000"></textarea></label>
+                                <button class="btn" type="submit">@T["Documents.Share"]</button>
+                            </form>
+                        </details>
+                    }
+                }
+            </details>
+        }
+        @if (placement.IsActive && placement.IsHomeCase && placement.DocumentStatus == DocumentStatus.Active && Model.May(BusinessAction.UploadDocument))
+        {
+            <p class="hint">@T["Documents.RevisedLetterWarning"]</p>
+            <a class="btn" href="/cases/@Model.CaseId/documents/upload?link=@placement.LinkId">@T["Documents.UploadVersion"]</a>
+        }
+        @if (placement.IsActive && placement.IsHomeCase && Model.ReinstatementCandidate is { } candidate && Model.May(BusinessAction.CorrectDocument))
+        {
+            <form method="post" asp-page-handler="Reinstate" class="form" data-single-submit>
+                <p>@T["Documents.Reinstate"] — @FileTypePolicy.Sanitize(candidate.OriginalFileName)</p>
+                <input type="hidden" name="versionId" value="@candidate.Id" /><input type="hidden" name="rowVersion" value="@candidate.RowVersion" />
+                <label>@T["Documents.Reason"] <textarea name="reason" required maxlength="2000"></textarea></label>
+                <button class="btn" type="submit">@T["Documents.Reinstate"]</button>
+            </form>
+        }
+    </div>
+    @if (Model.OtherPlacements.Count > 0)
+    {
+        <div class="card"><h2>@T["Documents.AlsoUsed"]</h2><ul>@foreach (var other in Model.OtherPlacements) { <li><a href="/cases/@Model.CaseId/documents/@other.LinkId">@Model.ContextOf(other.Target)?.Label · @T.Code("DocumentLinkRole", other.RoleCode)</a></li> }</ul></div>
+    }
+    @if (placement.IsActive)
+    {
+        @if (placement.IsHomeCase && Model.May(BusinessAction.EditDocumentMetadata))
+        {
+            <details class="card"><summary>@T["Documents.EditMetadata"]</summary>
+                <p class="hint">@T["Documents.MetadataWarning"]</p>
+                <form method="post" asp-page-handler="Edit" class="form" data-single-submit>
+                    <input type="hidden" name="documentRowVersion" value="@placement.DocumentRowVersion" />
+                    <label>@T["Field.DocumentTitle"] <input name="title" value="@placement.Title" required maxlength="300" /></label>
+                    <label>@T["Field.DocumentKind"] <select name="kind">@foreach (var kind in Model.Kinds) { <option value="@kind.Code" selected="@(kind.Code == placement.KindCode)">@T.Code("DocumentKind", kind.Code)</option> }</select></label>
+                    <label>@T["Field.DocumentReference"] <input name="reference" value="@placement.DocumentReference" maxlength="200" /></label>
+                    <label>@T["Field.Note"] <textarea name="description" maxlength="4000">@placement.Description</textarea></label>
+                    <button class="btn" type="submit">@T["Documents.Save"]</button>
+                </form>
+            </details>
+        }
+        @if (Model.Evidence is { } evidence && Model.May(BusinessAction.RetractRequirementEvidence))
+        {
+            <details class="card"><summary>@T["Documents.RetractEvidence"]</summary>
+                <form method="post" asp-page-handler="RetractEvidence" class="form" data-single-submit>
+                    <input type="hidden" name="evidenceId" value="@evidence.Id" /><input type="hidden" name="rowVersion" value="@evidence.RowVersion" />
+                    <label>@T["Documents.Reason"] <textarea name="note" required maxlength="2000"></textarea></label>
+                    <button class="btn" type="submit">@T["Documents.RetractEvidence"]</button>
+                </form>
+            </details>
+        }
+        @if (Model.May(BusinessAction.CorrectDocument) && placement.RoleCode != DocumentLinkRoleCodes.RequirementEvidence)
+        {
+            <details class="card"><summary>@T["Documents.CorrectPlacement"]</summary>
+                <p class="hint">@T["Documents.CorrectionHint"]</p>
+                <form method="post" asp-page-handler="Move" class="form" data-single-submit>
+                    <input type="hidden" name="rowVersion" value="@placement.RowVersion" />
+                    <label>@T["Documents.Target"] <select name="target">@foreach (var context in Model.Contexts) { <option value="@context.Value" selected="@(context.Target == placement.Target)">@context.Label</option> }</select></label>
+                    <label>@T["Field.DocumentRole"] <select name="role">@foreach (var role in new[] { DocumentLinkRoleCodes.PrimaryLetter, DocumentLinkRoleCodes.Attachment, DocumentLinkRoleCodes.Annex, DocumentLinkRoleCodes.FinalResultDocument, DocumentLinkRoleCodes.Supporting, DocumentLinkRoleCodes.WorkingCopy }) { <option value="@role" selected="@(role == placement.RoleCode)">@T.Code("DocumentLinkRole", role)</option> }</select></label>
+                    <label>@T["Documents.Reason"] <textarea name="reason" required maxlength="2000"></textarea></label>
+                    <button class="btn" type="submit">@T["Documents.CorrectPlacement"]</button>
+                </form>
+                @if (placement.IsOrigin && Model.IsChief && Model.OtherCases.Count > 0)
+                {
+                    @* §8.2 case 2: filed in the wrong case entirely. The origin moves, so the home case moves with it. *@
+                    <form method="post" asp-page-handler="MoveToCase" class="form" data-single-submit>
+                        <p class="hint">@T["Documents.MoveToCaseHint"]</p>
+                        <input type="hidden" name="rowVersion" value="@placement.RowVersion" />
+                        <label>@T["Documents.TargetCase"] <select name="targetCaseId">@foreach (var other in Model.OtherCases) { <option value="@other.Id">@other.CaseNumber — @other.Title</option> }</select></label>
+                        <label>@T["Documents.Reason"] <textarea name="reason" required maxlength="2000"></textarea></label>
+                        <button class="btn" type="submit">@T["Documents.MoveToCase"]</button>
+                    </form>
+                }
+                @if (!placement.IsOrigin)
+                {
+                    <form method="post" asp-page-handler="Remove" class="form" data-single-submit>
+                        <input type="hidden" name="rowVersion" value="@placement.RowVersion" />
+                        <label>@T["Documents.Reason"] <textarea name="reason" required maxlength="2000"></textarea></label>
+                        <button class="btn" type="submit">@T["Documents.RemovePlacement"]</button>
+                    </form>
+                }
+            </details>
+        }
+        @if (placement.IsHomeCase && Model.May(BusinessAction.CorrectDocument))
+        {
+            <details class="card"><summary>@T["Documents.WithdrawDocument"]</summary>
+                <p class="hint">@T["Documents.RetentionHint"]</p>
+                <form method="post" asp-page-handler="WithdrawDocument" class="form" data-single-submit>
+                    <input type="hidden" name="documentRowVersion" value="@placement.DocumentRowVersion" />
+                    <label>@T["Documents.Reason"] <select name="reasonCode">@foreach (var reason in Model.WithdrawalReasons) { <option value="@reason.Code">@T.Code("WithdrawalReason", reason.Code)</option> }</select></label>
+                    <label>@T["Field.Note"] <textarea name="note" required maxlength="2000"></textarea></label>
+                    <button class="btn" type="submit">@T["Documents.WithdrawDocument"]</button>
+                </form>
+            </details>
+        }
+    }
+}
+

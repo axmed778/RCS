@@ -25,7 +25,11 @@ public sealed record DraftFinalResultCommand(
 /// The Head's mandatory reason for issuing over guard D1 when the case is not ready (WORKFLOW.md §8.3, §9.4). Null
 /// when not overriding; a note is ignored when the case is ready anyway.
 /// </param>
-public sealed record IssueFinalResultCommand(Guid CaseId, Guid FinalResultId, int RowVersion, string? ReadinessOverrideNote);
+/// <param name="DocumentOverrideNote">
+/// The Head's mandatory reason for issuing over guard D4 — the signed decision is not on file yet and must follow
+/// (WORKFLOW.md §8.3). Null when not overriding; ignored when a decision document is already placed.
+/// </param>
+public sealed record IssueFinalResultCommand(Guid CaseId, Guid FinalResultId, int RowVersion, string? ReadinessOverrideNote, string? DocumentOverrideNote = null);
 
 /// <summary>F4 — the decision is withdrawn without a replacement, with a mandatory reason.</summary>
 public sealed record RevokeFinalResultCommand(Guid CaseId, Guid FinalResultId, int RowVersion, string Reason);

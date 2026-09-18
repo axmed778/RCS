@@ -139,7 +139,19 @@ public sealed record ResponseNode(
     UserRef RecordedBy,
     IReadOnlyList<RequirementNode> Requirements);
 
-public sealed record EvidenceView(Guid Id, Guid? ResponseId, string? Note, DateTimeOffset RecordedAt, UserRef RecordedBy);
+/// <summary>
+/// ACTIVE evidence of a requirement: a response, or one exact document version (pinned — DOMAIN_MODEL.md §2.12). The
+/// document itself is shown through its REQUIREMENT_EVIDENCE placement, which carries the same pin.
+/// </summary>
+public sealed record EvidenceView(
+    Guid Id,
+    Guid? ResponseId,
+    string? Note,
+    DateTimeOffset RecordedAt,
+    UserRef RecordedBy,
+    Guid? DocumentId = null,
+    Guid? DocumentVersionId = null,
+    int RowVersion = 1);
 
 public sealed record RequirementNode(
     Guid Id,

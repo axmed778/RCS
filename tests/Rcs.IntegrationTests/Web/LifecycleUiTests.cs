@@ -20,7 +20,7 @@ namespace Rcs.IntegrationTests.Web;
 /// </summary>
 public sealed class LifecycleUiTests : IAsyncLifetime
 {
-    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Baku")));
 
     private SliceFixture fixture = null!;
 
@@ -113,8 +113,9 @@ public sealed class LifecycleUiTests : IAsyncLifetime
     public async Task OnlyTheHeadIsOfferedTheApprovalAndTheSwitchSelectsWhoActs()
     {
         var caseId = await ReadyCaseAsync();
-        SliceFixture.Succeeded(await fixture.Lifecycle.DraftFinalResultAsync(fixture.Chief, new DraftFinalResultCommand(
+        var resultId = SliceFixture.Succeeded(await fixture.Lifecycle.DraftFinalResultAsync(fixture.Chief, new DraftFinalResultCommand(
             fixture.NewOperation(), caseId, "APPROVAL", "Sintetik qərar mətni", null, null)));
+        await fixture.AttachSignedDecisionAsync(caseId, resultId);
 
         await using var factory = new ReviewFactory(fixture.Database.RuntimeConnectionString);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
@@ -188,6 +189,7 @@ public sealed class LifecycleUiTests : IAsyncLifetime
 
         var resultId = SliceFixture.Succeeded(await fixture.Lifecycle.DraftFinalResultAsync(fixture.Chief, new DraftFinalResultCommand(
             fixture.NewOperation(), caseId, "APPROVAL", "Sintetik qərar mətni", null, null)));
+        await fixture.AttachSignedDecisionAsync(caseId, resultId);
         SliceFixture.Succeeded(await fixture.Lifecycle.IssueFinalResultAsync(
             fixture.Head, new IssueFinalResultCommand(caseId, resultId, 1, null)));
         return caseId;

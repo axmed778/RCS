@@ -17,7 +17,8 @@ public sealed record AuditEntry(
     object? After = null,
     string? ReasonNote = null,
     ActorKind ActorKind = ActorKind.User,
-    DateTimeOffset? OccurredAt = null);
+    DateTimeOffset? OccurredAt = null,
+    string? DocumentHash = null);
 
 /// <summary>
 /// Writes audit events inside the business transaction; a failed audit write fails the operation (SECURITY.md §9.1).
@@ -49,11 +50,11 @@ public sealed class AuditWriter(IIdGenerator ids, TimeProvider timeProvider)
                 INSERT INTO rcs.audit_event (
                     id, occurred_at, actor_user_id, actor_kind, actor_username_snapshot, actor_display_name_snapshot,
                     actor_roles_snapshot, client_host, action_code, entity_type, entity_id, entity_version, case_id,
-                    before_state, after_state, reason_note, correlation_id)
+                    before_state, after_state, reason_note, correlation_id, document_hash)
                 VALUES (
                     @id, @occurred_at, @actor_user_id, @actor_kind, @username, @display_name,
                     @roles, @client_host, @action_code, @entity_type, @entity_id, @entity_version, @case_id,
-                    @before_state, @after_state, @reason_note, @correlation_id)
+                    @before_state, @after_state, @reason_note, @correlation_id, @document_hash)
                 """)
             .With("id", ids.NewId())
             .With("occurred_at", entry.OccurredAt ?? now)
@@ -72,6 +73,7 @@ public sealed class AuditWriter(IIdGenerator ids, TimeProvider timeProvider)
             .WithJson("after_state", entry.After is null ? null : JsonSerializer.Serialize(entry.After, Json))
             .With("reason_note", entry.ReasonNote)
             .With("correlation_id", correlationId)
+            .With("document_hash", entry.DocumentHash)
             .ExecuteAsync(cancellationToken);
     }
 }

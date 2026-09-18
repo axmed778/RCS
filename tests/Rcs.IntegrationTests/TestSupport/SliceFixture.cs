@@ -32,6 +32,14 @@ internal sealed class SliceFixture : IAsyncDisposable
 
     public ILookupQueries Lookups => provider.GetRequiredService<ILookupQueries>();
 
+    public Rcs.Application.Documents.IDocumentService Documents => provider.GetRequiredService<Rcs.Application.Documents.IDocumentService>();
+
+    public Rcs.Application.Documents.IDocumentQueries DocumentQueries => provider.GetRequiredService<Rcs.Application.Documents.IDocumentQueries>();
+
+    public Rcs.Application.Documents.IDocumentIntegrityService Integrity => provider.GetRequiredService<Rcs.Application.Documents.IDocumentIntegrityService>();
+
+    public string StorageRoot { get; } = Path.Combine(Path.GetTempPath(), "rcs-document-tests", Guid.NewGuid().ToString("N"));
+
     public Rcs.Application.Lifecycle.ICaseLifecycleService Lifecycle => provider.GetRequiredService<Rcs.Application.Lifecycle.ICaseLifecycleService>();
 
     public Rcs.Application.Lifecycle.ILifecycleQueries LifecycleQueries => provider.GetRequiredService<Rcs.Application.Lifecycle.ILifecycleQueries>();
@@ -56,6 +64,8 @@ internal sealed class SliceFixture : IAsyncDisposable
         services.AddRcsInfrastructure(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:Runtime"] = fixture.Database.RuntimeConnectionString,
+            ["Rcs:Storage:RootPath"] = Path.Combine(fixture.StorageRoot, "objects"),
+            ["Rcs:Storage:TempPath"] = Path.Combine(fixture.StorageRoot, "temporary"),
             ["Rcs:Database:ExpectedSchemaVersion"] = Rcs.Infrastructure.Migrations.MigrationSet.LoadEmbedded().LatestVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
         }).Build());
 
@@ -70,6 +80,16 @@ internal sealed class SliceFixture : IAsyncDisposable
     }
 
     public Rcs.Application.Idempotency.OperationId NewOperation() => new(Ids.NewId());
+
+    public async Task AttachSignedDecisionAsync(Guid caseId, Guid resultId)
+    {
+        using var bytes = new MemoryStream("%PDF-1.7\nSynthetic signed decision\n%%EOF"u8.ToArray());
+        var result = await Documents.UploadDocumentAsync(Chief, new(
+            NewOperation(), caseId, new(Rcs.Domain.Documents.DocumentTargetKind.FinalResult, resultId),
+            Rcs.Domain.Vocabulary.DocumentLinkRoleCodes.FinalResultDocument, "Synthetic decision",
+            Rcs.Domain.Vocabulary.DocumentKindCodes.Other, null, null, null), new(bytes, "decision.pdf", "application/pdf"));
+        Assert.True(result.Succeeded, result.Error?.Code);
+    }
 
     /// <summary>Fails the test with the command's message code instead of a bare null reference.</summary>
     public static Guid Succeeded(CommandResult<Guid> result)
