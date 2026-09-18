@@ -1,0 +1,66 @@
+@page "/"
+@model IndexModel
+@{
+    ViewData["Title"] = T["Home.Title"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["Home.Title"]</h1>
+        <p>@T["Home.Subtitle"]</p>
+    </div>
+    <a class="btn btn--primary" href="/cases/new">@T["Cases.New"]</a>
+</div>
+
+@if (Model.Summary is { } summary)
+{
+    <div class="tiles">
+        <div class="tile"><div class="tile__value">@summary.OpenCases</div><div class="tile__label">@T["Home.OpenCases"]</div></div>
+        <div class="tile"><div class="tile__value">@summary.WaitingForExternalResponse</div><div class="tile__label">@T["Home.WaitingExternal"]</div></div>
+        <div class="tile"><div class="tile__value">@summary.OpenRequirements</div><div class="tile__label">@T["Home.OpenRequirements"]</div></div>
+        <div class="tile"><div class="tile__value">@summary.OverdueItems</div><div class="tile__label">@T["Home.Overdue"]</div></div>
+        <div class="tile"><div class="tile__value">@summary.ReadyForFinalResult</div><div class="tile__label">@T["Home.ReadyForResult"]</div></div>
+    </div>
+
+    <div class="section-title">@T["Home.RecentCases"]</div>
+    @if (summary.RecentCases.Count == 0)
+    {
+        <div class="card"><div class="empty">@T["Cases.Empty"]</div></div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>@T["Cases.Number"]</th>
+                        <th>@T["Cases.Subject"]</th>
+                        <th>@T["Cases.Requester"]</th>
+                        <th>@T["Cases.Progress"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in summary.RecentCases)
+                    {
+                        <tr>
+                            <td class="mono"><a href="/cases/@item.Id">@item.CaseNumber</a></td>
+                            <td>@item.Title</td>
+                            <td>@item.RequestingOrganization.Name</td>
+                            <td>@T.Progress(item.Progress.Headline)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="section-title">@T["Home.Guide.Title"]</div>
+    <div class="card">
+        <ol class="guide">
+            <li>@T["Home.Guide.Step1"]</li>
+            <li>@T["Home.Guide.Step2"]</li>
+            <li>@T["Home.Guide.Step3"]</li>
+            <li>@T["Home.Guide.Step4"]</li>
+        </ol>
+    </div>
+}

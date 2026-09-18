@@ -1,0 +1,130 @@
+@model RequestNodeView
+@{
+    var request = Model.Request;
+    var workspace = Model.Workspace;
+    var derived = workspace.Progress.Requests.TryGetValue(request.Id, out var requestProgress) ? requestProgress : null;
+    var closeable = derived?.State == RequestProgressState.AnsweredCloseable;
+}
+<div class="node node--request" id="request-@request.Id">
+    <div class="node__head">
+        <div>
+            <div class="node__label">@T["Request.Title"] · <span class="mono">@request.RequestNumber</span></div>
+            <div class="node__title">@request.Target.Name — @request.Subject</div>
+        </div>
+        <div class="badges">
+            @{
+                var storedStatus = T.RequestStatus(request.Status);
+                var derivedLabel = derived is null ? null : T.RequestProgress(derived);
+            }
+            @if (derivedLabel is not null)
+            {
+                <span class="badge @T.RequestProgressBadge(derived!)">@derivedLabel</span>
+            }
+            @if (derivedLabel != storedStatus)
+            {
+                <span class="badge badge--plain">@storedStatus</span>
+            }
+        </div>
+    </div>
+
+    <div class="node__meta">
+        @if (request.DispatchLetter is { } dispatch)
+        {
+            <span>@T["Request.OutgoingLetter"]: <span class="mono">@T.Text(dispatch.RegistryNumber)</span> · @T.Date(dispatch.SentAt)</span>
+        }
+        @if (request.DueAt is not null)
+        {
+            <span> · @T["Request.Due"]: <span class="mono">@T.Date(request.DueAt)</span></span>
+        }
+        @if (request.ClosedAt is not null)
+        {
+            <span> · @T["Request.ClosedAt"]: <span class="mono">@T.Date(request.ClosedAt)</span></span>
+        }
+    </div>
+    @if (request.RequestedItemsNote is { Length: > 0 } items)
+    {
+        <div class="node__meta">@T["Request.RequestedItems"]: @items</div>
+    }
+
+    <div class="node__actions">
+        @if (request.Status is RequestStatus.Sent or RequestStatus.Answered && Model.May(BusinessAction.RegisterResponse))
+        {
+            <a class="btn btn--small" href="/cases/@workspace.Header.Id/requests/@request.Id/responses/new">@T["Request.RegisterResponse"]</a>
+        }
+        @if (closeable && Model.May(BusinessAction.CloseRequest))
+        {
+            <form method="post" asp-page-handler="CloseRequest" data-single-submit style="display:inline">
+                <input type="hidden" name="requestId" value="@request.Id" />
+                <input type="hidden" name="rowVersion" value="@request.RowVersion" />
+                <button class="btn btn--small" type="submit">@T["Request.Close"]</button>
+            </form>
+        }
+    </div>
+
+    @if (request.Responses.Count == 0)
+    {
+        <div class="node__meta" style="margin-top:.6rem">@T["Request.NoResponses"]</div>
+    }
+    else
+    {
+        <ul class="tree">
+            @foreach (var response in request.Responses)
+            {
+                <li>
+                    <div class="node node--response" id="response-@response.Id">
+                        <div class="node__head">
+                            <div>
+                                <div class="node__label">@T["Response.Title"]</div>
+                                <div class="node__title">
+                                    @T.Code("ResponseType", response.TypeCode) — @T.Code("ResponseOutcome", response.OutcomeCode)
+                                </div>
+                            </div>
+                            <div class="badges">
+                                <span class="badge @(response.IsConclusive ? "badge--ok" : "badge--warn")">
+                                    @(response.IsConclusive ? T["Response.Conclusive"] : T["Response.NotConclusive"])
+                                </span>
+                                @if (response.Status != ResponseStatus.Active)
+                                {
+                                    <span class="badge badge--plain">@T.ResponseStatus(response.Status)</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="node__meta">
+                            @if (response.Letter is { } letter)
+                            {
+                                <span>@T["Response.Letter"]: <span class="mono">@T.Text(letter.LetterNumber)</span> · @T.Date(letter.LetterDate)</span>
+                                <span> · @T["Letter.Received"]: <span class="mono">@T.Date(response.ReceivedAt)</span></span>
+                            }
+                            else
+                            {
+                                <span>@T["Letter.NotVisible"]</span>
+                            }
+                            <span> · @T["Response.RecordedBy"]: @response.RecordedBy.DisplayName</span>
+                        </div>
+                        @if (response.Summary is { Length: > 0 } summary)
+                        {
+                            <div class="node__meta">@summary</div>
+                        }
+
+                        @if (response.Status == ResponseStatus.Active && Model.May(BusinessAction.CreateRequirementFromResponse))
+                        {
+                            <div class="node__actions">
+                                <a class="btn btn--small" href="/cases/@workspace.Header.Id/responses/@response.Id/requirements/new">@T["Response.AddRequirement"]</a>
+                            </div>
+                        }
+
+                        @if (response.Requirements.Count > 0)
+                        {
+                            <ul class="tree">
+                                @foreach (var requirement in response.Requirements)
+                                {
+                                    <li><partial name="_RequirementNode" model="new RequirementNodeView(requirement, workspace)" /></li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>

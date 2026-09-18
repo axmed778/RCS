@@ -1,0 +1,86 @@
+@page "/cases/{caseId:guid}/requests/{requestId:guid}/responses/new"
+@model Rcs.Web.Pages.Cases.ResponseNewModel
+@{
+    ViewData["Title"] = T["ResponseNew.Title"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["ResponseNew.Title"]</h1>
+        <p class="intro">@T["ResponseNew.Intro"]</p>
+        @if (Model.TargetRequest is { } request)
+        {
+            <p class="intro"><strong>@T.Format("ResponseNew.ForRequest", request.Target.Name, request.Subject)</strong></p>
+        }
+    </div>
+    <a class="btn" href="/cases/@Model.CaseId">@T["Common.Back"]</a>
+</div>
+
+<form class="form card" method="post" data-single-submit>
+    <div asp-validation-summary="ModelOnly" class="alert"></div>
+    <input type="hidden" asp-for="Input.OperationId" />
+
+    <div class="field-row">
+        <div class="field">
+            <label asp-for="Input.IncomingLetterNumber">@T["Field.IncomingLetterNumber"]</label>
+            <input asp-for="Input.IncomingLetterNumber" type="text" maxlength="80" />
+            <span asp-validation-for="Input.IncomingLetterNumber" class="form-error"></span>
+        </div>
+        <div class="field">
+            <label asp-for="Input.IncomingRegistryNumber">@T["Field.IncomingRegistryNumber"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <input asp-for="Input.IncomingRegistryNumber" type="text" maxlength="80" />
+        </div>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label asp-for="Input.LetterDate">@T["Field.LetterDate"]</label>
+            <input asp-for="Input.LetterDate" type="date" />
+            <span asp-validation-for="Input.LetterDate" class="form-error"></span>
+        </div>
+        <div class="field">
+            <label asp-for="Input.ReceivedDate">@T["Field.ReceivedDate"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <input asp-for="Input.ReceivedDate" type="date" />
+            <span asp-validation-for="Input.ReceivedDate" class="form-error"></span>
+        </div>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label asp-for="Input.ResponseTypeCode">@T["Field.ResponseType"]</label>
+            <select asp-for="Input.ResponseTypeCode" data-response-type>
+                @foreach (var type in Model.Types)
+                {
+                    <option value="@type.Code" data-conclusive="@(type.Flag == true ? "true" : "false")">@T.Code("ResponseType", type.Code)</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label asp-for="Input.ResponseOutcomeCode">@T["Field.ResponseOutcome"]</label>
+            <select asp-for="Input.ResponseOutcomeCode" data-response-outcome>
+                @foreach (var outcome in Model.Outcomes)
+                {
+                    <option value="@outcome.Code">@T.Code("ResponseOutcome", outcome.Code)</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="field field--check">
+        <input asp-for="Input.IsConclusive" type="checkbox" data-response-conclusive />
+        <label asp-for="Input.IsConclusive">
+            @T["Field.IsConclusive"]
+            <div class="hint">@T["Field.IsConclusiveHint"]</div>
+        </label>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Summary">@T["Field.Summary"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <textarea asp-for="Input.Summary" maxlength="2000"></textarea>
+    </div>
+
+    <div class="actions">
+        <button class="btn btn--primary" type="submit">@T["Action.Register"]</button>
+        <a class="btn" href="/cases/@Model.CaseId">@T["Action.Cancel"]</a>
+    </div>
+</form>

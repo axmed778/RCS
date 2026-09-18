@@ -71,6 +71,9 @@ Rules:
 | ADR-034 | Pull-based backup topology, no automatic HA | Frozen |
 | ADR-035 | Uploaded files are untrusted and never processed server-side | Frozen |
 | ADR-036 | Documents reach context only through links; exclusive arcs | Frozen |
+| ADR-037 | Physical table names avoid reserved words; audit `entity_type` keeps domain names | Frozen *(schema pass)* |
+| ADR-038 | Seeded lookup rows have fixed identifiers, so constraints can name them | Frozen *(schema pass — decides DEF-04)* |
+| ADR-039 | `operation_receipt` shape for retried commands | Frozen *(schema pass — decides DEF-03)* |
 | **PS-1** | **Database collation and Unicode behaviour** | **REQUIRED BEFORE PRODUCTION DATABASE INITIALIZATION** |
 | PS-2 | Server operating system | Required before server build |
 | DEF-01 … DEF-11 | Implementation and infrastructure choices | Deferred |
@@ -386,6 +389,55 @@ index is the numeric view.
   for `SUPPORTING`/`WORKING_COPY`. Only `audit_event` uses `entity_type` + `entity_id`.
 - **Rejected:** a generic attachments table or `document.case_id`; polymorphic `object_type`/`object_id`.
 
+### ADR-037 — Physical table names avoid reserved words; audit `entity_type` keeps domain names
+
+**Status:** Frozen *(schema pass, 2026-09-18)* · **Sources:** `DOMAIN_MODEL.md` §1.4, §2.3, §2.5, §2.18; `database/README.md`
+
+- **Context:** the domain entities **user** and **case** are reserved words in PostgreSQL. Quoting them
+  (`"user"`, `"case"`) would put quoted identifiers in every hand-written statement for a decade, where one
+  missing pair of quotes is a silent defect.
+- **Decision:** the two tables are **`app_user`** and **`case_record`**. Every other entity keeps its domain
+  name. **Foreign keys and columns keep the domain names** (`case_id`, `*_user_id`), so the model reads the
+  same in SQL as in `DOMAIN_MODEL.md`. `audit_event.entity_type` records **domain** names (`case`, `user`,
+  `request`, …), never physical table names, so the audit vocabulary is unaffected by this renaming.
+- **Consequences:** no quoted identifier appears anywhere in the schema; a reader of the frozen model meets
+  exactly two renamed tables, both stated in the migration that creates them.
+- **Rejected:** quoted reserved identifiers; renaming the domain concepts themselves; prefixing every table
+  (`rcs_case`, `rcs_request`, …), which adds noise to 20 tables to solve a problem two of them have.
+
+### ADR-038 — Seeded lookup rows have fixed identifiers, so constraints can name them
+
+**Status:** Frozen *(schema pass, 2026-09-18)* · **Decides DEF-04** · **Sources:** `DOMAIN_MODEL.md` §2.5, §2.7 (amendment A-7), §2.11; `ARCHITECTURE.md` §7.6
+
+- **Context:** three frozen constraints need a **row-local** predicate that names one lookup **code**: the
+  per-scope `EXCLUDE` constraints for `RESPONSIBLE` assignments (DEF-04, left open by ADR-017), the partial
+  unique index for the `INITIATING` letter of a case, and the `CHECK` that a `RESPONSE`-origin requirement
+  names its source response. A constraint cannot join to a lookup table.
+- **Decision:** every lookup row seeded by a migration carries a **fixed UUIDv7 literal**, assigned in that
+  migration and never changed; constraints reference the seeded row by that literal. Rows with a constraint
+  depending on them are never deleted (lookups are deactivated, never deleted, so this holds already).
+- **Consequences:** DEF-04 is answered without the denormalised `is_responsible` column the model would
+  otherwise need — no second truth beside `assignment_role`. Application code still resolves lookups **by
+  code**, never by identifier, so the literals stay confined to the schema.
+- **Rejected:** a duplicated boolean flag on each row plus a composite foreign key (a denormalisation the
+  frozen model does not authorise); triggers (harder to review than a constraint); dropping the constraint
+  and enforcing the rule only in the application (ADR-004: the database enforces what it can).
+
+### ADR-039 — `operation_receipt` shape for retried commands
+
+**Status:** Frozen *(schema pass, 2026-09-18)* · **Decides DEF-03** · **Sources:** `ARCHITECTURE.md` §12.6; ADR-020
+
+- **Decision:** one technical table, `operation_receipt (operation_id uuid PK, actor_user_id, operation_kind,
+  result_reference, recorded_at)`. The identifier is generated once when the form is prepared, checked at the
+  start of the command's own transaction and recorded in it; a retry with a recorded identifier returns the
+  original result and executes nothing, and a retry by a different actor is refused. Covered commands so far:
+  case registration, request registration, response registration, requirement creation — extended as
+  retry-sensitive commands are added.
+- **Consequences:** a resubmitted form cannot create a second case, letter, response or requirement. Retention
+  of receipts is not decided; nothing deletes them (the runtime role has no `DELETE`).
+- **Rejected:** relying on business unique constraints alone (they cannot make a *first* creation idempotent);
+  a generic idempotency platform or cache (ADR-025, ADR-020).
+
 ---
 
 ## Documents, authorization and security
@@ -565,9 +617,9 @@ Bounded by the cited ADRs; decided at the stated point without reopening them.
 |---|---|---|---|
 | DEF-01 | Backup software; how object-complete recovery boundaries are established and recorded | ADR-021, ADR-034 | second machine available (OQ-A8) |
 | DEF-02 | Case-level lock mechanism (row lock vs uniformly applied serializable isolation) | ADR-019 | implementation |
-| DEF-03 | Operation-identity table shape, covered command list, retention | ADR-020 | schema / implementation |
-| DEF-04 | Row-local expression of the `RESPONSIBLE` predicate in the assignment exclusions | ADR-017 | schema design |
-| DEF-05 | UUIDv7 generated by the server or the application | ADR-031 | implementation |
+| DEF-03 | Operation-identity table shape, covered command list, retention | ADR-020 | **Decided: ADR-039** (retention still open) |
+| DEF-04 | Row-local expression of the `RESPONSIBLE` predicate in the assignment exclusions | ADR-017 | **Decided: ADR-038** |
+| DEF-05 | UUIDv7 generated by the server or the application | ADR-031 | **Decided: the application** (`IIdGenerator`, Phase 1) |
 | DEF-06 | Exact ORM (must not own the schema), migration runner, test framework, logging library, JS helper library | ADR-002–004 | implementation |
 | DEF-07 | Session store mechanism (server-side and revocable) | ADR-033 | implementation |
 | DEF-08 | `INTEGRITY_CHECK` audit action code (`DOCUMENT_MODEL.md` OQ-D8) | ADR-018 | schema design |

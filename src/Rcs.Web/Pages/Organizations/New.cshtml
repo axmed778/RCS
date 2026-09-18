@@ -1,0 +1,56 @@
+@page "/organizations/new"
+@model Rcs.Web.Pages.Organizations.NewModel
+@{
+    ViewData["Title"] = T["OrganizationNew.Title"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["OrganizationNew.Title"]</h1>
+        <p class="intro">@T["OrganizationNew.Intro"]</p>
+    </div>
+    <a class="btn" href="/organizations">@T["Common.Back"]</a>
+</div>
+
+<form class="form card" method="post" data-single-submit>
+    <div asp-validation-summary="ModelOnly" class="alert"></div>
+
+    <div class="field">
+        <label asp-for="Input.OfficialName">@T["Organizations.OfficialName"]</label>
+        <input asp-for="Input.OfficialName" type="text" maxlength="200" />
+        <span asp-validation-for="Input.OfficialName" class="form-error"></span>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label asp-for="Input.ShortName">@T["Organizations.ShortName"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <input asp-for="Input.ShortName" type="text" maxlength="80" />
+        </div>
+        <div class="field">
+            <label asp-for="Input.TypeCode">@T["Organizations.Type"]</label>
+            <select asp-for="Input.TypeCode">
+                @foreach (var type in Model.Types)
+                {
+                    <option value="@type.Code">@T.Code("OrganizationType", type.Code)</option>
+                }
+            </select>
+            <span asp-validation-for="Input.TypeCode" class="form-error"></span>
+        </div>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.RegistrationCode">@T["Organizations.RegistrationCode"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <input asp-for="Input.RegistrationCode" type="text" maxlength="40" />
+        <span asp-validation-for="Input.RegistrationCode" class="form-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Notes">@T["Organizations.Notes"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <textarea asp-for="Input.Notes" maxlength="1000"></textarea>
+    </div>
+
+    <div class="actions">
+        <button class="btn btn--primary" type="submit">@T["Action.Save"]</button>
+        <a class="btn" href="/organizations">@T["Action.Cancel"]</a>
+    </div>
+</form>

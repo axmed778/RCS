@@ -1,0 +1,70 @@
+@page "/organizations"
+@model Rcs.Web.Pages.Organizations.IndexModel
+@{
+    ViewData["Title"] = T["Organizations.Title"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["Organizations.Title"]</h1>
+        <p>@T["Organizations.Subtitle"]</p>
+    </div>
+    <a class="btn btn--primary" href="/organizations/new">@T["Organizations.New"]</a>
+</div>
+
+@if (Model.Organizations.Count == 0)
+{
+    <div class="card"><div class="empty">@T["Organizations.Empty"]</div></div>
+}
+else
+{
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>@T["Organizations.OfficialName"]</th>
+                    <th>@T["Organizations.ShortName"]</th>
+                    <th>@T["Organizations.Type"]</th>
+                    <th>@T["Organizations.Aliases"]</th>
+                    <th>@T["Organizations.RegistrationCode"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var organization in Model.Organizations)
+                {
+                    <tr>
+                        <td>
+                            @organization.OfficialName
+                            <span class="badges">
+                                @if (organization.IsOwnOrganization)
+                                {
+                                    <span class="badge badge--info">@T["Organizations.Own"]</span>
+                                }
+                                @if (!organization.IsActive)
+                                {
+                                    <span class="badge">@T["Organizations.Inactive"]</span>
+                                }
+                            </span>
+                        </td>
+                        <td>@T.Text(organization.ShortName)</td>
+                        <td>@T.Code("OrganizationType", organization.TypeCode)</td>
+                        <td>
+                            @if (organization.Aliases.Count == 0)
+                            {
+                                <span class="node__meta">@T["Common.None"]</span>
+                            }
+                            else
+                            {
+                                foreach (var alias in organization.Aliases)
+                                {
+                                    <div class="node__meta">@alias.Alias <span class="badge badge--plain">@T.Code("AliasType", alias.AliasType)</span></div>
+                                }
+                            }
+                        </td>
+                        <td class="mono">@T.Text(organization.RegistrationCode)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

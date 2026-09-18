@@ -1,0 +1,1095 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    User-facing text of the Review build, in Azerbaijani. Keys are stable and carry no business logic: vocabulary
+    entries are keyed by the database CODE (CaseState.ACTIVE, ResponseOutcome.APPROVED, ...) and progress messages by
+    their WORKFLOW.md ladder row (Progress.P13). Another language is another .resx beside this one; no code changes.
+  -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App.Name" xml:space="preserve">
+    <value>RCS — İşlərin İdarə Edilməsi Sistemi</value>
+  </data>
+  <data name="App.Banner" xml:space="preserve">
+    <value>RCS Review Build — Development / Synthetic Data</value>
+  </data>
+  <data name="App.BannerNote" xml:space="preserve">
+    <value>Sintetik məlumatlar · yalnız nümayiş və rəy üçün · rəsmi qeyd deyil</value>
+  </data>
+  <data name="App.Actor" xml:space="preserve">
+    <value>Aktor</value>
+  </data>
+  <data name="App.Footer" xml:space="preserve">
+    <value>RCS nümayiş versiyası — rəsmi yazışma xarici dövlət sistemində aparılır, burada yalnız qeyd olunur.</value>
+  </data>
+  <data name="App.NoActor.Title" xml:space="preserve">
+    <value>Nümayiş istifadəçisi tapılmadı</value>
+  </data>
+  <data name="App.NoActor.Body" xml:space="preserve">
+    <value>Sintetik istifadəçi bazada yoxdur. Demo məlumatlarını yükləyin: dotnet run --project src/Rcs.Web -- seed-demo</value>
+  </data>
+  <data name="Nav.Home" xml:space="preserve">
+    <value>Ana səhifə</value>
+  </data>
+  <data name="Nav.Cases" xml:space="preserve">
+    <value>İşlər</value>
+  </data>
+  <data name="Nav.Organizations" xml:space="preserve">
+    <value>Təşkilatlar</value>
+  </data>
+  <data name="Home.Title" xml:space="preserve">
+    <value>Ana səhifə</value>
+  </data>
+  <data name="Home.Subtitle" xml:space="preserve">
+    <value>Şöbənin cari iş mənzərəsi</value>
+  </data>
+  <data name="Home.OpenCases" xml:space="preserve">
+    <value>Açıq işlər</value>
+  </data>
+  <data name="Home.WaitingExternal" xml:space="preserve">
+    <value>Xarici cavab gözləyən işlər</value>
+  </data>
+  <data name="Home.OpenRequirements" xml:space="preserve">
+    <value>Açıq tələblər</value>
+  </data>
+  <data name="Home.Overdue" xml:space="preserve">
+    <value>Gecikən bəndlər</value>
+  </data>
+  <data name="Home.ReadyForResult" xml:space="preserve">
+    <value>Yekun nəticəyə hazır</value>
+  </data>
+  <data name="Home.RecentCases" xml:space="preserve">
+    <value>Son işlər</value>
+  </data>
+  <data name="Home.Guide.Title" xml:space="preserve">
+    <value>Nümayiş marşrutu</value>
+  </data>
+  <data name="Home.Guide.Step1" xml:space="preserve">
+    <value>«İşlər» siyahısında bir işi açın — başlıq, iş axını və cari gediş bir ekranda görünür.</value>
+  </data>
+  <data name="Home.Guide.Step2" xml:space="preserve">
+    <value>Sorğuya cavab qeydə alın; sistem sorğunun vəziyyətini özü dəyişir (ayrıca «cavab alındı» düyməsi yoxdur).</value>
+  </data>
+  <data name="Home.Guide.Step3" xml:space="preserve">
+    <value>Cavab şərt qoyursa, ondan tələb yaradın və tələb üzrə törəmə sorğu göndərin.</value>
+  </data>
+  <data name="Home.Guide.Step4" xml:space="preserve">
+    <value>Tələb yerinə yetiriləndən sonra sorğunu bağlayın — iş «Yekun nəticəyə hazırdır» vəziyyətinə keçir.</value>
+  </data>
+  <data name="Cases.Title" xml:space="preserve">
+    <value>İşlər</value>
+  </data>
+  <data name="Cases.Subtitle" xml:space="preserve">
+    <value>Şöbəyə daxil olan rəsmi müraciətlər üzrə açılmış dosyelər</value>
+  </data>
+  <data name="Cases.New" xml:space="preserve">
+    <value>Yeni iş qeydə al</value>
+  </data>
+  <data name="Cases.Number" xml:space="preserve">
+    <value>İş nömrəsi</value>
+  </data>
+  <data name="Cases.Subject" xml:space="preserve">
+    <value>Mövzu</value>
+  </data>
+  <data name="Cases.Requester" xml:space="preserve">
+    <value>Müraciət edən təşkilat</value>
+  </data>
+  <data name="Cases.Responsible" xml:space="preserve">
+    <value>Məsul əməkdaş</value>
+  </data>
+  <data name="Cases.State" xml:space="preserve">
+    <value>Vəziyyət</value>
+  </data>
+  <data name="Cases.Progress" xml:space="preserve">
+    <value>Cari gediş</value>
+  </data>
+  <data name="Cases.RegisteredAt" xml:space="preserve">
+    <value>Qeydə alınıb</value>
+  </data>
+  <data name="Cases.IncomingLetter" xml:space="preserve">
+    <value>Daxil olan məktub</value>
+  </data>
+  <data name="Cases.Empty" xml:space="preserve">
+    <value>Hələ heç bir iş qeydə alınmayıb.</value>
+  </data>
+  <data name="Cases.Unassigned" xml:space="preserve">
+    <value>Təyin edilməyib</value>
+  </data>
+  <data name="Cases.Open" xml:space="preserve">
+    <value>Aç</value>
+  </data>
+  <data name="CaseNew.Title" xml:space="preserve">
+    <value>Yeni iş qeydə al</value>
+  </data>
+  <data name="CaseNew.Intro" xml:space="preserve">
+    <value>Daxil olan rəsmi məktub xarici dövlət sistemində artıq qəbul edilib. Burada yalnız qeydə alınır: nömrə və tarixlər həmin sistemin məlumatlarıdır.</value>
+  </data>
+  <data name="Workspace.OriginalLetter" xml:space="preserve">
+    <value>Daxil olan müraciət</value>
+  </data>
+  <data name="Workspace.Workflow" xml:space="preserve">
+    <value>İş axını</value>
+  </data>
+  <data name="Workspace.Activity" xml:space="preserve">
+    <value>Fəaliyyət tarixçəsi</value>
+  </data>
+  <data name="Workspace.AddRequest" xml:space="preserve">
+    <value>Sorğu əlavə et</value>
+  </data>
+  <data name="Workspace.NoRequests" xml:space="preserve">
+    <value>Hələ sorğu qeydə alınmayıb. Rəsmi məktub göndərildikdən sonra onu burada qeyd edin.</value>
+  </data>
+  <data name="Workspace.Notes" xml:space="preserve">
+    <value>Qeydlər</value>
+  </data>
+  <data name="Workspace.Header.Case" xml:space="preserve">
+    <value>İş nömrəsi</value>
+  </data>
+  <data name="Workspace.Header.Requester" xml:space="preserve">
+    <value>Müraciət edən</value>
+  </data>
+  <data name="Workspace.Header.Responsible" xml:space="preserve">
+    <value>Məsul əməkdaş</value>
+  </data>
+  <data name="Workspace.Header.State" xml:space="preserve">
+    <value>Vəziyyət</value>
+  </data>
+  <data name="Workspace.Header.Registered" xml:space="preserve">
+    <value>Qeydə alınma</value>
+  </data>
+  <data name="Workspace.Header.Progress" xml:space="preserve">
+    <value>Cari gediş</value>
+  </data>
+  <data name="Workspace.Branch" xml:space="preserve">
+    <value>Qol</value>
+  </data>
+  <data name="Workspace.NoActivity" xml:space="preserve">
+    <value>Hələ fəaliyyət yoxdur.</value>
+  </data>
+  <data name="Letter.Number" xml:space="preserve">
+    <value>Nömrə</value>
+  </data>
+  <data name="Letter.RegistryNumber" xml:space="preserve">
+    <value>Qeydiyyat nömrəsi</value>
+  </data>
+  <data name="Letter.Date" xml:space="preserve">
+    <value>Məktubun tarixi</value>
+  </data>
+  <data name="Letter.Sent" xml:space="preserve">
+    <value>Göndərilib</value>
+  </data>
+  <data name="Letter.Received" xml:space="preserve">
+    <value>Qəbul edilib</value>
+  </data>
+  <data name="Letter.Sender" xml:space="preserve">
+    <value>Göndərən</value>
+  </data>
+  <data name="Letter.Recipient" xml:space="preserve">
+    <value>Alan</value>
+  </data>
+  <data name="Letter.Registered" xml:space="preserve">
+    <value>Sistemə qeyd edilib</value>
+  </data>
+  <data name="Letter.NotVisible" xml:space="preserve">
+    <value>Məktub başqa işdə saxlanılır və burada açıqlanmır.</value>
+  </data>
+  <data name="Request.Title" xml:space="preserve">
+    <value>Sorğu</value>
+  </data>
+  <data name="Request.Target" xml:space="preserve">
+    <value>Ünvanlanan təşkilat</value>
+  </data>
+  <data name="Request.OutgoingLetter" xml:space="preserve">
+    <value>Çıxan məktub</value>
+  </data>
+  <data name="Request.Due" xml:space="preserve">
+    <value>Gözlənilən cavab tarixi</value>
+  </data>
+  <data name="Request.RegisterResponse" xml:space="preserve">
+    <value>Cavab qeydə al</value>
+  </data>
+  <data name="Request.Close" xml:space="preserve">
+    <value>Sorğunu bağla</value>
+  </data>
+  <data name="Request.ClosedAt" xml:space="preserve">
+    <value>Bağlanıb</value>
+  </data>
+  <data name="Request.RequestedItems" xml:space="preserve">
+    <value>Tələb olunanlar</value>
+  </data>
+  <data name="Request.NoResponses" xml:space="preserve">
+    <value>Hələ cavab yoxdur.</value>
+  </data>
+  <data name="Response.Title" xml:space="preserve">
+    <value>Cavab</value>
+  </data>
+  <data name="Response.Type" xml:space="preserve">
+    <value>Növ</value>
+  </data>
+  <data name="Response.Outcome" xml:space="preserve">
+    <value>Nəticə</value>
+  </data>
+  <data name="Response.Conclusive" xml:space="preserve">
+    <value>Yekun cavab</value>
+  </data>
+  <data name="Response.NotConclusive" xml:space="preserve">
+    <value>Yekun deyil</value>
+  </data>
+  <data name="Response.AddRequirement" xml:space="preserve">
+    <value>Tələb əlavə et</value>
+  </data>
+  <data name="Response.Summary" xml:space="preserve">
+    <value>Xülasə</value>
+  </data>
+  <data name="Response.RecordedBy" xml:space="preserve">
+    <value>Qeyd edən</value>
+  </data>
+  <data name="Response.NoRequirements" xml:space="preserve">
+    <value>Tələb yoxdur.</value>
+  </data>
+  <data name="Requirement.Title" xml:space="preserve">
+    <value>Tələb</value>
+  </data>
+  <data name="Requirement.Blocking" xml:space="preserve">
+    <value>Bloklayıcı</value>
+  </data>
+  <data name="Requirement.NonBlocking" xml:space="preserve">
+    <value>Bloklamayan</value>
+  </data>
+  <data name="Requirement.Due" xml:space="preserve">
+    <value>Son tarix</value>
+  </data>
+  <data name="Requirement.AddressedTo" xml:space="preserve">
+    <value>Kimdən gözlənilir</value>
+  </data>
+  <data name="Requirement.RaisedBy" xml:space="preserve">
+    <value>Tələb edən</value>
+  </data>
+  <data name="Requirement.Source" xml:space="preserve">
+    <value>Mənbə cavab</value>
+  </data>
+  <data name="Requirement.Evidence" xml:space="preserve">
+    <value>Sübut</value>
+  </data>
+  <data name="Requirement.Resolution" xml:space="preserve">
+    <value>Yekun</value>
+  </data>
+  <data name="Requirement.ChildRequest" xml:space="preserve">
+    <value>Törəmə sorğu yarat</value>
+  </data>
+  <data name="Requirement.Start" xml:space="preserve">
+    <value>İşə başla</value>
+  </data>
+  <data name="Requirement.Fulfill" xml:space="preserve">
+    <value>Yerinə yetirildi</value>
+  </data>
+  <data name="Requirement.Waive" xml:space="preserve">
+    <value>Güzəşt et</value>
+  </data>
+  <data name="Requirement.Void" xml:space="preserve">
+    <value>Etibarsız say</value>
+  </data>
+  <data name="Requirement.Fail" xml:space="preserve">
+    <value>Alınmadı</value>
+  </data>
+  <data name="Requirement.ResolvedBy" xml:space="preserve">
+    <value>Yekunlaşdıran</value>
+  </data>
+  <data name="Requirement.NoChildRequests" xml:space="preserve">
+    <value>Törəmə sorğu yoxdur.</value>
+  </data>
+  <data name="Organizations.Title" xml:space="preserve">
+    <value>Təşkilatlar</value>
+  </data>
+  <data name="Organizations.Subtitle" xml:space="preserve">
+    <value>Rəsmi yazışmanın tərəfləri — ad hər işdə deyil, bir dəfə saxlanılır</value>
+  </data>
+  <data name="Organizations.New" xml:space="preserve">
+    <value>Yeni təşkilat</value>
+  </data>
+  <data name="Organizations.OfficialName" xml:space="preserve">
+    <value>Rəsmi ad</value>
+  </data>
+  <data name="Organizations.ShortName" xml:space="preserve">
+    <value>Qısa ad</value>
+  </data>
+  <data name="Organizations.Type" xml:space="preserve">
+    <value>Növ</value>
+  </data>
+  <data name="Organizations.Aliases" xml:space="preserve">
+    <value>Digər adlar</value>
+  </data>
+  <data name="Organizations.RegistrationCode" xml:space="preserve">
+    <value>Qeydiyyat kodu</value>
+  </data>
+  <data name="Organizations.Own" xml:space="preserve">
+    <value>Öz təşkilatımız</value>
+  </data>
+  <data name="Organizations.Inactive" xml:space="preserve">
+    <value>Qeyri-aktiv</value>
+  </data>
+  <data name="Organizations.Empty" xml:space="preserve">
+    <value>Təşkilat qeydə alınmayıb.</value>
+  </data>
+  <data name="Organizations.Notes" xml:space="preserve">
+    <value>Qeydlər</value>
+  </data>
+  <data name="OrganizationNew.Title" xml:space="preserve">
+    <value>Yeni təşkilat qeydə al</value>
+  </data>
+  <data name="OrganizationNew.Intro" xml:space="preserve">
+    <value>Təşkilat adları hər işdə sərbəst mətn kimi deyil, bir dəfə əsas məlumat kimi saxlanılır.</value>
+  </data>
+  <data name="RequestNew.Title" xml:space="preserve">
+    <value>Sorğunun qeydə alınması</value>
+  </data>
+  <data name="RequestNew.Intro" xml:space="preserve">
+    <value>Rəsmi məktub xarici dövlət sistemində artıq göndərilib. Onun qeydə alınması sorğunun rəsmiləşdirildiyini təsdiqləyir — «göndər» düyməsi yoxdur.</value>
+  </data>
+  <data name="RequestNew.Child" xml:space="preserve">
+    <value>Törəmə sorğu — mənbə tələb: «{0}»</value>
+  </data>
+  <data name="RequestNew.SameLetter" xml:space="preserve">
+    <value>Eyni nömrəli çıxan məktub artıq qeydə alınıbsa, sorğu həmin məktuba bağlanır.</value>
+  </data>
+  <data name="ResponseNew.Title" xml:space="preserve">
+    <value>Cavabın qeydə alınması</value>
+  </data>
+  <data name="ResponseNew.Intro" xml:space="preserve">
+    <value>Daxil olan rəsmi məktub xarici sistemdə artıq qəbul edilib. Burada onun mənası qeyd olunur: növ, nəticə və yekunluq.</value>
+  </data>
+  <data name="ResponseNew.ForRequest" xml:space="preserve">
+    <value>Sorğu: {0} — {1}</value>
+  </data>
+  <data name="RequirementNew.Title" xml:space="preserve">
+    <value>Tələbin qeydə alınması</value>
+  </data>
+  <data name="RequirementNew.Intro" xml:space="preserve">
+    <value>Tələb cavabla qoyulan şərtdir. Hansı cavabın onu doğurduğu həmişə qeyd olunur.</value>
+  </data>
+  <data name="RequirementNew.ForResponse" xml:space="preserve">
+    <value>Mənbə cavab: {0} · {1}</value>
+  </data>
+  <data name="Resolve.Fulfill.Title" xml:space="preserve">
+    <value>Tələbin yerinə yetirilməsi</value>
+  </data>
+  <data name="Resolve.Fulfill.Intro" xml:space="preserve">
+    <value>Sübut kimi cavab seçin və ya izah qeydi yazın.</value>
+  </data>
+  <data name="Resolve.Waive.Title" xml:space="preserve">
+    <value>Tələbə güzəşt (şöbə tələbdən azad olunur)</value>
+  </data>
+  <data name="Resolve.Waive.Intro" xml:space="preserve">
+    <value>Güzəşt tələbin yerinə yetirildiyi demək deyil: öhdəlik qalır, lakin səlahiyyətli qərarla davam edilir.</value>
+  </data>
+  <data name="Resolve.Void.Title" xml:space="preserve">
+    <value>Tələbin etibarsız sayılması</value>
+  </data>
+  <data name="Resolve.Void.Intro" xml:space="preserve">
+    <value>Tələb artıq tətbiq olunmursa və ya heç vaxt tətbiq olunmayıbsa istifadə olunur — yerinə yetirilmiş kimi qeyd etmək olmaz.</value>
+  </data>
+  <data name="Resolve.Fail.Title" xml:space="preserve">
+    <value>Tələbin alınmaması</value>
+  </data>
+  <data name="Resolve.Fail.Intro" xml:space="preserve">
+    <value>Öhdəlik qalır, güzəşt yoxdur, lakin yerinə yetirilə bilmədi. Bu, yekun nəticədə görünməlidir.</value>
+  </data>
+  <data name="Field.RequestingOrganization" xml:space="preserve">
+    <value>Müraciət edən təşkilat</value>
+  </data>
+  <data name="Field.Title" xml:space="preserve">
+    <value>Başlıq</value>
+  </data>
+  <data name="Field.Subject" xml:space="preserve">
+    <value>Mövzu / təsvir</value>
+  </data>
+  <data name="Field.IncomingLetterNumber" xml:space="preserve">
+    <value>Daxil olan məktubun nömrəsi</value>
+  </data>
+  <data name="Field.IncomingRegistryNumber" xml:space="preserve">
+    <value>Daxili qeydiyyat nömrəsi</value>
+  </data>
+  <data name="Field.LetterDate" xml:space="preserve">
+    <value>Məktubun tarixi</value>
+  </data>
+  <data name="Field.ReceivedDate" xml:space="preserve">
+    <value>Qəbul tarixi</value>
+  </data>
+  <data name="Field.Responsible" xml:space="preserve">
+    <value>Məsul əməkdaş</value>
+  </data>
+  <data name="Field.Notes" xml:space="preserve">
+    <value>Qeydlər</value>
+  </data>
+  <data name="Field.TargetOrganization" xml:space="preserve">
+    <value>Ünvanlanan təşkilat</value>
+  </data>
+  <data name="Field.RequestSubject" xml:space="preserve">
+    <value>Sorğunun mövzusu</value>
+  </data>
+  <data name="Field.OutgoingLetterNumber" xml:space="preserve">
+    <value>Çıxan məktubun nömrəsi</value>
+  </data>
+  <data name="Field.SentDate" xml:space="preserve">
+    <value>Göndərilmə tarixi</value>
+  </data>
+  <data name="Field.DueDate" xml:space="preserve">
+    <value>Gözlənilən cavab tarixi</value>
+  </data>
+  <data name="Field.RequestedItems" xml:space="preserve">
+    <value>Tələb olunanlar</value>
+  </data>
+  <data name="Field.ResponseType" xml:space="preserve">
+    <value>Cavabın növü</value>
+  </data>
+  <data name="Field.ResponseOutcome" xml:space="preserve">
+    <value>Cavabın nəticəsi</value>
+  </data>
+  <data name="Field.IsConclusive" xml:space="preserve">
+    <value>Bu cavab sorğunu yekunlaşdırır</value>
+  </data>
+  <data name="Field.IsConclusiveHint" xml:space="preserve">
+    <value>Şərti razılıq yekun deyil: şərtlər yerinə yetirilənə qədər sorğu açıq qalır.</value>
+  </data>
+  <data name="Field.Summary" xml:space="preserve">
+    <value>Xülasə</value>
+  </data>
+  <data name="Field.RequirementTitle" xml:space="preserve">
+    <value>Tələbin adı</value>
+  </data>
+  <data name="Field.Description" xml:space="preserve">
+    <value>Təsvir</value>
+  </data>
+  <data name="Field.IsBlocking" xml:space="preserve">
+    <value>Bloklayıcıdır — yekun nəticəni saxlayır</value>
+  </data>
+  <data name="Field.AddressedTo" xml:space="preserve">
+    <value>Kimdən gözlənilir</value>
+  </data>
+  <data name="Field.EvidenceResponse" xml:space="preserve">
+    <value>Sübut kimi cavab</value>
+  </data>
+  <data name="Field.ResolutionNote" xml:space="preserve">
+    <value>İzah qeydi</value>
+  </data>
+  <data name="Field.WaiverReason" xml:space="preserve">
+    <value>Güzəşt səbəbi</value>
+  </data>
+  <data name="Field.VoidReason" xml:space="preserve">
+    <value>Səbəb</value>
+  </data>
+  <data name="Field.VoidSourceResponse" xml:space="preserve">
+    <value>Səbəb olan cavab</value>
+  </data>
+  <data name="Field.FailureReason" xml:space="preserve">
+    <value>Alınmama səbəbi</value>
+  </data>
+  <data name="Field.Note" xml:space="preserve">
+    <value>Qeyd</value>
+  </data>
+  <data name="Field.CloseNote" xml:space="preserve">
+    <value>Bağlanma qeydi</value>
+  </data>
+  <data name="Action.Save" xml:space="preserve">
+    <value>Yadda saxla</value>
+  </data>
+  <data name="Action.Cancel" xml:space="preserve">
+    <value>İmtina</value>
+  </data>
+  <data name="Action.Create" xml:space="preserve">
+    <value>Yarat</value>
+  </data>
+  <data name="Action.Register" xml:space="preserve">
+    <value>Qeydə al</value>
+  </data>
+  <data name="Action.Confirm" xml:space="preserve">
+    <value>Təsdiq et</value>
+  </data>
+  <data name="Common.None" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="Common.Optional" xml:space="preserve">
+    <value>istəyə bağlı</value>
+  </data>
+  <data name="Common.Back" xml:space="preserve">
+    <value>Qayıt</value>
+  </data>
+  <data name="Common.Yes" xml:space="preserve">
+    <value>Bəli</value>
+  </data>
+  <data name="Common.No" xml:space="preserve">
+    <value>Xeyr</value>
+  </data>
+  <data name="Common.Select" xml:space="preserve">
+    <value>Seçin…</value>
+  </data>
+  <data name="Common.Days" xml:space="preserve">
+    <value>{0} gün</value>
+  </data>
+  <data name="Error.Title" xml:space="preserve">
+    <value>Əməliyyat yerinə yetirilmədi</value>
+  </data>
+  <data name="Error.Unknown" xml:space="preserve">
+    <value>Əməliyyat yerinə yetirilmədi ({0})</value>
+  </data>
+  <data name="Error.validation.required" xml:space="preserve">
+    <value>Bu sahə mütləqdir</value>
+  </data>
+  <data name="Error.validation.date_in_future" xml:space="preserve">
+    <value>Tarix gələcəkdə ola bilməz</value>
+  </data>
+  <data name="Error.validation.received_before_letter_date" xml:space="preserve">
+    <value>Qəbul tarixi məktubun tarixindən əvvəl ola bilməz</value>
+  </data>
+  <data name="Error.validation.organization_invalid" xml:space="preserve">
+    <value>Təşkilat seçilməyib və ya aktiv deyil</value>
+  </data>
+  <data name="Error.validation.user_invalid" xml:space="preserve">
+    <value>Seçilmiş əməkdaş uyğun deyil</value>
+  </data>
+  <data name="Error.validation.due_before_sent" xml:space="preserve">
+    <value>Cavab müddəti göndərilmə tarixindən əvvəl ola bilməz</value>
+  </data>
+  <data name="Error.validation.requirement_invalid" xml:space="preserve">
+    <value>Mənbə tələb uyğun deyil</value>
+  </data>
+  <data name="Error.validation.evidence_invalid" xml:space="preserve">
+    <value>Seçilmiş cavab bu iş üzrə sübut kimi uyğun deyil</value>
+  </data>
+  <data name="Error.correspondence.number_used_in_another_case" xml:space="preserve">
+    <value>Bu nömrəli məktub başqa işdə qeydə alınıb</value>
+  </data>
+  <data name="Error.correspondence.number_used_for_another_organization" xml:space="preserve">
+    <value>Bu nömrəli məktub başqa təşkilata ünvanlanıb</value>
+  </data>
+  <data name="Error.correspondence.number_used_with_another_date" xml:space="preserve">
+    <value>Bu nömrəli məktub başqa tarixlə qeydə alınıb</value>
+  </data>
+  <data name="Error.response.already_registered_for_letter" xml:space="preserve">
+    <value>Həmin məktub üzrə bu sorğuya artıq cavab qeydə alınıb</value>
+  </data>
+  <data name="Error.response.not_active" xml:space="preserve">
+    <value>Cavab qüvvədə deyil</value>
+  </data>
+  <data name="Error.request.not_issued" xml:space="preserve">
+    <value>Sorğu hələ rəsmi olaraq göndərilməyib</value>
+  </data>
+  <data name="Error.request.not_answered" xml:space="preserve">
+    <value>Sorğu hələ cavablandırılmayıb</value>
+  </data>
+  <data name="Error.request.no_conclusive_response" xml:space="preserve">
+    <value>Yekun cavab yoxdur</value>
+  </data>
+  <data name="Error.request.conflicting_responses" xml:space="preserve">
+    <value>Ziddiyyətli cavablar əvvəlcə həll edilməlidir</value>
+  </data>
+  <data name="Error.request.blocking_requirements_open" xml:space="preserve">
+    <value>Bloklayıcı tələblər hələ açıqdır</value>
+  </data>
+  <data name="Error.requirement.not_open" xml:space="preserve">
+    <value>Tələb açıq deyil</value>
+  </data>
+  <data name="Error.requirement.not_resolvable" xml:space="preserve">
+    <value>Tələb artıq yekunlaşıb</value>
+  </data>
+  <data name="Error.requirement.fulfil_needs_evidence_or_note" xml:space="preserve">
+    <value>Sübut və ya izah qeydi tələb olunur</value>
+  </data>
+  <data name="Error.requirement.waiver_reason_required" xml:space="preserve">
+    <value>Güzəşt səbəbi seçilməlidir</value>
+  </data>
+  <data name="Error.requirement.void_reason_required" xml:space="preserve">
+    <value>Səbəb seçilməlidir</value>
+  </data>
+  <data name="Error.requirement.note_required" xml:space="preserve">
+    <value>Qeyd mütləqdir</value>
+  </data>
+  <data name="Error.requirement.not_open_for_child_request" xml:space="preserve">
+    <value>Bu tələb üzrə yeni sorğu yaratmaq olmaz</value>
+  </data>
+  <data name="Error.case.not_open_to_work" xml:space="preserve">
+    <value>Bağlı və ya ləğv edilmiş işə yeni iş əlavə edilə bilməz</value>
+  </data>
+  <data name="Error.auth.action_not_permitted" xml:space="preserve">
+    <value>Bu əməliyyat üçün səlahiyyət yoxdur</value>
+  </data>
+  <data name="Error.auth.no_business_role" xml:space="preserve">
+    <value>İstifadəçinin iş rolu yoxdur</value>
+  </data>
+  <data name="Error.auth.case_not_visible" xml:space="preserve">
+    <value>Bu iş sizə görünmür</value>
+  </data>
+  <data name="Error.auth.actor_not_active" xml:space="preserve">
+    <value>İstifadəçi aktiv deyil</value>
+  </data>
+  <data name="Error.auth.unknown_actor" xml:space="preserve">
+    <value>Aktor tapılmadı</value>
+  </data>
+  <data name="Error.concurrency.changed_elsewhere" xml:space="preserve">
+    <value>Qeyd bu vaxt başqası tərəfindən dəyişdirilib. Səhifəni yeniləyib yenidən cəhd edin.</value>
+  </data>
+  <data name="Error.operation.already_used" xml:space="preserve">
+    <value>Bu forma artıq göndərilib</value>
+  </data>
+  <data name="Error.organization.own_missing" xml:space="preserve">
+    <value>Öz təşkilatımız qeydə alınmayıb (demo seed işə salın)</value>
+  </data>
+  <data name="Error.notfound.case" xml:space="preserve">
+    <value>İş tapılmadı</value>
+  </data>
+  <data name="Error.notfound.request" xml:space="preserve">
+    <value>Sorğu tapılmadı</value>
+  </data>
+  <data name="Error.notfound.response" xml:space="preserve">
+    <value>Cavab tapılmadı</value>
+  </data>
+  <data name="Error.notfound.requirement" xml:space="preserve">
+    <value>Tələb tapılmadı</value>
+  </data>
+  <data name="CaseState.REGISTERED" xml:space="preserve">
+    <value>Qeydə alınıb</value>
+  </data>
+  <data name="CaseState.ACTIVE" xml:space="preserve">
+    <value>Aktiv</value>
+  </data>
+  <data name="CaseState.ON_HOLD" xml:space="preserve">
+    <value>Dayandırılıb</value>
+  </data>
+  <data name="CaseState.CLOSED" xml:space="preserve">
+    <value>Bağlanıb</value>
+  </data>
+  <data name="CaseState.CANCELLED" xml:space="preserve">
+    <value>Ləğv edilib</value>
+  </data>
+  <data name="RequestStatus.DRAFT" xml:space="preserve">
+    <value>Planlaşdırılıb</value>
+  </data>
+  <data name="RequestStatus.SENT" xml:space="preserve">
+    <value>Göndərilib</value>
+  </data>
+  <data name="RequestStatus.ANSWERED" xml:space="preserve">
+    <value>Cavablandırılıb</value>
+  </data>
+  <data name="RequestStatus.CLOSED" xml:space="preserve">
+    <value>Bağlanıb</value>
+  </data>
+  <data name="RequestStatus.WITHDRAWN" xml:space="preserve">
+    <value>Geri çağırılıb</value>
+  </data>
+  <data name="RequestStatus.VOID" xml:space="preserve">
+    <value>Etibarsız</value>
+  </data>
+  <data name="RequirementStatus.OPEN" xml:space="preserve">
+    <value>Açıq</value>
+  </data>
+  <data name="RequirementStatus.IN_PROGRESS" xml:space="preserve">
+    <value>İcradadır</value>
+  </data>
+  <data name="RequirementStatus.FULFILLED" xml:space="preserve">
+    <value>Yerinə yetirilib</value>
+  </data>
+  <data name="RequirementStatus.WAIVED" xml:space="preserve">
+    <value>Güzəşt edilib</value>
+  </data>
+  <data name="RequirementStatus.VOID" xml:space="preserve">
+    <value>Etibarsız</value>
+  </data>
+  <data name="RequirementStatus.FAILED" xml:space="preserve">
+    <value>Alınmadı</value>
+  </data>
+  <data name="ResponseStatus.ACTIVE" xml:space="preserve">
+    <value>Qüvvədə</value>
+  </data>
+  <data name="ResponseStatus.SUPERSEDED" xml:space="preserve">
+    <value>Əvəzlənib</value>
+  </data>
+  <data name="ResponseStatus.VOID" xml:space="preserve">
+    <value>Etibarsız</value>
+  </data>
+  <data name="ResponseType.OPINION" xml:space="preserve">
+    <value>Rəy</value>
+  </data>
+  <data name="ResponseType.CLARIFICATION" xml:space="preserve">
+    <value>İzahat</value>
+  </data>
+  <data name="ResponseType.INFORMATION_REQUEST" xml:space="preserve">
+    <value>Məlumat sorğusu</value>
+  </data>
+  <data name="ResponseType.ADDITIONAL_REQUIREMENT" xml:space="preserve">
+    <value>Əlavə tələb</value>
+  </data>
+  <data name="ResponseType.INFORMATION" xml:space="preserve">
+    <value>Məlumat</value>
+  </data>
+  <data name="ResponseType.OTHER" xml:space="preserve">
+    <value>Digər</value>
+  </data>
+  <data name="ResponseType.ACKNOWLEDGEMENT" xml:space="preserve">
+    <value>Qəbul bildirişi</value>
+  </data>
+  <data name="ResponseType.ADDITIONAL_DOCUMENT" xml:space="preserve">
+    <value>Əlavə sənəd</value>
+  </data>
+  <data name="ResponseType.DEADLINE_EXTENSION" xml:space="preserve">
+    <value>Müddətin uzadılması</value>
+  </data>
+  <data name="ResponseOutcome.APPROVED" xml:space="preserve">
+    <value>Razılıq</value>
+  </data>
+  <data name="ResponseOutcome.REJECTED" xml:space="preserve">
+    <value>İmtina</value>
+  </data>
+  <data name="ResponseOutcome.CONDITIONAL" xml:space="preserve">
+    <value>Şərti</value>
+  </data>
+  <data name="ResponseOutcome.NOT_APPLICABLE" xml:space="preserve">
+    <value>Aid deyil</value>
+  </data>
+  <data name="ResponseOutcome.UNDETERMINED" xml:space="preserve">
+    <value>Müəyyən edilməyib</value>
+  </data>
+  <data name="OrganizationType.STATE_AUTHORITY" xml:space="preserve">
+    <value>Dövlət orqanı</value>
+  </data>
+  <data name="OrganizationType.MUNICIPAL_DEPARTMENT" xml:space="preserve">
+    <value>Bələdiyyə şöbəsi</value>
+  </data>
+  <data name="OrganizationType.UTILITY_COMPANY" xml:space="preserve">
+    <value>Kommunal təşkilat</value>
+  </data>
+  <data name="OrganizationType.LEGAL_ENTITY" xml:space="preserve">
+    <value>Hüquqi şəxs</value>
+  </data>
+  <data name="OrganizationType.INDIVIDUAL" xml:space="preserve">
+    <value>Fiziki şəxs</value>
+  </data>
+  <data name="VoidReason.NO_LONGER_REQUIRED" xml:space="preserve">
+    <value>Artıq tələb olunmur</value>
+  </data>
+  <data name="VoidReason.SUPERSEDED_BY_RESPONSE" xml:space="preserve">
+    <value>Sonrakı cavab tələbi aradan qaldırdı</value>
+  </data>
+  <data name="VoidReason.BRANCH_REMOVED" xml:space="preserve">
+    <value>İş qolu ləğv edildi</value>
+  </data>
+  <data name="VoidReason.DATA_ENTRY_ERROR" xml:space="preserve">
+    <value>Yanlış qeyd (texniki səhv)</value>
+  </data>
+  <data name="VoidReason.DUPLICATE" xml:space="preserve">
+    <value>Təkrar qeyd</value>
+  </data>
+  <data name="WaiverReason.AUTHORISED_TO_PROCEED" xml:space="preserve">
+    <value>Səlahiyyətli qərarla tələbsiz davam edilir</value>
+  </data>
+  <data name="WaiverReason.DISPROPORTIONATE" xml:space="preserve">
+    <value>Əldə edilməsi işə mütənasib deyil</value>
+  </data>
+  <data name="WaiverReason.OTHER" xml:space="preserve">
+    <value>Digər (qeyddə izah olunur)</value>
+  </data>
+  <data name="AliasType.FORMER_NAME" xml:space="preserve">
+    <value>Əvvəlki ad</value>
+  </data>
+  <data name="AliasType.ABBREVIATION" xml:space="preserve">
+    <value>Qısaltma</value>
+  </data>
+  <data name="AliasType.TRANSLITERATION" xml:space="preserve">
+    <value>Transliterasiya</value>
+  </data>
+  <data name="AliasType.MISSPELLING" xml:space="preserve">
+    <value>Səhv yazılış</value>
+  </data>
+  <data name="ActionCode.CREATE" xml:space="preserve">
+    <value>Yaradıldı</value>
+  </data>
+  <data name="ActionCode.UPDATE" xml:space="preserve">
+    <value>Dəyişdirildi</value>
+  </data>
+  <data name="ActionCode.STATE_CHANGE" xml:space="preserve">
+    <value>Vəziyyət dəyişdi</value>
+  </data>
+  <data name="ActionCode.LINK" xml:space="preserve">
+    <value>Əlaqələndirildi</value>
+  </data>
+  <data name="ActionCode.UNLINK" xml:space="preserve">
+    <value>Əlaqə silindi</value>
+  </data>
+  <data name="ActionCode.VOID" xml:space="preserve">
+    <value>Etibarsız edildi</value>
+  </data>
+  <data name="ActionCode.WITHDRAW" xml:space="preserve">
+    <value>Geri çağırıldı</value>
+  </data>
+  <data name="ActionCode.ASSIGN" xml:space="preserve">
+    <value>Təyinat</value>
+  </data>
+  <data name="ActionCode.PERMISSION_DENIED" xml:space="preserve">
+    <value>İcazə verilmədi</value>
+  </data>
+  <data name="EntityType.case" xml:space="preserve">
+    <value>İş</value>
+  </data>
+  <data name="EntityType.user" xml:space="preserve">
+    <value>İstifadəçi</value>
+  </data>
+  <data name="EntityType.organization" xml:space="preserve">
+    <value>Təşkilat</value>
+  </data>
+  <data name="EntityType.correspondence" xml:space="preserve">
+    <value>Məktub</value>
+  </data>
+  <data name="EntityType.request" xml:space="preserve">
+    <value>Sorğu</value>
+  </data>
+  <data name="EntityType.response" xml:space="preserve">
+    <value>Cavab</value>
+  </data>
+  <data name="EntityType.requirement" xml:space="preserve">
+    <value>Tələb</value>
+  </data>
+  <data name="EntityType.requirement_evidence" xml:space="preserve">
+    <value>Sübut</value>
+  </data>
+  <data name="EntityType.assignment" xml:space="preserve">
+    <value>Təyinat</value>
+  </data>
+  <data name="ActorKind.SYSTEM" xml:space="preserve">
+    <value>sistem nəticəsi</value>
+  </data>
+  <data name="ActorKind.JOB" xml:space="preserve">
+    <value>avtomatik proses</value>
+  </data>
+  <data name="Progress.P0" xml:space="preserve">
+    <value>Ləğv edilib</value>
+  </data>
+  <data name="Progress.P1" xml:space="preserve">
+    <value>Bağlanıb — {0}</value>
+  </data>
+  <data name="Progress.P2" xml:space="preserve">
+    <value>Dayandırılıb ({0}-dək): {1}</value>
+  </data>
+  <data name="Progress.P2.Open" xml:space="preserve">
+    <value>Dayandırılıb: {0}</value>
+  </data>
+  <data name="Progress.P3" xml:space="preserve">
+    <value>Qeydə alınıb — hələ sorğu göndərilməyib</value>
+  </data>
+  <data name="Progress.P4" xml:space="preserve">
+    <value>Ziddiyyətli cavablar — həlli tələb olunur: {0}</value>
+  </data>
+  <data name="Progress.P5" xml:space="preserve">
+    <value>Bloklanıb: «{0}» əldə edilə bilmədi — qərar tələb olunur</value>
+  </data>
+  <data name="Progress.P6" xml:space="preserve">
+    <value>Gecikir: «{0}» gözlənilir — {1}, {2} gün</value>
+  </data>
+  <data name="Progress.P6.NoOrganization" xml:space="preserve">
+    <value>Gecikir: «{0}» gözlənilir — {1} gün</value>
+  </data>
+  <data name="Progress.P7" xml:space="preserve">
+    <value>Gecikir: cavab yoxdur — {0}, {1} gün</value>
+  </data>
+  <data name="Progress.P8" xml:space="preserve">
+    <value>«{0}» gözlənilir — növbəti addım şöbədədir</value>
+  </data>
+  <data name="Progress.P9" xml:space="preserve">
+    <value>{0} planlaşdırılmış sorğu hələ rəsmiləşdirilməyib</value>
+  </data>
+  <data name="Progress.P10" xml:space="preserve">
+    <value>{0} cavab təsnifat gözləyir</value>
+  </data>
+  <data name="Progress.P12" xml:space="preserve">
+    <value>«{0}» gözlənilir — {1}</value>
+  </data>
+  <data name="Progress.P13" xml:space="preserve">
+    <value>Cavab gözlənilir: {0}</value>
+  </data>
+  <data name="Progress.P14" xml:space="preserve">
+    <value>{0} orqanın cavabı gözlənilir</value>
+  </data>
+  <data name="Progress.P16" xml:space="preserve">
+    <value>Yekun nəticəyə hazırdır</value>
+  </data>
+  <data name="Progress.P18" xml:space="preserve">
+    <value>Aktiv — açıq gözləmə yoxdur</value>
+  </data>
+  <data name="Progress.Summary.Branches" xml:space="preserve">
+    <value>{0} orqan qolu</value>
+  </data>
+  <data name="Progress.Summary.Responses" xml:space="preserve">
+    <value>{0} sorğudan {1} cavablandırılıb</value>
+  </data>
+  <data name="Progress.Summary.OpenRequirements" xml:space="preserve">
+    <value>{0} açıq tələb</value>
+  </data>
+  <data name="Progress.Summary.Overdue" xml:space="preserve">
+    <value>{0} gecikən bənd</value>
+  </data>
+  <data name="Progress.Summary.Waived" xml:space="preserve">
+    <value>{0} güzəşt</value>
+  </data>
+  <data name="Progress.Summary.Failed" xml:space="preserve">
+    <value>{0} alınmayan tələb</value>
+  </data>
+  <data name="Branch.Failed" xml:space="preserve">
+    <value>Alınmadı — qərar tələb olunur</value>
+  </data>
+  <data name="Branch.Blocked" xml:space="preserve">
+    <value>Bloklanıb — növbəti addım şöbədədir</value>
+  </data>
+  <data name="Branch.WaitingExternal" xml:space="preserve">
+    <value>Xarici cavab gözlənilir</value>
+  </data>
+  <data name="Branch.WaitingInternal" xml:space="preserve">
+    <value>Daxili iş gözlənilir</value>
+  </data>
+  <data name="Branch.Withdrawn" xml:space="preserve">
+    <value>Geri çağırılıb</value>
+  </data>
+  <data name="Branch.Complete" xml:space="preserve">
+    <value>Tamamlanıb</value>
+  </data>
+  <data name="Branch.Answered" xml:space="preserve">
+    <value>Cavablandırılıb</value>
+  </data>
+  <data name="RequestProgress.Draft" xml:space="preserve">
+    <value>Planlaşdırılıb</value>
+  </data>
+  <data name="RequestProgress.AwaitingResponse" xml:space="preserve">
+    <value>Cavab gözlənilir</value>
+  </data>
+  <data name="RequestProgress.PartiallyAnswered" xml:space="preserve">
+    <value>Qismən cavablandırılıb</value>
+  </data>
+  <data name="RequestProgress.Overdue" xml:space="preserve">
+    <value>Gecikir — {0} gün</value>
+  </data>
+  <data name="RequestProgress.Conflict" xml:space="preserve">
+    <value>Ziddiyyətli cavablar</value>
+  </data>
+  <data name="RequestProgress.AnsweredCloseable" xml:space="preserve">
+    <value>Cavablandırılıb — bağlanmağa hazırdır</value>
+  </data>
+  <data name="RequestProgress.AnsweredWithOpenBlocking" xml:space="preserve">
+    <value>Cavablandırılıb — açıq tələblər var</value>
+  </data>
+  <data name="RequestProgress.Closed" xml:space="preserve">
+    <value>Bağlanıb</value>
+  </data>
+  <data name="RequestProgress.Withdrawn" xml:space="preserve">
+    <value>Geri çağırılıb</value>
+  </data>
+  <data name="RequestProgress.Void" xml:space="preserve">
+    <value>Etibarsız</value>
+  </data>
+  <data name="RequirementProgress.OursToAct" xml:space="preserve">
+    <value>Növbəti addım şöbədədir</value>
+  </data>
+  <data name="RequirementProgress.WaitingExternal" xml:space="preserve">
+    <value>Xarici cavab gözlənilir</value>
+  </data>
+  <data name="RequirementProgress.Fulfilled" xml:space="preserve">
+    <value>Yerinə yetirilib</value>
+  </data>
+  <data name="RequirementProgress.Waived" xml:space="preserve">
+    <value>Güzəşt edilib</value>
+  </data>
+  <data name="RequirementProgress.Void" xml:space="preserve">
+    <value>Etibarsız</value>
+  </data>
+  <data name="RequirementProgress.Failed" xml:space="preserve">
+    <value>Alınmadı</value>
+  </data>
+  <data name="RequirementProgress.Overdue" xml:space="preserve">
+    <value>Gecikir — {0} gün</value>
+  </data>
+  <data name="Response.Letter" xml:space="preserve">
+    <value>Daxil olan məktub</value>
+  </data>
+  <data name="CorrespondenceStatus.DRAFT" xml:space="preserve">
+    <value>Layihə</value>
+  </data>
+  <data name="CorrespondenceStatus.REGISTERED" xml:space="preserve">
+    <value>Qeydə alınıb</value>
+  </data>
+  <data name="CorrespondenceStatus.SENT" xml:space="preserve">
+    <value>Göndərilib</value>
+  </data>
+  <data name="CorrespondenceStatus.RECEIVED" xml:space="preserve">
+    <value>Qəbul edilib</value>
+  </data>
+  <data name="CorrespondenceStatus.WITHDRAWN" xml:space="preserve">
+    <value>Geri çağırılıb</value>
+  </data>
+  <data name="CorrespondenceStatus.SUPERSEDED" xml:space="preserve">
+    <value>Əvəzlənib</value>
+  </data>
+  <data name="CorrespondenceStatus.VOID" xml:space="preserve">
+    <value>Etibarsız</value>
+  </data>
+  <data name="AssignmentStatus.ACTIVE" xml:space="preserve">
+    <value>Qüvvədə</value>
+  </data>
+  <data name="AssignmentStatus.ENDED" xml:space="preserve">
+    <value>Başa çatıb</value>
+  </data>
+  <data name="AssignmentStatus.VOID" xml:space="preserve">
+    <value>Etibarsız</value>
+  </data>
+</root>

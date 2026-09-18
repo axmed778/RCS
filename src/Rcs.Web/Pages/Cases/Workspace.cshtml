@@ -1,0 +1,146 @@
+@page "/cases/{caseId:guid}"
+@model Rcs.Web.Pages.Cases.WorkspaceModel
+@{
+    var workspace = Model.Workspace;
+    ViewData["Title"] = workspace is null ? T["Cases.Title"].Value : workspace.Header.CaseNumber;
+}
+
+@if (workspace is not null)
+{
+    var header = workspace.Header;
+    var progress = workspace.Progress;
+
+    @if (Model.ActionError is { Length: > 0 } actionError)
+    {
+        <div class="alert"><strong>@T["Error.Title"]</strong> — @actionError</div>
+    }
+
+    <div class="page-head">
+        <div>
+            <h1>@header.Title</h1>
+            <p class="mono">@header.CaseNumber</p>
+        </div>
+        <div class="actions">
+            <a class="btn" href="/cases">@T["Common.Back"]</a>
+            @if (AuthorizationPolicy.Decide(workspace.Actor, BusinessAction.RegisterOutgoingRequest, workspace.Relationship).IsAllowed)
+            {
+                <a class="btn btn--primary" href="/cases/@header.Id/requests/new">@T["Workspace.AddRequest"]</a>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <dl class="facts">
+            <div><dt>@T["Workspace.Header.Case"]</dt><dd class="mono">@header.CaseNumber</dd></div>
+            <div><dt>@T["Workspace.Header.Requester"]</dt><dd>@header.RequestingOrganization.Name</dd></div>
+            <div><dt>@T["Workspace.Header.Responsible"]</dt><dd>@(header.Responsible?.DisplayName ?? T["Cases.Unassigned"].Value)</dd></div>
+            <div><dt>@T["Workspace.Header.State"]</dt><dd><span class="badge">@T.CaseState(header.State)</span></dd></div>
+            <div><dt>@T["Workspace.Header.Registered"]</dt><dd class="mono">@T.Date(header.RegisteredAt)</dd></div>
+        </dl>
+        <div style="margin-top:1rem">
+            <div class="headline @T.ProgressModifier(progress.Headline)">@T.Progress(progress.Headline)</div>
+            <div class="summary-line">@T.Summary(progress.Summary)</div>
+        </div>
+        @if (header.Subject is { Length: > 0 } subject)
+        {
+            <p class="node__meta" style="margin-top:.75rem">@subject</p>
+        }
+        @if (header.Notes is { Length: > 0 } notes)
+        {
+            <p class="node__meta"><strong>@T["Workspace.Notes"]:</strong> @notes</p>
+        }
+    </div>
+
+    <div class="section-title">@T["Workspace.OriginalLetter"]</div>
+    @if (workspace.InitiatingLetter is { } letter)
+    {
+        <div class="node node--letter">
+            <div class="node__head">
+                <div>
+                    <div class="node__title mono">@T.Text(letter.LetterNumber) · @T.Date(letter.LetterDate)</div>
+                </div>
+                <span class="badge">@T.Date(letter.ReceivedAt)</span>
+            </div>
+            <dl class="facts" style="margin-top:.6rem">
+                <div><dt>@T["Letter.Sender"]</dt><dd>@letter.Sender.Name</dd></div>
+                <div><dt>@T["Letter.Recipient"]</dt><dd>@letter.Recipient.Name</dd></div>
+                <div><dt>@T["Letter.RegistryNumber"]</dt><dd class="mono">@T.Text(letter.RegistryNumber)</dd></div>
+                <div><dt>@T["Letter.Received"]</dt><dd class="mono">@T.Date(letter.ReceivedAt)</dd></div>
+                <div><dt>@T["Letter.Registered"]</dt><dd>@T.DateTime(letter.RegisteredAt) · @letter.RegisteredBy.DisplayName</dd></div>
+            </dl>
+            @if (letter.Subject is { Length: > 0 } letterSubject)
+            {
+                <p class="node__meta">@letterSubject</p>
+            }
+        </div>
+    }
+
+    <div class="section-title">@T["Workspace.Workflow"]</div>
+    @if (workspace.TopLevelRequests.Count == 0)
+    {
+        <div class="card"><div class="empty">@T["Workspace.NoRequests"]</div></div>
+    }
+    else
+    {
+        <ul class="tree">
+            @foreach (var request in workspace.TopLevelRequests)
+            {
+                <li>
+                    @{
+                        var branch = workspace.Progress.Branches.TryGetValue(request.Id, out var branchProgress) ? branchProgress : null;
+                    }
+                    @if (branch is not null)
+                    {
+                        <div class="node__label" style="margin-bottom:.3rem">
+                            @T["Workspace.Branch"]: @T.BranchState(branch.State)
+                            @if (branch.Headline is { } branchHeadline)
+                            {
+                                <text>· @T.Progress(branchHeadline)</text>
+                            }
+                        </div>
+                    }
+                    <partial name="_RequestNode" model="new RequestNodeView(request, workspace)" />
+                </li>
+            }
+        </ul>
+    }
+
+    <div class="section-title">@T["Workspace.Activity"]</div>
+    <div class="card">
+        @if (workspace.Activity.Count == 0)
+        {
+            <div class="empty">@T["Workspace.NoActivity"]</div>
+        }
+        else
+        {
+            <ul class="activity">
+                @foreach (var entry in workspace.Activity)
+                {
+                    <li>
+                        <span class="activity__when mono">@T.DateTime(entry.RecordedAt)</span>
+                        <span class="activity__what">@T.Code("ActionCode", entry.ActionCode) — @T.Code("EntityType", entry.EntityType)</span>
+                        @if (entry.Detail is { Length: > 0 } detail)
+                        {
+                            <span class="mono">@detail</span>
+                        }
+                        @if (entry.Status is { Length: > 0 } status)
+                        {
+                            <span class="badge badge--plain">@T.ActivityStatus(entry.EntityType, status)</span>
+                        }
+                        <span class="activity__who">
+                            @(entry.ActorDisplayName ?? T["ActorKind.JOB"].Value)
+                            @if (entry.ActorKind != ActorKind.User)
+                            {
+                                <text>(@T.Code("ActorKind", entry.ActorKind.ToCode()))</text>
+                            }
+                        </span>
+                        @if (entry.ReasonNote is { Length: > 0 } reason)
+                        {
+                            <span class="node__meta">@reason</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+}

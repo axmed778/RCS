@@ -1,0 +1,52 @@
+@inject CurrentActor Actor
+@{
+    var path = Context.Request.Path.Value ?? "/";
+    string Active(string prefix) => path.Equals(prefix, StringComparison.OrdinalIgnoreCase)
+        || (prefix != "/" && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) ? "is-active" : string.Empty;
+}
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@(ViewData["Title"] is string title ? title + " — RCS" : "RCS")</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <div class="topbar">
+            <div class="topbar__name">@T["App.Name"]</div>
+            <div class="topbar__actor">
+                @if (Actor.IsAvailable)
+                {
+                    <text>@T["App.Actor"]: <strong>@Actor.Require.DisplayName</strong> · @string.Join(" / ", Actor.Require.Roles.Select(role => role.ToCode()))</text>
+                }
+            </div>
+        </div>
+        <div class="banner">
+            <span class="banner__title">@T["App.Banner"]</span>
+            <span class="banner__note"> — @T["App.BannerNote"]</span>
+        </div>
+        <nav class="nav">
+            <a class="@Active("/")" href="/">@T["Nav.Home"]</a>
+            <a class="@Active("/cases")" href="/cases">@T["Nav.Cases"]</a>
+            <a class="@Active("/organizations")" href="/organizations">@T["Nav.Organizations"]</a>
+        </nav>
+    </header>
+    <main>
+        @if (!Actor.IsAvailable)
+        {
+            <div class="card">
+                <h1>@T["App.NoActor.Title"]</h1>
+                <p>@T["App.NoActor.Body"]</p>
+            </div>
+        }
+        else
+        {
+            @RenderBody()
+        }
+    </main>
+    <footer>@T["App.Footer"]</footer>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+</body>
+</html>

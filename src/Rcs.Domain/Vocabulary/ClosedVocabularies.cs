@@ -92,6 +92,23 @@ public enum AssignmentStatus
     [DbCode("VOID")] Void,
 }
 
+/// <summary><c>user.status</c> (table <c>app_user</c>) — DOMAIN_MODEL.md §2.3; PERMISSIONS.md §25.</summary>
+public enum UserStatus
+{
+    [DbCode("ACTIVE")] Active = 1,
+    [DbCode("SUSPENDED")] Suspended,
+    [DbCode("DEACTIVATED")] Deactivated,
+}
+
+/// <summary><c>role.code</c> — the four conceptual roles (DOMAIN_MODEL.md §2.4; PERMISSIONS.md §15–§18).</summary>
+public enum BusinessRole
+{
+    [DbCode("WORKER")] Worker = 1,
+    [DbCode("CHIEF")] Chief,
+    [DbCode("HEAD")] Head,
+    [DbCode("TECH_ADMIN")] TechAdmin,
+}
+
 /// <summary>
 /// <c>audit_event.actor_kind</c> — how a change was executed (DOMAIN_MODEL.md §2.18, amendment A-8).
 /// <see cref="User"/>: the person's own act. <see cref="System"/>: a mechanical consequence executed
