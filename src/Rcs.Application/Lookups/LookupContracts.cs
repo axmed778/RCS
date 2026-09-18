@@ -11,6 +11,9 @@ public enum LookupKind
     DeadlineBasis,
     DecisionType,
     ClosureType,
+    DocumentKind,
+    DocumentLinkRole,
+    WithdrawalReason,
 }
 
 /// <param name="Code">The stable code; user interfaces translate it.</param>

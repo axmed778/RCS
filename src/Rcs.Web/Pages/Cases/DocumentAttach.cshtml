@@ -1,0 +1,59 @@
+@page "/cases/{caseId:guid}/documents/attach"
+@model Rcs.Web.Pages.Cases.DocumentAttachModel
+@{
+    ViewData["Title"] = T["Documents.AttachExisting"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["Documents.AttachExisting"]</h1>
+        @if (Model.Context is { } context)
+        {
+            <p class="intro">@T["Documents.AttachInto"]: <strong>@context.Label</strong> · @T.Code("DocumentLinkRole", Model.Role)</p>
+        }
+    </div>
+    <a class="btn" href="/cases/@Model.CaseId@(Model.Context is null ? string.Empty : "#" + Model.Context.Anchor)">@T["Common.Back"]</a>
+</div>
+
+<p class="intro">@T["Documents.AttachIntro"]</p>
+
+<form class="form card" method="post" data-single-submit>
+    <div asp-validation-summary="ModelOnly" class="alert"></div>
+    <input type="hidden" asp-for="OperationId" />
+
+    @if (Model.Candidates.Count == 0)
+    {
+        <div class="empty">@T["Documents.NothingToAttach"]</div>
+    }
+    else
+    {
+        <fieldset class="doc-choices">
+            <legend>@T["Documents.ChooseVersion"]</legend>
+            @foreach (var candidate in Model.Candidates)
+            {
+                var value = candidate.SourceLinkId + ":" + candidate.Version.Id;
+                <label class="doc-choice">
+                    <input type="radio" name="Selected" value="@value" required />
+                    <span>
+                        <strong>@FileTypePolicy.Sanitize(candidate.Title)</strong>
+                        <span class="mono">@FileTypePolicy.Sanitize(candidate.Version.OriginalFileName)</span>
+                        · @T.FileSize(candidate.Version.ByteSize) · @T.Date(candidate.Version.UploadedAt)
+                        @if (candidate.Version.Status == DocumentVersionStatus.Superseded)
+                        {
+                            <span class="badge badge--plain">@T["DocumentVersionStatus.SUPERSEDED"]</span>
+                        }
+                        <span class="hint">— @T.Code("DocumentLinkRole", candidate.SourceRoleCode) · @Model.SourceLabel(candidate)</span>
+                    </span>
+                </label>
+            }
+        </fieldset>
+        <div class="field">
+            <label asp-for="Note">@(Model.IsEvidence ? T["Field.EvidenceNote"] : T["Field.Note"]) <span class="hint">(@T["Common.Optional"])</span></label>
+            <textarea asp-for="Note" maxlength="2000"></textarea>
+        </div>
+        <p class="hint">@T["Documents.PinnedExplanation"]</p>
+        <div class="actions">
+            <button class="btn btn--primary" type="submit">@T["Documents.AttachAction"]</button>
+        </div>
+    }
+</form>

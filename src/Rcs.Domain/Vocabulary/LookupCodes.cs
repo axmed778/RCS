@@ -57,6 +57,34 @@ public static class VoidReasonCodes
     public static bool IsCorrection(string code) => code is DataEntryError or Duplicate;
 }
 
+/// <summary><c>document_link_role</c> — why a file is in a context (DOMAIN_MODEL.md §2.15; DOCUMENT_MODEL.md §4.1).</summary>
+public static class DocumentLinkRoleCodes
+{
+    public const string PrimaryLetter = "PRIMARY_LETTER";
+    public const string Attachment = "ATTACHMENT";
+    public const string Annex = "ANNEX";
+    public const string RequirementEvidence = "REQUIREMENT_EVIDENCE";
+    public const string FinalResultDocument = "FINAL_RESULT_DOCUMENT";
+    public const string Supporting = "SUPPORTING";
+    public const string WorkingCopy = "WORKING_COPY";
+}
+
+/// <summary><c>document_kind</c> — what a file is (DOMAIN_MODEL.md §2.13).</summary>
+public static class DocumentKindCodes
+{
+    public const string LetterBody = "LETTER_BODY";
+    public const string Other = "OTHER";
+}
+
+/// <summary><c>withdrawal_reason</c> — the PROVISIONAL starting vocabulary of migration 0014.</summary>
+public static class WithdrawalReasonCodes
+{
+    public const string UploadedInError = "UPLOADED_IN_ERROR";
+    public const string Duplicate = "DUPLICATE";
+    public const string RecalledByIssuer = "RECALLED_BY_ISSUER";
+    public const string Other = "OTHER";
+}
+
 /// <summary>Stable names used in <c>audit_event.entity_type</c>: domain entity names, not physical table names (ADR-037).</summary>
 public static class AuditEntityTypes
 {
@@ -71,6 +99,9 @@ public static class AuditEntityTypes
     public const string RequirementEvidence = "requirement_evidence";
     public const string Assignment = "assignment";
     public const string FinalResult = "final_result";
+    public const string Document = "document";
+    public const string DocumentVersion = "document_version";
+    public const string DocumentLink = "document_link";
 }
 
 /// <summary><c>audit_event.action_code</c> — the frozen vocabulary (DOMAIN_MODEL.md §2.18).</summary>
@@ -81,6 +112,9 @@ public static class AuditActionCodes
     public const string StateChange = "STATE_CHANGE";
     public const string Link = "LINK";
     public const string Unlink = "UNLINK";
+    public const string Upload = "UPLOAD";
+    public const string Download = "DOWNLOAD";
+    public const string Withdraw = "WITHDRAW";
     public const string Void = "VOID";
     public const string Assign = "ASSIGN";
     public const string PermissionDenied = "PERMISSION_DENIED";

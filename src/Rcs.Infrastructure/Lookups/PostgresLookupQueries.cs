@@ -36,6 +36,9 @@ internal sealed class PostgresLookupQueries(NpgsqlDataSource dataSource) : ILook
         // produces_decision carries closure guard G3 (WORKFLOW.md §9.2), so the closure form can say which types
         // need an issued result without a second query.
         LookupKind.ClosureType => ("closure_type", "produces_decision"),
+        LookupKind.DocumentKind => ("document_kind", null),
+        LookupKind.DocumentLinkRole => ("document_link_role", null),
+        LookupKind.WithdrawalReason => ("withdrawal_reason", null),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown lookup."),
     };
 }

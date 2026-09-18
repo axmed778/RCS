@@ -199,7 +199,8 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
             requirement.FailureReasonNote,
             requirement.CreatedByUserId,
             evidenceByRequirement[requirement.Id]
-                .Select(evidence => new EvidenceView(evidence.Id, evidence.ResponseId, evidence.Note, evidence.RecordedAt, evidence.RecordedBy))
+                .Select(evidence => new EvidenceView(evidence.Id, evidence.ResponseId, evidence.Note, evidence.RecordedAt, evidence.RecordedBy,
+                    evidence.DocumentId, evidence.DocumentVersionId, evidence.RowVersion))
                 .ToArray(),
             childRequests[requirement.Id].OrderBy(request => request.SentAt).Select(BuildRequest).ToArray());
 

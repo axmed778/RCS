@@ -39,6 +39,40 @@ public enum BusinessAction
     OverrideClosureGuard,
 
     ReopenCase,
+
+    /// <summary>
+    /// Uploading a file and placing it in a context of a case the actor can see (PERMISSIONS.md §21.3: condition
+    /// "none" — scanning is done by whoever is at the scanner). Also covers placing an already-stored version into
+    /// another context of the same case.
+    /// </summary>
+    UploadDocument,
+
+    /// <summary>Reading a document version through a visible context, including downloading it (DOCUMENT_MODEL.md §10.1).</summary>
+    ViewDocument,
+
+    /// <summary>Correcting a document's display title or metadata (DOCUMENT_MODEL.md §8.2 case 5: Worker · Chief).</summary>
+    EditDocumentMetadata,
+
+    /// <summary>
+    /// Clerical corrections of §8.2 — removing or moving a placement, withdrawing a version or a document, reinstating
+    /// a version: the Worker's own upload while nothing depends on it, otherwise a Chief (PERMISSIONS.md §24.2, ⁵).
+    /// </summary>
+    CorrectDocument,
+
+    /// <summary>
+    /// A version-pinned link outside the document's home case — a disclosure decision, Chief only, with a reason
+    /// (PERMISSIONS.md §16 row 14, §23; DOCUMENT_MODEL.md §4.8).
+    /// </summary>
+    LinkDocumentIntoAnotherCase,
+
+    /// <summary>Recording a document as evidence for a requirement (PERMISSIONS.md §21.3: assigned / cover).</summary>
+    RecordRequirementEvidence,
+
+    /// <summary>Retracting evidence recorded in error while the requirement is still open.</summary>
+    RetractRequirementEvidence,
+
+    /// <summary>Placing the signed decision or its annexes on a final result.</summary>
+    AttachFinalResultDocument,
 }
 
 /// <summary>Who is acting, with roles evaluated at action time (PERMISSIONS.md §27.3).</summary>
@@ -147,6 +181,23 @@ public static class AuthorizationPolicy
             BusinessAction.VoidRequirement => actor.IsChiefOrAbove
                 || (relationship is { VoidReasonCode: { } reason, ActorCreatedTargetWithoutDependents: true }
                     && VoidReasonCodes.IsCorrection(reason)),
+
+            // Documents. Visibility of the case was checked above; the document is visible only through it (§10.1).
+            BusinessAction.ViewDocument => true,
+            BusinessAction.UploadDocument => true,
+            BusinessAction.EditDocumentMetadata => true,
+            BusinessAction.CorrectDocument => actor.IsChiefOrAbove || (relationship?.ActorCreatedTargetWithoutDependents ?? false),
+            BusinessAction.LinkDocumentIntoAnotherCase => actor.IsChiefOrAbove,
+            BusinessAction.RecordRequirementEvidence => actor.IsChiefOrAbove || assigned,
+
+            // PROVISIONAL: PERMISSIONS.md §24.2 gives wrong evidence on a resolved requirement to a Chief (Q7). Evidence
+            // recorded in error on a still-open requirement is treated like a wrong placement: the recorder's own entry
+            // while nothing depends on it, otherwise a Chief.
+            BusinessAction.RetractRequirementEvidence => actor.IsChiefOrAbove || (relationship?.ActorCreatedTargetWithoutDependents ?? false),
+
+            // PROVISIONAL: as drafting the final result (above), placing its documents is the Chief judgement the
+            // decision itself is. The Head is the one who issues it.
+            BusinessAction.AttachFinalResultDocument => actor.IsChiefOrAbove,
 
             _ => false,
         };

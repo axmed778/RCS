@@ -112,7 +112,29 @@ dotnet run --project src/Rcs.Web
 ```
 
 Exit codes: `0` success · `1` migration failed · `2` usage or configuration error · `3` schema incompatible ·
-`130` cancelled.
+`4` document integrity finding · `130` cancelled.
+
+### Document storage
+
+File bytes live on the local filesystem, never in PostgreSQL (`DOCUMENT_MODEL.md` §6, ADR-005). Configure
+`Rcs:Storage` (Development defaults to `.local/` at the repository root, which is git-ignored):
+
+| Setting | Meaning |
+|---|---|
+| `RootPath` | object store root; objects live at `sha256/ab/cd/<full hash>` — no case, filename or organization in the path |
+| `TempPath` | temporary upload area. **Must be on the same filesystem volume as `RootPath`**: publishing is an atomic, never-overwriting link/rename, and a cross-volume setup is refused rather than silently copied |
+| `VolumeCode` | recorded on every version (`PRIMARY`), so the root can move by configuration |
+| `MaxUploadBytes` | 524288000 (500 MB, ADR-042) — enforced while streaming; also set the reverse proxy limit |
+| `TemporaryRetentionHours` | interrupted uploads older than this are swept — the only file deletion the system performs |
+
+Published objects are never deleted, moved or rewritten by the application (ADR-043). To check stored bytes
+against their metadata (read-only; nothing is repaired):
+
+```bash
+dotnet run --project src/Rcs.Web -- verify-documents            # every object exists with its recorded size
+dotnet run --project src/Rcs.Web -- verify-documents --rehash   # also re-hash every object (SHA-256)
+dotnet run --project src/Rcs.Web -- verify-documents --orphans  # also list objects no version references (retained)
+```
 
 ## Review build
 
@@ -133,7 +155,11 @@ The banner **RCS Review Build — Development / Synthetic Data** is on every pag
 Pages: `/` (dashboard) · `/cases` · `/cases/new` · `/cases/{id}` (the case workspace) ·
 `/cases/{id}/requests/new` · `/cases/{id}/requests/{requestId}/responses/new` ·
 `/cases/{id}/responses/{responseId}/requirements/new` ·
-`/cases/{id}/requirements/{requirementId}/{fulfil|waive|void|fail}` · `/organizations` · `/organizations/new`.
+`/cases/{id}/requirements/{requirementId}/{fulfil|waive|void|fail}` · `/cases/{id}/final-result/new` ·
+`/cases/{id}/documents/upload` · `/cases/{id}/documents/attach` · `/cases/{id}/documents/{linkId}` (a file,
+its versions and its corrections) · `/organizations` · `/organizations/new`. Files are always added from the
+context they belong to (a letter, a requirement, a final result), and downloads go through
+`/cases/{id}/documents/{linkId}/versions/{versionId}/download`, authorized and audited on every request.
 
 The interface language is Azerbaijani. Every string comes from `src/Rcs.Web/Resources/SharedResource.resx`,
 keyed by stable codes (a database vocabulary code, or a `WORKFLOW.md` §11.3 ladder row); a second language is a

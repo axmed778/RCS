@@ -74,6 +74,31 @@ public sealed partial class RepositoryConventionTests
         Assert.Empty(offending);
     }
 
+    /// <summary>
+    /// ADR-043: published document bytes are never physically deleted. The only file deletion in production code is the
+    /// one that removes an unpublished temporary upload (DOCUMENT_MODEL.md §7.6, §12.4), and no code overwrites a file.
+    /// </summary>
+    [Fact]
+    public void NoProductionCodePathDeletesOrOverwritesPublishedObjects()
+    {
+        var sources = Directory.GetFiles(RepositoryRoot.Combine("src"), "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Select(path => (Name: Path.GetFileName(path), Text: File.ReadAllText(path)))
+            .ToArray();
+
+        var deleting = sources
+            .SelectMany(source => DeletePattern().Matches(source.Text).Select(match => $"{source.Name}: {match.Value}"))
+            .ToArray();
+        Assert.Equal(["LocalContentStore.cs: File.Delete("], deleting);
+
+        // That single deletion sits in the method that discards temporaries, which refuses paths outside the temp area.
+        var store = sources.Single(source => source.Name == "LocalContentStore.cs").Text;
+        var discard = store[store.IndexOf("private void DiscardTemporary", StringComparison.Ordinal)..];
+        Assert.Contains("File.Delete(temporaryPath)", discard, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(sources, source => source.Text.Contains("overwrite: true", StringComparison.Ordinal));
+    }
+
     /// <summary>Domain ← Application ← Infrastructure / Web; no cycles (ARCHITECTURE.md §9).</summary>
     [Fact]
     public void ProjectReferencesPointTowardTheDomain()
@@ -115,6 +140,9 @@ public sealed partial class RepositoryConventionTests
 
     [GeneratedRegex(@"\b(COLLATE|LC_COLLATE|LC_CTYPE|ICU_LOCALE|BUILTIN_LOCALE|LOCALE_PROVIDER)\b", RegexOptions.IgnoreCase)]
     private static partial Regex CollationPattern();
+
+    [GeneratedRegex(@"\b(File|Directory)\.Delete\(|\.Delete\(\s*(recursive|true)|EntryPoint\s*=\s*""(unlink|unlinkat|rmdir|remove)""")]
+    private static partial Regex DeletePattern();
 
     [GeneratedRegex(@"CREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?""?(?<name>[A-Za-z0-9_]+)", RegexOptions.IgnoreCase)]
     private static partial Regex CreateExtensionPattern();
