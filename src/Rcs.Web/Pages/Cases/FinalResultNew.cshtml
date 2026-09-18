@@ -1,0 +1,67 @@
+@page "/cases/{caseId:guid}/final-result/new"
+@model Rcs.Web.Pages.Cases.FinalResultNewModel
+@{
+    ViewData["Title"] = T["FinalResultNew.Title"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["FinalResultNew.Title"]</h1>
+        <p class="intro">@T["FinalResultNew.Intro"]</p>
+    </div>
+    <a class="btn" href="/cases/@Model.CaseId">@T["Common.Back"]</a>
+</div>
+
+@if (Model.InForce is { } inForce)
+{
+    <div class="alert">@T.Format("FinalResultNew.Replaces", inForce.ResultNumber)</div>
+}
+
+@if (Model.UnmetObligations.Count > 0)
+{
+    @* WORKFLOW.md §8.5: the decision may be taken over an unmet obligation, never without seeing it. *@
+    <div class="card">
+        <div class="section-title">@T["FinalResultNew.UnmetObligations"]</div>
+        <p class="intro">@T["FinalResultNew.UnmetObligationsNote"]</p>
+        <ul class="guide">
+            @foreach (var requirement in Model.UnmetObligations)
+            {
+                <li><strong>@T.RequirementStatus(requirement.Status)</strong> — @requirement.Title</li>
+            }
+        </ul>
+    </div>
+}
+
+<form class="form card" method="post" data-single-submit>
+    <div asp-validation-summary="ModelOnly" class="alert"></div>
+    <input type="hidden" asp-for="Input.OperationId" />
+    <input type="hidden" asp-for="Input.SupersedesFinalResultId" />
+
+    <div class="field">
+        <label asp-for="Input.DecisionTypeCode">@T["Field.DecisionType"]</label>
+        <select asp-for="Input.DecisionTypeCode">
+            <option value="">@T["Common.Select"]</option>
+            @foreach (var decision in Model.DecisionTypes)
+            {
+                <option value="@decision.Code">@T.Code("DecisionType", decision.Code)</option>
+            }
+        </select>
+        <span asp-validation-for="Input.DecisionTypeCode" class="form-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Summary">@T["Field.ResultSummary"]</label>
+        <textarea asp-for="Input.Summary" maxlength="4000"></textarea>
+        <span asp-validation-for="Input.Summary" class="form-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Reasoning">@T["Field.ResultReasoning"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <textarea asp-for="Input.Reasoning" maxlength="8000"></textarea>
+    </div>
+
+    <div class="actions">
+        <button class="btn btn--primary" type="submit">@T["FinalResult.SaveDraft"]</button>
+        <a class="btn" href="/cases/@Model.CaseId">@T["Action.Cancel"]</a>
+    </div>
+</form>

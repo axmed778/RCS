@@ -32,12 +32,19 @@ internal sealed class SliceFixture : IAsyncDisposable
 
     public ILookupQueries Lookups => provider.GetRequiredService<ILookupQueries>();
 
+    public Rcs.Application.Lifecycle.ICaseLifecycleService Lifecycle => provider.GetRequiredService<Rcs.Application.Lifecycle.ICaseLifecycleService>();
+
+    public Rcs.Application.Lifecycle.ILifecycleQueries LifecycleQueries => provider.GetRequiredService<Rcs.Application.Lifecycle.ILifecycleQueries>();
+
     public DemoDataSeeder Seeder => provider.GetRequiredService<DemoDataSeeder>();
 
     public Rcs.Application.Identifiers.IIdGenerator Ids => provider.GetRequiredService<Rcs.Application.Identifiers.IIdGenerator>();
 
-    /// <summary>The synthetic Chief the demo data creates; the Review build acts as this user.</summary>
+    /// <summary>The synthetic Chief the demo data creates; the Review build acts as this user by default.</summary>
     public ActorContext Chief => new(DemoData.ReviewActorUserId, "integration-test");
+
+    /// <summary>The synthetic Head — the only actor who may approve a final result or override a closure guard.</summary>
+    public ActorContext Head => new(DemoData.ReviewHeadUserId, "integration-test");
 
     public static async Task<SliceFixture> CreateAsync(bool seedDemoData = true)
     {

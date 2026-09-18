@@ -57,8 +57,8 @@ public sealed class UiText(IStringLocalizer<SharedResource> localizer, BusinessC
         return message.Code switch
         {
             "P0" or "P1" => "headline--muted",
-            "P4" or "P5" or "P6" or "P6.NoOrganization" or "P7" => "headline--attention",
-            "P16" => "headline--ready",
+            "P1.Unresolved" or "P4" or "P5" or "P6" or "P6.NoOrganization" or "P7" => "headline--attention",
+            "P16" or "P17" => "headline--ready",
             _ => string.Empty,
         };
     }
@@ -108,11 +108,19 @@ public sealed class UiText(IStringLocalizer<SharedResource> localizer, BusinessC
         {
             RequestProgressState.Overdue or RequestProgressState.Conflict => "badge--danger",
             RequestProgressState.AnsweredCloseable => "badge--ok",
-            RequestProgressState.AnsweredWithOpenBlocking => "badge--warn",
+            RequestProgressState.DueToday or RequestProgressState.AnsweredWithOpenBlocking => "badge--warn",
             RequestProgressState.AwaitingResponse or RequestProgressState.PartiallyAnswered => "badge--info",
             _ => string.Empty,
         };
     }
+
+    public string FinalResultBadge(FinalResultStatus status) => status switch
+    {
+        FinalResultStatus.Issued => "badge--ok",
+        FinalResultStatus.Draft => "badge--warn",
+        FinalResultStatus.Revoked => "badge--danger",
+        _ => "badge--plain",
+    };
 
     public string RequirementProgress(RequirementProgress derived)
     {

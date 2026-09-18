@@ -1,0 +1,130 @@
+@page "/cases/{caseId:guid}/close"
+@model Rcs.Web.Pages.Cases.CloseModel
+@{
+    ViewData["Title"] = T["Close.Title"].Value;
+    var preview = Model.Preview;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["Close.Title"]</h1>
+        <p class="intro">@T["Close.Intro"]</p>
+    </div>
+    <a class="btn" href="/cases/@Model.CaseId">@T["Common.Back"]</a>
+</div>
+
+@if (preview is not null)
+{
+    <div class="card">
+        <div class="section-title">@T["Close.Guards"]</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>@T["Close.Guard"]</th>
+                        <th>@T["Close.Requirement"]</th>
+                        <th>@T["Close.Status"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var guard in preview.Guards)
+                    {
+                        <tr>
+                            <td class="mono">@guard.Code</td>
+                            <td>@T[$"Close.Guard.{guard.Code}"]</td>
+                            <td>
+                                <span class="badge @(guard.Passed ? "badge--ok" : "badge--danger")">
+                                    @(guard.Passed ? T["Close.Guard.Passed"] : T["Close.Guard.Failed"])
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="hint">@T["Close.GuardG4Note"]</p>
+    </div>
+
+    @if (preview.UnresolvedBlocking.Count > 0)
+    {
+        <div class="card">
+            <div class="section-title">@T["Close.BlockingOpen"]</div>
+            <div class="alert">@T["Close.BlockingOpenNote"]</div>
+            <ul class="guide">
+                @foreach (var item in preview.UnresolvedBlocking)
+                {
+                    <li>@item.Title — <strong>@T.RequirementStatus(item.Status)</strong></li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (preview.UnresolvedNonBlocking.Count > 0)
+    {
+        @* OB-4 obligation 1: stated plainly, named, and closing over them is a deliberate confirmation. *@
+        <div class="card">
+            <div class="section-title">@T["Close.NonBlockingOpen"]</div>
+            <div class="alert">@T.Format("Close.NonBlockingWarning", preview.UnresolvedNonBlocking.Count)</div>
+            <ul class="guide">
+                @foreach (var item in preview.UnresolvedNonBlocking)
+                {
+                    <li>@item.Title — <strong>@T.RequirementStatus(item.Status)</strong></li>
+                }
+            </ul>
+            <p class="hint">@T["Close.NonBlockingKeepsState"]</p>
+        </div>
+    }
+}
+
+<form class="form card" method="post" data-single-submit>
+    <div asp-validation-summary="ModelOnly" class="alert"></div>
+    <input type="hidden" asp-for="Input.RowVersion" />
+
+    <div class="field">
+        <label asp-for="Input.ClosureTypeCode">@T["Field.ClosureType"]</label>
+        @* Changing the type re-evaluates the guards, because G3 does not apply to a closure that produces no decision. *@
+        <select asp-for="Input.ClosureTypeCode" onchange="this.form.submit()" formnovalidate>
+            @foreach (var type in Model.ClosureTypes)
+            {
+                <option value="@type.Code">@T.Code("ClosureType", type.Code)</option>
+            }
+        </select>
+        <span asp-validation-for="Input.ClosureTypeCode" class="form-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Note">@T["Field.ClosureNote"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <textarea asp-for="Input.Note" maxlength="2000"></textarea>
+    </div>
+
+    @if (preview is { } current && current.UnresolvedNonBlocking.Count > 0)
+    {
+        <div class="field field--check">
+            <label>
+                <input asp-for="Input.AcknowledgeUnresolvedNonBlocking" type="checkbox" />
+                @T.Format("Close.Acknowledge", current.UnresolvedNonBlocking.Count)
+            </label>
+        </div>
+    }
+
+    @if (preview is { } guards && guards.Failing.Count > 0)
+    {
+        @if (Model.MayOverride)
+        {
+            <div class="field">
+                <label asp-for="Input.OverrideNote">@T["Field.OverrideNote"]</label>
+                <div class="hint">@T.Format("Close.OverrideHint", string.Join(", ", guards.Failing.Select(guard => guard.Code)))</div>
+                <textarea asp-for="Input.OverrideNote" maxlength="2000"></textarea>
+            </div>
+        }
+        else
+        {
+            <div class="alert">@T["Close.OverrideNeedsHead"]</div>
+        }
+    }
+
+    <div class="actions">
+        <button class="btn btn--primary" type="submit">@T["Close.Submit"]</button>
+        <a class="btn" href="/cases/@Model.CaseId">@T["Action.Cancel"]</a>
+    </div>
+</form>

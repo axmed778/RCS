@@ -59,7 +59,9 @@
     const letterEntry = nodes.find(node => node.dataset.kind === 'letter');
     if (!caseEntry) return;
     byId.forEach(entry => {
-        if (entry.node.dataset.kind === 'request' && !entry.parentId) entry.parentId = caseEntry.id;
+        // Requests and final results hang off the case: both are things the case produced, not things inside
+        // another node. Everything else is parented by where it sits in the rendered tree.
+        if ((entry.node.dataset.kind === 'request' || entry.node.dataset.kind === 'result') && !entry.parentId) entry.parentId = caseEntry.id;
         if (entry.node === caseEntry && letterEntry) entry.parentId = letterEntry.id;
         if (entry.parentId) byId.get(entry.parentId)?.children.push(entry);
     });

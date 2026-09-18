@@ -753,30 +753,32 @@ A draft has no effect on anything: it does not block branches and does not signa
 |---|---|---|
 | D1 | The case is ready for final result (§7.4) | yes — highest authority, mandatory reason (§9.4) |
 | D2 | `decided_by_user_id` and `decided_at` are recorded | **no** |
-| D3 | `approved_by_user_id` and `approved_at` are recorded, per the approval model (§8.4) | **no** |
+| D3 | `approved_by_user_id` and `approved_at` are recorded — **one approval, by the Head** (§8.4, ADR-040) | **no** |
 | D4 | At least one `ACTIVE` `document_link` with role `FINAL_RESULT_DOCUMENT` — the signed decision | yes — mandatory reason; the document must follow |
 
 D4 exists because `PROJECT.md` §4 and §32.12 require the system to answer *"which documents prove the
 final result"*. An issued decision with nothing proving it cannot answer that. The override exists
 because a decision may legitimately be signed before it is scanned.
 
-### 8.4 Approval: the unresolved decision, modelled both ways
+### 8.4 Approval: one approval, by the Head
 
-**This is a business decision that has not been made** (Domain Model OQ-14, `PROJECT.md` §12 says Head
-holds "final approval where required" without saying when it is required). Both models are designed;
-**neither is assumed**. Nothing else in this document depends on which is chosen.
+**Decided by the product owner on 2026-09-18** (DECISIONS.md **ADR-040**, closing OQ-W2 / Domain Model OQ-14 /
+`PERMISSIONS.md` OQ-P1). Of the two models this section previously carried, **Model A is adopted, with the
+Head as the approver**:
 
-| | **Model A — single authorised approval** | **Model B — four-eyes** |
-|---|---|---|
-| Rule | `approved_by_user_id` may be the same person as `decided_by_user_id` | `approved_by_user_id` **must differ** from `decided_by_user_id` |
-| Who approves | the authorised decision-maker | a second person of the required authority |
-| Data model impact | **none** — both columns already exist | **none** — both columns already exist |
-| Workflow impact | F2 is one step | F2 is two steps: *submit for approval*, then *approve*. A `DRAFT` awaiting approval is derived (`DRAFT` + `decided_by` set + `approved_by` null), **not a new state** |
-| Cost | fastest | one extra person on every decision, for 13 staff |
-| Risk | the same person decides and approves | bottleneck when the approver is absent — needs a documented deputy |
+| | **Adopted** |
+|---|---|
+| How many approvals | **exactly one** |
+| Who approves | **the Head**. A Chief may draft and decide a final result but may not approve it |
+| Relationship to `decided_by_user_id` | unconstrained: the Head may also be the decision-maker, and no four-eyes `CHECK` is imposed |
+| Workflow | F2 is **one step**: the Head issues the result, recording `decided_by`/`decided_at` and `approved_by`/`approved_at` |
+| Schema | **unchanged** — both columns already exist (`DOMAIN_MODEL.md` §2.16) |
 
-**Whichever is chosen, no schema change is required.** The choice is a `CHECK`-level rule plus a
-screen. It can be made after this document is frozen, and it can be changed later. See **OQ-W2** (§14).
+A `DRAFT` result whose `decided_by_user_id` is set while `approved_by_user_id` is still empty remains a
+**derived** "awaiting approval" (ladder row P15), not a stored state.
+
+**Rejected:** four eyes — for thirteen staff it adds a bottleneck and a deputy problem the department did not
+ask for. Revisiting it later is a new ADR and still no schema change.
 
 ### 8.5 Failed obligations must reach the decision
 
@@ -862,6 +864,21 @@ authority, and G2 still requires it to be terminal.
 are evaluated under the case-level serialization convention of `ARCHITECTURE.md` §12.5, shared with every
 operation that adds or removes closure-relevant work in the case — a row-version check alone cannot stop
 a requirement being created while the case is being closed.
+
+### 9.2.1 Unresolved non-blocking requirements: warn, never touch *(OB-4, confirmed 2026-09-18)*
+
+The product owner has confirmed that a case **may** be closed normally while non-blocking requirements are
+still open (ADR-012, ADR-042 is unrelated). Three obligations come with that permission, all of them
+presentation and derivation — no guard changes and no record is rewritten:
+
+| # | Obligation |
+|---|---|
+| 1 | The closure screen **states plainly** that unresolved non-blocking requirements remain, how many, and which. Closure is then a **deliberate confirmation**, not a click the person could make without seeing them |
+| 2 | Those requirements **keep their true state**. Closure never auto-fulfils, auto-voids or auto-fails anything — the same rule the override already obeys (§9.4) |
+| 3 | Afterwards the case **shows that it was closed with unresolved work**, derived from the rows (`closed_with_unresolved_items`, Domain Model §9.1) and never stored. The derivation distinguishes the two ways it can arise: non-blocking requirements left open at a **normal** closure, and anything left open by a Head **override** |
+
+A **blocking** requirement is unaffected: it still fails G1, and only the Head's override (§9.4) closes over
+it. A Chief cannot bypass G1 by any route.
 
 ### 9.3 Closure is never automatic
 
@@ -1036,8 +1053,18 @@ per §11.2(5).
 `deadline_basis` recording whether it is statutory, internal or agreed. `request.original_due_at`
 preserves the first value when a deadline is extended.
 
-**No legal deadline values are invented here.** This document defines only how a deadline that exists
-behaves.
+**The department's deadline rule, confirmed 2026-09-18** (DECISIONS.md **ADR-041**, closing OB-2 / OQ-W3 and
+OQ-5 for requests):
+
+| | |
+|---|---|
+| Where deadlines exist | **outgoing requests**. A requirement or a case carries a `due_at` only where one was genuinely stated |
+| Default | **the date the letter was sent externally + 10 calendar days** |
+| Calendar | **calendar days — weekends and holidays count.** There is no working-day calculation and no holiday table |
+| Editable | the default is **suggested** and the person registering the request may change it before saving; the saved value stands and is never recomputed behind them |
+| Historical registrations | a request recorded long after its letter went out gets the same rule from that letter's **actual** sent date, so a back-dated registration is overdue immediately and truthfully |
+| `ON_HOLD` | **pauses nothing** — see §12.5 |
+| Overdue | **derived** (§12.2), never a state and never a manually edited flag |
 
 ### 12.2 Overdue is derived, never stored
 
@@ -1072,22 +1099,20 @@ An authority asking for more time is registered as a `response` with
 
 Whether extensions must be separately reportable is Domain Model **OQ-11**.
 
-### 12.5 The unresolved deadline question
+### 12.5 Holds do not pause deadlines *(answered 2026-09-18)*
 
-**Domain Model OQ-5 is not answered here** and must not be answered by implementation default:
-calendar days or working days; counted from the letter date, the date it was sent externally, or the
-receipt date; whether
-`ON_HOLD` suspends a statutory clock; whether holidays count.
-
-Until it is answered:
+**OQ-W3 / Domain Model OQ-5 is answered for requests** (ADR-041): 10 calendar days from the external sent
+date, weekends included, suggested and editable. What this section already required stands unchanged, and is
+now the decision rather than the interim position:
 
 - `due_at` is an **absolute timestamp**; the system compares it to `now()` and does nothing cleverer;
-- `ON_HOLD` does **not** silently alter any `due_at`;
+- **`ON_HOLD` does not pause, freeze, extend or shift any `due_at`.** A hold is a statement about the
+  department's work, not about the authority's clock;
 - where a held case has overdue items, the display shows **both** facts ("overdue 6 days · case on
   hold") rather than suppressing either, so nobody is misled in either direction.
 
-None of the above is a workaround that would need unpicking: whatever the answer, it changes how
-`due_at` is *calculated*, not how overdue is *derived*.
+What remains open is narrower and unrelated to requests: the **case-inactivity** definition (OB-3 / OQ-13,
+§14.1 OQ-W4). A statutory *case* deadline, if the department ever states one, is still entered by a person.
 
 ---
 
@@ -1184,29 +1209,26 @@ integration may be reconsidered as a separate decision, and **must not shape V1 
 
 ### 14.1 Business decisions still needed
 
-**OQ-W2 — Single approval or four-eyes for the final result?** (Domain Model OQ-14.)
-Both models are fully designed in §8.4 and **neither is assumed**. No schema change either way.
-*Impact if unanswered:* the final-result screen cannot be specified, but nothing else is blocked.
+**OQ-W2 — CLOSED 2026-09-18: one approval, by the Head.** (DECISIONS.md ADR-040; Domain Model OQ-14,
+`PERMISSIONS.md` OQ-P1.) Model A is adopted and the approver is the Head; a Chief may decide but not approve.
+The design is §8.4 and no schema change was needed.
 
-**OQ-W3 — Deadline calculation rules.** (Domain Model OQ-5.)
-Calendar or working days; counted from which date; whether `ON_HOLD` suspends a statutory clock.
-*Current behaviour:* `due_at` is absolute, holds do not alter it, and both facts are displayed
-together (§12.5). *Impact if unanswered:* overdue figures may not match the department's legal
-interpretation. No structural consequence.
+**OQ-W3 — CLOSED 2026-09-18: 10 calendar days from the external sent date, suggested and editable; holds
+pause nothing.** (DECISIONS.md ADR-041; Domain Model OQ-5 for requests.) See §12.1 and §12.5.
 
-**OQ-W4 — What counts as "activity" for inactivity reporting?** (Domain Model OQ-13.)
-Deliberately unresolved. `case.last_activity_at` is rebuildable cache data, so fixing the rule later is
-a recomputation, not a migration. **No production rule is assumed.**
+**OQ-W4 — What counts as "activity" for inactivity reporting?** (Domain Model OQ-13, OB-3.) **Still open,
+and now narrower.** The practical reminder rule the department asked for is settled — a request awaiting an
+external answer whose due date is today or past (§12, ADR-041) — and that is what V1 surfaces. A general
+*case*-inactivity definition ("no activity for N days") is still undefined; `case.last_activity_at` remains
+rebuildable cache data that no rule reads, so fixing it later is a recomputation, not a migration.
 
 **OQ-W5 — Must a final result always be dispatched to the requester?** (Domain Model OQ-6.)
 `dispatch_correspondence_id` is nullable today.
 
-**OQ-W6 — May a case be closed with a non-blocking requirement still open?**
-Current design: yes (§9.2), which is the purpose of `is_blocking` — and **uniformly**: since the
-post-review amendment, a non-blocking requirement also does not hold its request or branch open (§3.4,
-§7.2), so there is one definition of closure, not two. If the department wants *every* requirement
-resolved before closure, `is_blocking` loses its meaning and G1 and the request closure rule tighten
-together. Needs business confirmation that this is intended.
+**OQ-W6 — CLOSED 2026-09-18: yes, with a warning.** (OB-4; DECISIONS.md ADR-012.) A case may be closed
+normally while non-blocking requirements are open, provided the closure screen warns about them explicitly,
+their states are left untouched, and the closed case shows that unresolved work remains (§9.2.1). A blocking
+requirement still fails G1 and only the Head's override closes over it.
 
 ### 14.2 Implementation decisions safely deferred
 

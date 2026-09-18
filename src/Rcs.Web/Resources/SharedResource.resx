@@ -75,6 +75,15 @@
   <data name="App.Actor" xml:space="preserve">
     <value>Aktor</value>
   </data>
+  <data name="App.ActAs" xml:space="preserve">
+    <value>Kim kimi işləyir</value>
+  </data>
+  <data name="App.ActAs.Chief" xml:space="preserve">
+    <value>Şöbə rəisi</value>
+  </data>
+  <data name="App.ActAs.Head" xml:space="preserve">
+    <value>İdarə rəisi</value>
+  </data>
   <data name="App.Footer" xml:space="preserve">
     <value>RCS nümayiş versiyası — rəsmi yazışma xarici dövlət sistemində aparılır, burada yalnız qeyd olunur.</value>
   </data>
@@ -113,6 +122,18 @@
   </data>
   <data name="Home.ReadyForResult" xml:space="preserve">
     <value>Yekun nəticəyə hazır</value>
+  </data>
+  <data name="Home.Awaiting.Title" xml:space="preserve">
+    <value>Cavab gözlənilən sorğular</value>
+  </data>
+  <data name="Home.Awaiting.Intro" xml:space="preserve">
+    <value>Qurumlara göndərilmiş və hələ yekun cavab almamış sorğular — ən təcililər yuxarıda. Bu siyahı hər dəfə yenidən hesablanır; heç bir status saxlanılmır və heç bir bildiriş göndərilmir.</value>
+  </data>
+  <data name="Home.Awaiting.Empty" xml:space="preserve">
+    <value>Cavab gözlənilən sorğu yoxdur.</value>
+  </data>
+  <data name="Home.Awaiting.OnHold" xml:space="preserve">
+    <value>İş saxlanılıb</value>
   </data>
   <data name="Home.RecentCases" xml:space="preserve">
     <value>Son işlər</value>
@@ -185,6 +206,186 @@
   </data>
   <data name="Workspace.Workflow" xml:space="preserve">
     <value>İş axını</value>
+  </data>
+  <data name="Workspace.FinalResult" xml:space="preserve">
+    <value>Yekun nəticə</value>
+  </data>
+  <data name="FinalResult.Title" xml:space="preserve">
+    <value>Yekun nəticə</value>
+  </data>
+  <data name="FinalResult.None" xml:space="preserve">
+    <value>Hələ yekun nəticə hazırlanmayıb.</value>
+  </data>
+  <data name="FinalResult.Draft" xml:space="preserve">
+    <value>Yekun nəticə hazırla</value>
+  </data>
+  <data name="FinalResult.SaveDraft" xml:space="preserve">
+    <value>Layihəni saxla</value>
+  </data>
+  <data name="FinalResult.Issue" xml:space="preserve">
+    <value>Təsdiq et və ver</value>
+  </data>
+  <data name="FinalResult.Revoke" xml:space="preserve">
+    <value>Nəticəni ləğv et</value>
+  </data>
+  <data name="FinalResult.Reasoning" xml:space="preserve">
+    <value>Əsaslandırma</value>
+  </data>
+  <data name="FinalResult.Issued" xml:space="preserve">
+    <value>Verilib</value>
+  </data>
+  <data name="FinalResult.Decided" xml:space="preserve">
+    <value>Qərar verən</value>
+  </data>
+  <data name="FinalResult.Approved" xml:space="preserve">
+    <value>Təsdiq edən</value>
+  </data>
+  <data name="FinalResult.NotIssued" xml:space="preserve">
+    <value>Hələ verilməyib — layihə mərhələsindədir.</value>
+  </data>
+  <data name="FinalResult.Supersedes" xml:space="preserve">
+    <value>Əvəz edir</value>
+  </data>
+  <data name="FinalResult.EarlierResult" xml:space="preserve">
+    <value>əvvəlki nəticə</value>
+  </data>
+  <data name="FinalResult.RevocationReason" xml:space="preserve">
+    <value>Ləğvin səbəbi</value>
+  </data>
+  <data name="FinalResult.NotReadyWarning" xml:space="preserve">
+    <value>İş yekun nəticəyə hazır deyil. Nəticəni indi vermək üçün səbəb göstərilməlidir; açıq qalan yazılar olduğu kimi qalır.</value>
+  </data>
+  <data name="FinalResult.OverrideNote" xml:space="preserve">
+    <value>Hazır olmadan vermənin səbəbi</value>
+  </data>
+  <data name="FinalResult.HeadApproves" xml:space="preserve">
+    <value>Yekun nəticəni yalnız idarə rəisi təsdiq edib verə bilər.</value>
+  </data>
+  <data name="FinalResultNew.Title" xml:space="preserve">
+    <value>Yekun nəticənin layihəsi</value>
+  </data>
+  <data name="FinalResultNew.Intro" xml:space="preserve">
+    <value>Layihə heç nəyi bağlamır və heç nəyi bitmiş saymır. Onun verilməsi ayrıca addımdır və yalnız idarə rəisinə aiddir.</value>
+  </data>
+  <data name="FinalResultNew.Replaces" xml:space="preserve">
+    <value>Bu layihə qüvvədə olan «{0}» nəticəsini əvəz edəcək. Əvəzetmə verilmə anında, bir əməliyyatda baş verir; köhnə nəticə silinmir, tam oxunaqlı qalır.</value>
+  </data>
+  <data name="FinalResultNew.UnmetObligations" xml:space="preserve">
+    <value>Yerinə yetirilməmiş tələblər</value>
+  </data>
+  <data name="FinalResultNew.UnmetObligationsNote" xml:space="preserve">
+    <value>Qərar bu tələblərə baxmayaraq verilə bilər, lakin onlar gizlədilmir — əsaslandırmada nəzərə alınmalıdır.</value>
+  </data>
+  <data name="Field.DecisionType" xml:space="preserve">
+    <value>Qərarın növü</value>
+  </data>
+  <data name="Field.ResultSummary" xml:space="preserve">
+    <value>Qərarın mahiyyəti</value>
+  </data>
+  <data name="Field.ResultReasoning" xml:space="preserve">
+    <value>Əsaslandırma</value>
+  </data>
+  <data name="Field.ClosureType" xml:space="preserve">
+    <value>Bağlanma növü</value>
+  </data>
+  <data name="Field.ClosureNote" xml:space="preserve">
+    <value>Qeyd</value>
+  </data>
+  <data name="Field.OverrideNote" xml:space="preserve">
+    <value>Şərti keçməyin səbəbi</value>
+  </data>
+  <data name="Field.ReopenReason" xml:space="preserve">
+    <value>Yenidən açmanın səbəbi</value>
+  </data>
+  <data name="Close.Action" xml:space="preserve">
+    <value>İşi bağla</value>
+  </data>
+  <data name="Close.Title" xml:space="preserve">
+    <value>İşin bağlanması</value>
+  </data>
+  <data name="Close.Intro" xml:space="preserve">
+    <value>Bağlanma heç vaxt avtomatik baş vermir. Bu, şöbənin işinin bitdiyini təsdiq edən şüurlu addımdır.</value>
+  </data>
+  <data name="Close.Guards" xml:space="preserve">
+    <value>Bağlanma şərtləri</value>
+  </data>
+  <data name="Close.Guard" xml:space="preserve">
+    <value>Şərt</value>
+  </data>
+  <data name="Close.Requirement" xml:space="preserve">
+    <value>Tələb</value>
+  </data>
+  <data name="Close.Status" xml:space="preserve">
+    <value>Vəziyyət</value>
+  </data>
+  <data name="Close.Guard.Passed" xml:space="preserve">
+    <value>Ödənilir</value>
+  </data>
+  <data name="Close.Guard.Failed" xml:space="preserve">
+    <value>Ödənilmir</value>
+  </data>
+  <data name="Close.Guard.G1" xml:space="preserve">
+    <value>Açıq bloklayan tələb yoxdur</value>
+  </data>
+  <data name="Close.Guard.G2" xml:space="preserve">
+    <value>Bütün sorğular yekunlaşıb</value>
+  </data>
+  <data name="Close.Guard.G3" xml:space="preserve">
+    <value>Verilmiş yekun nəticə var (qərar tələb edən bağlanma növləri üçün)</value>
+  </data>
+  <data name="Close.Guard.G5" xml:space="preserve">
+    <value>İşin məsul əməkdaşı olub</value>
+  </data>
+  <data name="Close.GuardG4Note" xml:space="preserve">
+    <value>G4 (bağlayan şəxs, tarix və bağlanma növü) bu formanın özü ilə təmin edilir və heç vaxt keçilə bilməz.</value>
+  </data>
+  <data name="Close.BlockingOpen" xml:space="preserve">
+    <value>Açıq bloklayan tələblər</value>
+  </data>
+  <data name="Close.BlockingOpenNote" xml:space="preserve">
+    <value>Bloklayan tələb açıq qaldıqca iş adi qaydada bağlanmır. Yalnız idarə rəisi səbəb göstərməklə bu şərti keçə bilər; tələb olduğu kimi açıq qalır.</value>
+  </data>
+  <data name="Close.NonBlockingOpen" xml:space="preserve">
+    <value>Açıq bloklamayan tələblər</value>
+  </data>
+  <data name="Close.NonBlockingWarning" xml:space="preserve">
+    <value>Diqqət: {0} bloklamayan tələb hələ açıqdır. İş bağlana bilər, lakin bu tələblər avtomatik olaraq yerinə yetirilmiş, ləğv edilmiş və ya uğursuz sayılmayacaq.</value>
+  </data>
+  <data name="Close.NonBlockingKeepsState" xml:space="preserve">
+    <value>Bağlandıqdan sonra iş «açıq bloklamayan tələblərlə bağlanıb» kimi görünəcək. Bu, qeydlərin dəyişdirilmədiyinin göstəricisidir.</value>
+  </data>
+  <data name="Close.Acknowledge" xml:space="preserve">
+    <value>{0} açıq bloklamayan tələbi gördüm və işi bu şəkildə bağlayıram.</value>
+  </data>
+  <data name="Close.OverrideHint" xml:space="preserve">
+    <value>Ödənilməyən şərtlər: {0}. Səbəb məcburidir və qeydlərdə qalır.</value>
+  </data>
+  <data name="Close.OverrideNeedsHead" xml:space="preserve">
+    <value>Ödənilməyən şərt var. Yalnız idarə rəisi səbəb göstərməklə işi bağlaya bilər.</value>
+  </data>
+  <data name="Close.Submit" xml:space="preserve">
+    <value>İşi bağla</value>
+  </data>
+  <data name="Reopen.Action" xml:space="preserve">
+    <value>Yenidən aç</value>
+  </data>
+  <data name="Reopen.Title" xml:space="preserve">
+    <value>İşin yenidən açılması</value>
+  </data>
+  <data name="Reopen.Intro" xml:space="preserve">
+    <value>Eyni iş yenidən açılır — yeni iş nömrəsi yaradılmır.</value>
+  </data>
+  <data name="Reopen.SameCase" xml:space="preserve">
+    <value>Eyni iş, eyni nömrə: bütün tarixçə yerində qalır.</value>
+  </data>
+  <data name="Reopen.KeepsClosure" xml:space="preserve">
+    <value>Əvvəlki bağlanma məlumatı silinmir — iş nə vaxt, kim tərəfindən və niyə bağlandığını göstərməyə davam edir.</value>
+  </data>
+  <data name="Reopen.KeepsResult" xml:space="preserve">
+    <value>Verilmiş yekun nəticə qüvvədə qalır. Nəticə dəyişirsə, onu əvəz edən yeni nəticə verilir.</value>
+  </data>
+  <data name="Reopen.Submit" xml:space="preserve">
+    <value>Yenidən aç</value>
   </data>
   <data name="Workspace.Activity" xml:space="preserve">
     <value>Fəaliyyət tarixçəsi</value>
@@ -408,6 +609,9 @@
   <data name="RequestNew.SameLetter" xml:space="preserve">
     <value>Eyni nömrəli çıxan məktub artıq qeydə alınıbsa, sorğu həmin məktuba bağlanır.</value>
   </data>
+  <data name="RequestNew.DeadlineHint" xml:space="preserve">
+    <value>Təklif olunan müddət: məktubun göndərilmə tarixindən {0} təqvim günü (həftə sonları daxil). Dəyişdirə bilərsiniz; saxlanılan tarix sonradan yenidən hesablanmır. Saxlama rejimi müddəti dayandırmır.</value>
+  </data>
   <data name="ResponseNew.Title" xml:space="preserve">
     <value>Cavabın qeydə alınması</value>
   </data>
@@ -627,6 +831,39 @@
   <data name="Error.response.not_active" xml:space="preserve">
     <value>Cavab qüvvədə deyil</value>
   </data>
+  <data name="Error.case.already_closed" xml:space="preserve">
+    <value>İş artıq bağlanıb və ya ləğv edilib.</value>
+  </data>
+  <data name="Error.case.not_closed" xml:space="preserve">
+    <value>Yalnız bağlanmış iş yenidən açıla bilər.</value>
+  </data>
+  <data name="Error.case.reopen_reason_required" xml:space="preserve">
+    <value>Yenidən açmanın səbəbi məcburidir.</value>
+  </data>
+  <data name="Error.case.closure_override_reason_required" xml:space="preserve">
+    <value>Ödənilməyən şərti keçmək üçün səbəb göstərilməlidir.</value>
+  </data>
+  <data name="Error.case.unresolved_non_blocking_not_acknowledged" xml:space="preserve">
+    <value>Açıq bloklamayan tələblər var. Bağlamadan əvvəl onları gördüyünüzü təsdiqləyin.</value>
+  </data>
+  <data name="Error.final_result.summary_required" xml:space="preserve">
+    <value>Qərarın mahiyyəti göstərilməlidir.</value>
+  </data>
+  <data name="Error.final_result.not_draft" xml:space="preserve">
+    <value>Yalnız layihə mərhələsindəki nəticə verilə bilər.</value>
+  </data>
+  <data name="Error.final_result.not_issued" xml:space="preserve">
+    <value>Yalnız qüvvədə olan nəticə ləğv edilə bilər.</value>
+  </data>
+  <data name="Error.final_result.case_not_ready" xml:space="preserve">
+    <value>İş yekun nəticəyə hazır deyil. Nəticəni indi vermək üçün idarə rəisinin səbəbi tələb olunur.</value>
+  </data>
+  <data name="Error.final_result.revocation_reason_required" xml:space="preserve">
+    <value>Ləğvin səbəbi məcburidir.</value>
+  </data>
+  <data name="Error.final_result.supersedes_not_in_force" xml:space="preserve">
+    <value>Əvəz ediləcək nəticə artıq qüvvədə deyil — bu arada ləğv edilib və ya əvəz olunub.</value>
+  </data>
   <data name="Error.request.not_issued" xml:space="preserve">
     <value>Sorğu hələ rəsmi olaraq göndərilməyib</value>
   </data>
@@ -734,6 +971,51 @@
   </data>
   <data name="RequestStatus.VOID" xml:space="preserve">
     <value>Etibarsız</value>
+  </data>
+  <data name="FinalResultStatus.DRAFT" xml:space="preserve">
+    <value>Layihə</value>
+  </data>
+  <data name="FinalResultStatus.ISSUED" xml:space="preserve">
+    <value>Qüvvədədir</value>
+  </data>
+  <data name="FinalResultStatus.SUPERSEDED" xml:space="preserve">
+    <value>Əvəz olunub</value>
+  </data>
+  <data name="FinalResultStatus.REVOKED" xml:space="preserve">
+    <value>Ləğv edilib</value>
+  </data>
+  <data name="FinalResultStatus.VOID" xml:space="preserve">
+    <value>Etibarsız</value>
+  </data>
+  <data name="DecisionType.APPROVAL" xml:space="preserve">
+    <value>Razılıq</value>
+  </data>
+  <data name="DecisionType.PARTIAL_APPROVAL" xml:space="preserve">
+    <value>Qismən razılıq</value>
+  </data>
+  <data name="DecisionType.REFUSAL" xml:space="preserve">
+    <value>İmtina</value>
+  </data>
+  <data name="DecisionType.RETURNED_WITHOUT_REVIEW" xml:space="preserve">
+    <value>Baxılmadan qaytarılıb</value>
+  </data>
+  <data name="DecisionType.TERMINATED" xml:space="preserve">
+    <value>Xitam verilib</value>
+  </data>
+  <data name="ClosureType.COMPLETED" xml:space="preserve">
+    <value>Qərarla tamamlanıb</value>
+  </data>
+  <data name="ClosureType.WITHDRAWN_BY_REQUESTER" xml:space="preserve">
+    <value>Müraciət edən geri götürüb</value>
+  </data>
+  <data name="ClosureType.DUPLICATE" xml:space="preserve">
+    <value>Təkrar iş</value>
+  </data>
+  <data name="ClosureType.MERGED" xml:space="preserve">
+    <value>Başqa işə birləşdirilib</value>
+  </data>
+  <data name="ClosureType.REGISTERED_IN_ERROR" xml:space="preserve">
+    <value>Səhvən qeydə alınıb</value>
   </data>
   <data name="RequirementStatus.OPEN" xml:space="preserve">
     <value>Açıq</value>
@@ -921,6 +1203,9 @@
   <data name="Progress.P1" xml:space="preserve">
     <value>Bağlanıb — {0}</value>
   </data>
+  <data name="Progress.P1.Unresolved" xml:space="preserve">
+    <value>Bağlanıb {0} — açıq bloklamayan tələblər qalır ({1})</value>
+  </data>
   <data name="Progress.P2" xml:space="preserve">
     <value>Dayandırılıb ({0}-dək): {1}</value>
   </data>
@@ -963,8 +1248,14 @@
   <data name="Progress.P14" xml:space="preserve">
     <value>{0} orqanın cavabı gözlənilir</value>
   </data>
+  <data name="Progress.P15" xml:space="preserve">
+    <value>Yekun nəticə hazırlanıb — təsdiq gözlənilir</value>
+  </data>
   <data name="Progress.P16" xml:space="preserve">
     <value>Yekun nəticəyə hazırdır</value>
+  </data>
+  <data name="Progress.P17" xml:space="preserve">
+    <value>Nəticə verilib {0} — bağlanmağa hazırdır</value>
   </data>
   <data name="Progress.P18" xml:space="preserve">
     <value>Aktiv — açıq gözləmə yoxdur</value>
@@ -1017,8 +1308,11 @@
   <data name="RequestProgress.PartiallyAnswered" xml:space="preserve">
     <value>Qismən cavablandırılıb</value>
   </data>
+  <data name="RequestProgress.DueToday" xml:space="preserve">
+    <value>Bu gün son gündür</value>
+  </data>
   <data name="RequestProgress.Overdue" xml:space="preserve">
-    <value>Gecikir — {0} gün</value>
+    <value>{0} gün gecikir</value>
   </data>
   <data name="RequestProgress.Conflict" xml:space="preserve">
     <value>Ziddiyyətli cavablar</value>

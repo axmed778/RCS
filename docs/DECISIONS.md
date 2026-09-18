@@ -46,7 +46,7 @@ Rules:
 | ADR-009 | Response supersession uses a relationship table | Frozen |
 | ADR-010 | Requirement resolution correction | Frozen |
 | ADR-011 | Closure override preserves truth | Frozen |
-| ADR-012 | Non-blocking requirement semantics | Frozen (business confirmation OB-4 pending) |
+| ADR-012 | Non-blocking requirement semantics | Frozen *(confirmed by the product owner, OB-4 closed)* |
 | ADR-013 | Final result replacement is atomic | Frozen |
 | ADR-014 | Official correspondence files are version-pinned | Frozen |
 | ADR-015 | Version-scoped document authorization | Frozen |
@@ -74,6 +74,10 @@ Rules:
 | ADR-037 | Physical table names avoid reserved words; audit `entity_type` keeps domain names | Frozen *(schema pass)* |
 | ADR-038 | Seeded lookup rows have fixed identifiers, so constraints can name them | Frozen *(schema pass — decides DEF-04)* |
 | ADR-039 | `operation_receipt` shape for retried commands | Frozen *(schema pass — decides DEF-03)* |
+| ADR-040 | Final result: one approval, by the Head | Frozen *(closes OB-1)* |
+| ADR-041 | Request deadlines: sent date + 10 calendar days, editable; holds pause nothing | Frozen *(closes OB-2)* |
+| ADR-042 | Upload policy: accepted business families, 500 MB per file | Frozen *(closes OB-5, OB-7)* |
+| ADR-043 | Indefinite retention; bytes are never physically deleted | Frozen *(closes OB-8)* |
 | **PS-1** | **Database collation and Unicode behaviour** | **REQUIRED BEFORE PRODUCTION DATABASE INITIALIZATION** |
 | PS-2 | Server operating system | Required before server build |
 | DEF-01 … DEF-11 | Implementation and infrastructure choices | Deferred |
@@ -275,13 +279,21 @@ index is the numeric view.
 
 ### ADR-012 — Non-blocking requirement semantics
 
-**Status:** Frozen (business confirmation OB-4 pending) · **Origin:** Amendment A-3 · **Sources:** `WORKFLOW.md` §3.4, §7.2, §7.4, §9.2; `DOMAIN_MODEL.md` §2.9
+**Status:** Frozen · **confirmed by the product owner 2026-09-18 (closes OB-4)** · **Origin:** Amendment A-3 · **Sources:** `WORKFLOW.md` §3.4, §7.2, §7.4, §9.2; `DOMAIN_MODEL.md` §2.9
 
 - **Decision:** a requirement with `is_blocking = false` **holds nothing open** — not its request's closure,
   not its branch, not final-result readiness, not case closure (G1). It stays visible on the closure screen.
   Requests are never exempt: a request sent for a non-blocking requirement must still be terminal (G2).
-- **Consequences:** one definition of closure. If the business answers OB-4 "every requirement must be
-  resolved", G1 and the request closure rule tighten together; no schema change.
+- **Confirmation (OB-4, 2026-09-18).** The product owner confirms that a case **may** be closed while a
+  non-blocking requirement is unresolved, on three conditions, all of which are presentation and derivation —
+  no schema change and no change to the rule above:
+  1. the closure screen **warns explicitly** that unresolved non-blocking requirements remain, and the person
+     closing must confirm deliberately;
+  2. those requirements keep their **true state** — nothing is auto-fulfilled, auto-voided or auto-failed;
+  3. the closed case **visibly shows** that it was closed with unresolved non-blocking work, derived from the
+     rows themselves (`closed_with_unresolved_items`, `DOMAIN_MODEL.md` §9.1) and never stored.
+- **Consequences:** one definition of closure. A blocking requirement still prevents normal closure; only the
+  Head's authorised override (ADR-011) may close over it, with its mandatory reason.
 
 ### ADR-013 — Final result replacement is atomic
 
@@ -438,6 +450,49 @@ index is the numeric view.
 - **Rejected:** relying on business unique constraints alone (they cannot make a *first* creation idempotent);
   a generic idempotency platform or cache (ADR-025, ADR-020).
 
+### ADR-040 — Final result: one approval, by the Head
+
+**Status:** Frozen *(product owner, 2026-09-18 — closes OB-1, OQ-14, OQ-W2, OQ-P1)* · **Sources:** `WORKFLOW.md` §8.3, §8.4; `PERMISSIONS.md` §17, §23, §26; `DOMAIN_MODEL.md` §2.16
+
+- **Context:** `WORKFLOW.md` §8.4 designed two approval models and assumed neither: Model A (a single
+  authorised approval) and Model B (four eyes, a second person). The screen could not be specified until the
+  business chose.
+- **Decision:** **Model A, with the Head as the approver.** Exactly **one** approval is required to issue a
+  final result, and it is the **Head's**. There is no four-eyes rule and no second approver. `approved_by_user_id`
+  and `approved_at` are mandatory for an `ISSUED` result (guard D3) and record that Head; `decided_by_user_id`
+  may be the same person or another, and no separation-of-duties `CHECK` is imposed.
+- **Consequences:** `PERMISSIONS.md` footnote ⁸ resolves against Chief: a **Chief may draft and decide a final
+  result but may not approve it**. Head remains the sole approver, as it already is for overrides (ADR-011).
+  No schema change — both columns exist. If the department ever wants four eyes, that is a new ADR and still
+  no schema change.
+- **Rejected:** Model B (four eyes) — for thirteen staff it adds a bottleneck and a deputy problem the
+  department did not ask for; letting any Chief approve — approval is the act the Head is accountable for.
+
+### ADR-041 — Request deadlines: sent date + 10 calendar days, editable; holds pause nothing
+
+**Status:** Frozen *(product owner, 2026-09-18 — closes OB-2, OQ-W3; closes OQ-5 for requests)* · **Sources:** `WORKFLOW.md` §12; `DOMAIN_MODEL.md` §2.9, §9.1
+
+- **Context:** OQ-5 / OB-2 left it open whether deadlines are calendar or working days, from which date they
+  run, and whether `ON_HOLD` suspends them. Overdue figures could not be trusted until that was answered.
+- **Decision:**
+  - **Deadlines exist only for outgoing requests.** Cases and requirements may carry a `due_at` where one is
+    genuinely stated, but the department's deadline rule is the request one.
+  - `request.due_at` defaults to **the date the letter was sent externally plus 10 calendar days**. Weekends
+    and holidays count; there is no working-day calendar.
+  - The default is a **suggestion**: the person registering the request may change it before saving, and the
+    saved value is then kept. Nothing recomputes it afterwards; a later change is an explicit edit.
+  - **`ON_HOLD` does not pause, freeze, extend or shift a request deadline.** Both facts are shown together
+    (`WORKFLOW.md` §12.5) rather than one hiding the other.
+  - **Overdue stays derived** (`due_at` vs now, while the request is `SENT` with no `ACTIVE` conclusive
+    response). There is no `OVERDUE` state, and no manually edited overdue flag (ADR-029).
+- **Consequences:** the existing `due_at` / `original_due_at` columns are enough; a working-day calendar table
+  is not built. The practical reminder rule of V1 follows from this and nothing else: a request is
+  reminder-worthy when it is awaiting an external answer and its due date is today or past.
+- **Does not close:** the general "case inactivity" definition (OB-3 / OQ-13) — a case with no activity for N
+  days is still undefined, and `case.last_activity_at` stays a rebuildable cache nobody reads.
+- **Rejected:** working days (needs a holiday calendar the department did not ask for); pausing clocks on hold
+  (it hides real elapsed time and would make historical overdue figures unreproducible).
+
 ---
 
 ## Documents, authorization and security
@@ -570,6 +625,42 @@ index is the numeric view.
   origin. Any future parsing runs in an isolated, unprivileged, network-less process.
 - **Rejected:** server-side preview in V1; cloud scanning; deleting a file because of a malware verdict.
 
+### ADR-042 — Upload policy: accepted business families, 500 MB per file
+
+**Status:** Frozen *(product owner, 2026-09-18 — closes OB-5, OB-7, OQ-D3, OQ-D4, OQ-D5, OQ-A5, OQ-S6)* · **Sources:** `DOCUMENT_MODEL.md` §9; `SECURITY.md` §10.4, §10.5; `ARCHITECTURE.md` §12.3
+
+- **Decision — what must be retainable.** The department receives and must keep: **PDF · KMZ · Word · Excel ·
+  AutoCAD · ArchiCAD**. These are accepted and stored. Macro-enabled Office documents are **accepted** (they
+  arrive from authorities) and are stored, marked, and download-only. Nothing is refused merely because the
+  application cannot preview it: **storage and preview are separate concerns**.
+- **Decision — size.** **500 MB per file** is the maximum, enforced at the reverse proxy and in the
+  application. This size is precisely why the upload must **stream** to disk while hashing, never buffering a
+  file in memory (`ARCHITECTURE.md` §12.3, invariant 11).
+- **Consequences:** class E (refused outright) of `DOCUMENT_MODEL.md` §9.1 stays **empty**; every accepted file
+  is class D — stored, download-only, never rendered inline, never parsed server-side (ADR-035 is unchanged).
+  Type detection stays content-based and bounded; a declared/detected mismatch is recorded, not a rejection.
+- **Still to confirm:** the **exact ArchiCAD extension and MIME mapping** (`.pln`, `.pla`, `.mod`, … ) — the
+  business named the family, not the file list. No extension list is invented here; the mapping is confirmed
+  with the department before an allow-list is written, and until then an ArchiCAD file is stored as opaque
+  bytes like any other. AutoCAD is `.dwg` / `.dxf` as `DOCUMENT_MODEL.md` §9.3 already describes.
+
+### ADR-043 — Indefinite retention; bytes are never physically deleted
+
+**Status:** Frozen *(product owner, 2026-09-18 — closes OB-8, OQ-9, OQ-D1, OQ-D2, OQ-S11, OQ-A9)* · **Sources:** `DOCUMENT_MODEL.md` §12; `DOMAIN_MODEL.md` §2.14; `SECURITY.md` §14
+
+- **Decision:** retention is **indefinite**. There is no retention period, no business hard delete and **no
+  physical purge, ever** — not for withdrawn versions, not for superseded ones, not for files uploaded in
+  error, not for cancelled cases. Withdrawn, superseded and incorrect files remain historically retained with
+  their reasons. The only file the system ever removes stays what it always was: an orphaned temporary upload
+  that never entered the content store.
+- **Consequences:** this confirms the V1 posture permanently rather than deferring it. `DOCUMENT_MODEL.md`
+  §12.3's "what a future purge would require" is now hypothetical, and the reference-counted `storage_object`
+  table of Appendix C is **not needed**. Storage grows monotonically, which makes **backup capacity a
+  standing operational requirement** (`SECURITY.md` §14, OB-6) and makes the integrity sweep the thing that
+  must keep working for years.
+- **Rejected:** a retention period with an eventual purge — the department wants the evidential record kept;
+  "delete after N years" would have to be designed against legal advice nobody has given.
+
 ---
 
 ## Pre-production gates
@@ -634,16 +725,19 @@ Bounded by the cited ADRs; decided at the stated point without reopening them.
 None of these blocks repository scaffolding, schema design or migration design. Each is additive or a
 rule/configuration change.
 
-| ID | Question | Source IDs | V1 assumption | What it blocks |
+**Answered by the product owner on 2026-09-18:** OB-1, OB-2, OB-4, OB-5, OB-7 and OB-8. Each is now an ADR
+(ADR-040 … ADR-043, and ADR-012 for OB-4) and is no longer an open question. OB-3 is **narrowed**, not closed.
+
+| ID | Question | Source IDs | Status | What it blocks |
 |---|---|---|---|---|
-| OB-1 | Single approval or four-eyes for the final result? | OQ-14, OQ-W2, OQ-P1 | neither assumed; both designed; no schema change either way | the final-result approval screen and its `CHECK` rule |
-| OB-2 | Deadline rules — calendar or working days, start date, does `ON_HOLD` pause clocks? | OQ-5, OQ-W3 | `due_at` absolute; holds alter nothing; both facts displayed | legal accuracy of overdue figures only |
-| OB-3 | What counts as "activity" for inactivity lists? | OQ-13, OQ-W4 | no rule assumed; `last_activity_at` rebuildable | the "no activity for N days" list |
-| OB-4 | Confirm that a non-blocking requirement may stay open at normal closure | OQ-W6 | yes, uniformly (ADR-012) | nothing; "no" tightens rules without schema change |
-| OB-5 | Accepted and forbidden upload formats; macro-enabled Office; DWG/DXF | OQ-D3, OQ-D4, OQ-D5, OQ-S6 | accept all, download-only, warn on active formats | an allow/deny policy list |
-| OB-6 | Approve or revise RPO/RTO (proposed: DB ≤ 15 min, documents ≤ 1 h, restore within a business day) | OQ-A3 | proposals only, not contractual | backup cadence and go-live acceptance |
-| OB-7 | Maximum upload size | OQ-A5 | none chosen; configuration | production configuration |
-| OB-8 | Retention period and whether physical purge is ever permitted | OQ-9, OQ-D1, OQ-D2, OQ-S11, OQ-A9 | nothing physically deleted | nothing in V1 |
+| OB-1 | Single approval or four-eyes for the final result? | OQ-14, OQ-W2, OQ-P1 | **CLOSED 2026-09-18 — one approval, by the Head** (ADR-040) | nothing |
+| OB-2 | Deadline rules — calendar or working days, start date, does `ON_HOLD` pause clocks? | OQ-5, OQ-W3 | **CLOSED 2026-09-18 — requests only; sent date + 10 calendar days, suggested and editable; holds pause nothing** (ADR-041) | nothing |
+| OB-3 | What counts as "activity" for inactivity lists? | OQ-13, OQ-W4 | **Open (narrowed)** — the practical reminder rule is settled for requests (ADR-041); a general case-inactivity definition is still required before the "no activity for N days" list | that list only |
+| OB-4 | Confirm that a non-blocking requirement may stay open at normal closure | OQ-W6 | **CLOSED 2026-09-18 — yes, with a visible warning before closure and a derived "closed with unresolved items" afterwards** (ADR-012) | nothing |
+| OB-5 | Accepted and forbidden upload formats; macro-enabled Office; DWG/DXF | OQ-D3, OQ-D4, OQ-D5, OQ-S6 | **CLOSED 2026-09-18 — PDF, KMZ, Word, Excel, AutoCAD, ArchiCAD retained; nothing rejected for lack of preview** (ADR-042; the ArchiCAD extension list remains to be confirmed) | nothing |
+| OB-6 | Approve or revise RPO/RTO (proposed: DB ≤ 15 min, documents ≤ 1 h, restore within a business day) | OQ-A3 | Open (business) — proposals only, not contractual | backup cadence and go-live acceptance |
+| OB-7 | Maximum upload size | OQ-A5 | **CLOSED 2026-09-18 — 500 MB per file** (ADR-042) | nothing |
+| OB-8 | Retention period and whether physical purge is ever permitted | OQ-9, OQ-D1, OQ-D2, OQ-S11, OQ-A9 | **CLOSED 2026-09-18 — indefinite retention; bytes are never physically deleted** (ADR-043) | nothing |
 
 **Other open questions stay in their source documents** and are unaffected by this log: OQ-1, OQ-2, OQ-3,
 OQ-6 / OQ-W5, OQ-7, OQ-10, OQ-11 (`DOMAIN_MODEL.md` §10); OQ-P3, OQ-P4 (`PERMISSIONS.md` §28); OQ-D6 / OQ-S7,

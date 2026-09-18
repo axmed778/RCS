@@ -9,6 +9,7 @@ using Rcs.Application.Concurrency;
 using Rcs.Application.Identifiers;
 using Rcs.Application.Identity;
 using Rcs.Application.Idempotency;
+using Rcs.Application.Lifecycle;
 using Rcs.Application.Lookups;
 using Rcs.Application.Organizations;
 using Rcs.Application.Persistence;
@@ -23,6 +24,7 @@ using Rcs.Infrastructure.Development;
 using Rcs.Infrastructure.Identifiers;
 using Rcs.Infrastructure.Identity;
 using Rcs.Infrastructure.Idempotency;
+using Rcs.Infrastructure.Lifecycle;
 using Rcs.Infrastructure.Lookups;
 using Rcs.Infrastructure.Migrations;
 using Rcs.Infrastructure.Organizations;
@@ -90,6 +92,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ICaseService, PostgresCaseService>();
         services.AddSingleton<ICaseQueries, PostgresCaseQueries>();
         services.AddSingleton<IWorkflowService, PostgresWorkflowService>();
+        services.AddSingleton<ICaseLifecycleService, PostgresCaseLifecycleService>();
+        services.AddSingleton<ILifecycleQueries, PostgresLifecycleQueries>();
         services.AddSingleton<DemoDataSeeder>();
 
         return services;

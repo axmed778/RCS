@@ -1,6 +1,9 @@
 @inject CurrentActor Actor
+@inject Microsoft.Extensions.Options.IOptions<ReviewOptions> ReviewOptions
 @{
     var path = Context.Request.Path.Value ?? "/";
+    var review = ReviewOptions.Value;
+    var here = path + Context.Request.QueryString;
     string Active(string prefix) => path.Equals(prefix, StringComparison.OrdinalIgnoreCase)
         || (prefix != "/" && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) ? "is-active" : string.Empty;
 }
@@ -29,6 +32,17 @@
         <div class="banner">
             <span class="banner__title">@T["App.Banner"]</span>
             <span class="banner__note"> — @T["App.BannerNote"]</span>
+            @if (Actor.IsAvailable)
+            {
+                @* Development-only identity switch, so the Head's own acts can be reviewed as the Head (ADR-040). *@
+                @* An explicit action suppresses the automatic antiforgery field, so it is asked for by name. *@
+                <form class="banner__switch" method="post" action="/review/actor" asp-antiforgery="true">
+                    <input type="hidden" name="returnUrl" value="@here" />
+                    <span class="banner__note">@T["App.ActAs"]:</span>
+                    <button class="btn btn--small" type="submit" name="username" value="@review.ActorUsername">@T["App.ActAs.Chief"]</button>
+                    <button class="btn btn--small" type="submit" name="username" value="@review.HeadUsername">@T["App.ActAs.Head"]</button>
+                </form>
+            }
         </div>
         <nav class="nav" aria-label="@T["Shell.Navigation"]">
             <div class="nav-caption">@T["Shell.Workspace"]</div>

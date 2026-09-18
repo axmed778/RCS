@@ -9,9 +9,9 @@ namespace Rcs.Domain.Progress;
 /// breaks of §11.2(5).
 /// </summary>
 /// <remarks>
-/// Implemented subset for the Review build: P0–P10, P12–P14, P16, P18. Not implemented, because their inputs do
-/// not exist yet: P11 (needs registered follow-up letters), P15 and P17 (need final results); P5 treats "no
-/// result issued" as always true. Business dates (overdue days) are counted in the configured business time zone.
+/// Implemented subset for the Review build: P0–P10 and P12–P18. Not implemented, because its input does not exist
+/// yet: P11 (needs registered follow-up letters). Business dates (overdue days) are counted in the configured
+/// business time zone.
 /// </remarks>
 public sealed class ProgressEvaluator(TimeZoneInfo businessTimeZone)
 {
@@ -24,10 +24,12 @@ public sealed class ProgressEvaluator(TimeZoneInfo businessTimeZone)
         scope => scope.Requests.Where(scope.HasConflict).OrderBy(r => r.SentAt).ThenBy(r => r.Id.ToString("N"), StringComparer.Ordinal)
             .Select(r => ProgressMessage.Of("P4", r.TargetName)).FirstOrDefault(),
 
-        // P5 — a blocking requirement FAILED (no final result can be issued in this build).
-        scope => scope.Requirements.Where(q => q.IsBlocking && q.Status == RequirementStatus.Failed)
-            .OrderBy(q => q.RaisedAt).ThenBy(q => q.Id.ToString("N"), StringComparer.Ordinal)
-            .Select(q => ProgressMessage.Of("P5", q.Title)).FirstOrDefault(),
+        // P5 — a blocking requirement FAILED and no result is issued: the decision still has to be taken.
+        scope => scope.Snapshot.Case.Result.HasIssued
+            ? null
+            : scope.Requirements.Where(q => q.IsBlocking && q.Status == RequirementStatus.Failed)
+                .OrderBy(q => q.RaisedAt).ThenBy(q => q.Id.ToString("N"), StringComparer.Ordinal)
+                .Select(q => ProgressMessage.Of("P5", q.Title)).FirstOrDefault(),
 
         // P6 — a blocking requirement is open and overdue.
         scope => scope.Requirements.Where(q => q.IsBlocking && IsOpen(q) && scope.RequirementOverdueDays(q) > 0)
@@ -69,6 +71,9 @@ public sealed class ProgressEvaluator(TimeZoneInfo businessTimeZone)
             { Length: > 1 } many => ProgressMessage.Of("P14", Count(many.Length)),
             _ => null,
         },
+
+        // P15 — the decision is drafted and the Head has not approved it yet (§8.4).
+        scope => scope.Snapshot.Case.Result.HasDraftAwaitingApproval ? ProgressMessage.Of("P15") : null,
     ];
 
     public CaseProgress Evaluate(ProgressSnapshot snapshot, DateTimeOffset now)
@@ -85,7 +90,8 @@ public sealed class ProgressEvaluator(TimeZoneInfo businessTimeZone)
             .ToDictionary(r => r.Id, r => DeriveBranch(caseScope, r));
 
         var ready = IsReadyForFinalResult(caseScope);
-        var headline = CaseHeadline(caseScope, ready);
+        var unresolved = UnresolvedAtClosure(caseScope);
+        var headline = CaseHeadline(caseScope, ready, unresolved);
 
         var summary = new ProgressSummary(
             Branches: snapshot.Requests.Count(r => r.SourceRequirementId is null && r.Status != RequestStatus.Void),
@@ -97,21 +103,46 @@ public sealed class ProgressEvaluator(TimeZoneInfo businessTimeZone)
             Waived: snapshot.Requirements.Count(q => q.Status == RequirementStatus.Waived),
             Failed: snapshot.Requirements.Count(q => q.Status == RequirementStatus.Failed));
 
-        return new CaseProgress(headline, summary, ready, branches, requestProgress, requirementProgress);
+        return new CaseProgress(
+            headline,
+            summary,
+            ready,
+            branches,
+            requestProgress,
+            requirementProgress,
+            ClosedWithUnresolvedItems: snapshot.Case.State == CaseLifecycleState.Closed && unresolved > 0,
+            UnresolvedAtClosure: snapshot.Case.State == CaseLifecycleState.Closed ? unresolved : 0);
     }
+
+    /// <summary>
+    /// Items still open on the case: non-blocking requirements left at a normal closure (WORKFLOW.md §9.2.1) and
+    /// anything a Head override left behind (§9.4). Counted the same way in both cases, because the record is the
+    /// same — nothing was auto-resolved to make the closure pass.
+    /// </summary>
+    private static int UnresolvedAtClosure(Scope scope) =>
+        scope.Requirements.Count(q => !q.Status.IsTerminal()) + scope.Requests.Count(r => !r.Status.IsTerminal());
 
     public DateOnly BusinessDate(DateTimeOffset instant) =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, businessTimeZone).DateTime);
 
-    private static ProgressMessage CaseHeadline(Scope scope, bool ready)
+    private static ProgressMessage CaseHeadline(Scope scope, bool ready, int unresolved)
     {
         var facts = scope.Snapshot.Case;
         switch (facts.State)
         {
             case CaseLifecycleState.Cancelled:
                 return ProgressMessage.Of("P0");                                               // P0
+
+            // P1 — when the closure left work open, the headline says so and how much (§9.2.1 obligation 3).
+            // What the closure produced is shown by the case's own final-result panel, where its decision type
+            // can be translated; a headline argument would print a raw database code.
             case CaseLifecycleState.Closed:
-                return ProgressMessage.Of("P1", facts.ClosedAt is { } closedAt ? scope.Evaluator.BusinessDate(closedAt).ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture) : string.Empty);
+                var closedOn = facts.ClosedAt is { } closedAt
+                    ? scope.Evaluator.BusinessDate(closedAt).ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                    : string.Empty;
+                return unresolved > 0
+                    ? ProgressMessage.Of("P1.Unresolved", closedOn, Count(unresolved))
+                    : ProgressMessage.Of("P1", closedOn);
             case CaseLifecycleState.OnHold:
                 return facts.HoldUntil is { } until                                            // P2
                     ? ProgressMessage.Of("P2", until.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture), facts.HoldReason ?? string.Empty)
@@ -128,16 +159,30 @@ public sealed class ProgressEvaluator(TimeZoneInfo businessTimeZone)
             }
         }
 
+        // P17 — the decision is out; what remains is to close the case (§9.3: never automatic).
+        if (scope.Snapshot.Case.Result is { HasIssued: true, IssuedAt: var issuedAt })
+        {
+            return ProgressMessage.Of("P17", issuedAt is { } at
+                ? scope.Evaluator.BusinessDate(at).ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                : string.Empty);
+        }
+
         return ready ? ProgressMessage.Of("P16") : ProgressMessage.Of("P18");                  // P16, P18
     }
 
-    /// <summary>WORKFLOW.md §7.4, for this build: no blocking requirement open, every request terminal, no conflict.</summary>
+    /// <summary>
+    /// WORKFLOW.md §7.4: every request terminal (3), no blocking requirement open (2), no unresolved conflict (4)
+    /// and no result already issued (5). Condition 1 (every branch terminal) is implied by 2 and 3 for the states
+    /// this build produces. Condition 5's exception — an issued result never blocks its own replacement (§8.6) —
+    /// belongs to the caller, which decides whether the result in force counts against the draft being issued.
+    /// </summary>
     private static bool IsReadyForFinalResult(Scope scope) =>
         scope.Snapshot.Case.State is CaseLifecycleState.Active or CaseLifecycleState.Registered
         && scope.Requests.Count > 0
         && scope.Requests.All(r => r.Status.IsTerminal())
         && !scope.Requirements.Any(q => q.IsBlocking && IsOpen(q))
-        && !scope.Requests.Any(scope.HasConflict);
+        && !scope.Requests.Any(scope.HasConflict)
+        && !scope.Snapshot.Case.Result.HasIssued;
 
     private BranchProgress DeriveBranch(Scope caseScope, ProgressRequestFacts topLevel)
     {
@@ -195,6 +240,7 @@ public sealed class ProgressEvaluator(TimeZoneInfo businessTimeZone)
             RequestStatus.Closed => RequestProgressState.Closed,
             _ when scope.HasConflict(request) => RequestProgressState.Conflict,
             RequestStatus.Sent when overdue > 0 => RequestProgressState.Overdue,
+            RequestStatus.Sent when scope.IsDueToday(request) => RequestProgressState.DueToday,
             RequestStatus.Sent when request.Responses.Any(p => p.Status == ResponseStatus.Active) => RequestProgressState.PartiallyAnswered,
             RequestStatus.Sent => RequestProgressState.AwaitingResponse,
             _ => RequestRules.CanClose(request.Status, responses, RaisedBy(scope, request)).IsAllowed
@@ -263,6 +309,13 @@ public sealed class ProgressEvaluator(TimeZoneInfo businessTimeZone)
         /// <summary>WORKFLOW.md §12.2: overdue only while SENT and unanswered; never stored.</summary>
         public int RequestOverdueDays(ProgressRequestFacts request) =>
             IsUnanswered(request) && request.DueAt is { } due && due < Now ? OverdueDays(due) : 0;
+
+        /// <summary>
+        /// Out, unanswered, and the deadline falls on today's business date — not yet overdue, because a deadline
+        /// entered as a date means "by the end of that day" (WORKFLOW.md §12.2).
+        /// </summary>
+        public bool IsDueToday(ProgressRequestFacts request) =>
+            IsUnanswered(request) && request.DueAt is { } due && Evaluator.BusinessDate(due) == Today;
 
         public int RequirementOverdueDays(ProgressRequirementFacts requirement) =>
             IsOpen(requirement) && requirement.DueAt is { } due && due < Now ? OverdueDays(due) : 0;

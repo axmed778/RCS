@@ -21,6 +21,27 @@
         outcome.addEventListener("change", suggest);
     }
 
+    // Registering a request: the deadline follows the sent date by the department's calendar-day rule (ADR-041).
+    // It stops following as soon as the person edits the date themselves — the saved value is theirs, not ours.
+    var sent = document.querySelector("[data-deadline-from]");
+    var due = document.querySelector("[data-deadline-to]");
+    if (sent && due) {
+        var days = parseInt(due.getAttribute("data-deadline-days"), 10);
+        var edited = false;
+        due.addEventListener("change", function () {
+            edited = true;
+        });
+        sent.addEventListener("change", function () {
+            if (edited || !sent.value || !isFinite(days)) {
+                return;
+            }
+            var parts = sent.value.split("-");
+            var from = new Date(Date.UTC(+parts[0], +parts[1] - 1, +parts[2]));
+            from.setUTCDate(from.getUTCDate() + days);
+            due.value = from.toISOString().slice(0, 10);
+        });
+    }
+
     // Double submission is already safe (every create carries an operation id, ADR-020); this just makes it visible.
     Array.prototype.forEach.call(document.querySelectorAll("form[data-single-submit]"), function (form) {
         form.addEventListener("submit", function () {

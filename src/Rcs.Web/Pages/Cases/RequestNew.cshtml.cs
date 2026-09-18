@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Rcs.Application.Cases;
+using Rcs.Application.Common;
 using Rcs.Application.Identifiers;
 using Rcs.Application.Idempotency;
 using Rcs.Application.Organizations;
 using Rcs.Application.Workflow;
+using Rcs.Domain.Workflow;
 using Rcs.Web.Review;
 using Rcs.Web.Ui;
 
@@ -18,9 +20,13 @@ public sealed class RequestNewModel(
     IWorkflowService workflow,
     IOrganizationService organizations,
     IIdGenerator ids,
+    BusinessCalendar calendar,
     CurrentActor actor,
     UiText text) : ReviewPageModel(actor, text)
 {
+    /// <summary>The department's rule, exposed so the form can recompute the suggestion when the sent date changes.</summary>
+    public static int DeadlineDays => RequestDeadline.DefaultDays;
+
     public sealed class InputModel
     {
         public Guid OperationId { get; set; }
@@ -66,6 +72,12 @@ public sealed class RequestNewModel(
         }
 
         Input.OperationId = ids.NewId();
+
+        // ADR-041: the letter usually went out the day it is registered, and the deadline is suggested from that
+        // date. Both fields stay editable — a back-dated registration simply produces an earlier, truthful deadline.
+        Input.SentDate = calendar.Today;
+        Input.DueDate = RequestDeadline.Suggest(calendar.Today);
+
         if (SourceRequirement?.AddressedTo is { } addressedTo)
         {
             Input.TargetOrganizationId = addressedTo.Id;

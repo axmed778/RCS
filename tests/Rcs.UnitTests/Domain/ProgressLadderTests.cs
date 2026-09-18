@@ -57,7 +57,34 @@ public sealed class ProgressLadderTests
     public void ACancelledOrClosedCaseSaysOnlyThat()
     {
         Assert.Equal("P0", Evaluate(CaseLifecycleState.Cancelled, [Request(1)]).Headline.Code);
-        Assert.Equal("P1", Evaluate(CaseLifecycleState.Closed, [Request(1)]).Headline.Code);
+        Assert.Equal("P1", Evaluate(CaseLifecycleState.Closed, [Request(1, RequestStatus.Closed)]).Headline.Code);
+    }
+
+    /// <summary>
+    /// WORKFLOW.md §9.2.1 obligation 3: a case closed with work still open says so, and says how much. Nothing was
+    /// auto-resolved to make the closure pass, which is exactly why the count can be derived at all.
+    /// </summary>
+    [Fact]
+    public void AClosedCaseWithOpenWorkSaysWhatWasLeft()
+    {
+        var progress = Evaluate(
+            CaseLifecycleState.Closed,
+            [Request(1, RequestStatus.Closed)],
+            [Requirement(2, RequirementStatus.Open, blocking: false)]);
+
+        Assert.Equal("P1.Unresolved", progress.Headline.Code);
+        Assert.Equal("1", progress.Headline.Arguments[1]);
+        Assert.True(progress.ClosedWithUnresolvedItems);
+        Assert.Equal(1, progress.UnresolvedAtClosure);
+    }
+
+    [Fact]
+    public void AnOpenCaseIsNeverReportedAsClosedWithUnresolvedItems()
+    {
+        var progress = Evaluate(CaseLifecycleState.Active, [Request(1)], [Requirement(2, RequirementStatus.Open, blocking: false)]);
+
+        Assert.False(progress.ClosedWithUnresolvedItems);
+        Assert.Equal(0, progress.UnresolvedAtClosure);
     }
 
     [Fact]

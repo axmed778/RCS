@@ -245,6 +245,7 @@ tbody tr:last-child td { border-bottom: none; }
 .node--requirement.is-resolved { border-left-color: var(--ok); }
 .node--requirement.is-failed { border-left-color: var(--danger); }
 .node--letter { border-left: 4px solid var(--ink-faint); }
+.node--result { border-left: 4px solid var(--accent); }
 
 .node__label { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); font-weight: 600; }
 
@@ -393,7 +394,10 @@ body { font-size: 14px; }
 .shell-search span { font-size: 19px; margin-right: 7px; }
 .related-nodes { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
 .related-node { display: block; font-size: 12px; padding: 10px 0; text-decoration: none; border-bottom: 1px solid var(--border); }
-.banner { margin-left: var(--sidebar-width); height: var(--banner-height); padding: 5px 24px; font-size: 11px; background: var(--bg-secondary); color: var(--text-muted); border-bottom-color: var(--border); white-space: nowrap; overflow: hidden; }
+.banner { margin-left: var(--sidebar-width); height: var(--banner-height); padding: 0 24px; font-size: 11px; background: var(--bg-secondary); color: var(--text-muted); border-bottom-color: var(--border); white-space: nowrap; overflow: hidden; display: flex; align-items: center; gap: 8px; }
+/* The Development-only identity switch sits in the banner that already says this is not a real system. */
+.banner__switch { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.banner__switch .btn { padding: 1px 8px; font-size: 11px; line-height: 17px; min-height: 0; border-radius: 4px; }
 .banner__title { font-weight: 500; color: var(--warning); }
 .banner__note { color: var(--text-muted); }
 .nav { position: fixed; z-index: 5; left: 0; top: var(--topbar-height); bottom: 0; width: var(--sidebar-width); background: var(--surface-alt); border-right: 1px solid var(--border); border-bottom: 0; display: flex; flex-direction: column; padding: 26px 10px 16px; gap: 6px; }

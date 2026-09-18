@@ -2224,7 +2224,7 @@ evidence — a `requirement_evidence` row with a waiver role, or `requirement.wa
 *Assumed:* an internal authorised decision is sufficient; no external agreement is modelled.
 *Why deferrable:* additive — a waiver-role evidence row, which `requirement_evidence` already supports.
 
-**OQ-5 — How are deadlines computed, and does `ON_HOLD` pause them?**
+**OQ-5 — CLOSED for requests 2026-09-18** (DECISIONS.md ADR-041, OB-2): the deadline of an outgoing request is its external sent date + 10 **calendar** days, suggested and editable, and `ON_HOLD` pauses nothing. `due_at` stays an absolute timestamp and overdue stays derived, exactly as assumed below; no working-day calendar or suspension log is built. The original question, for reference:
 Calendar days or working days? Counted from the letter date, the dispatch date, or the receipt date?
 Does a hold suspend the case's statutory clock, and do holidays matter? *Impact:* determines whether
 `due_at` can be a plain stored timestamp (current design) or needs a working-day calendar table and a
@@ -2252,8 +2252,9 @@ unique.
 period and generation can change without touching a single foreign key. A `number_sequence` table is
 additive.
 
-**OQ-9 — Retention: how long must documents and audit events be kept, and is physical deletion ever
-permitted?**
+**OQ-9 — CLOSED 2026-09-18** (DECISIONS.md ADR-043, OB-8): retention is indefinite and physical deletion is
+never permitted, so the reference-counted `storage_object` of Appendix C is not needed. The original question,
+for reference: *how long must documents and audit events be kept, and is physical deletion ever permitted?*
 *Impact:* the model forbids deletion outright; a legal retention rule would introduce an archival
 process that must still leave metadata and hashes in place. *Assumed:* nothing is ever physically
 deleted. *Why deferrable:* the answer governs an operational process, not the schema; if cleanup is ever
@@ -2295,7 +2296,7 @@ would bake a guess into a column that reporting will later depend on. Because th
 fixing the rule later is a recomputation, not a migration.
 *Owner:* workflow / dashboard design.
 
-**OQ-14 — Must the final result be approved by someone other than the person who decided it?**
+**OQ-14 — CLOSED 2026-09-18** (DECISIONS.md ADR-040, OB-1): exactly one approval is required and it is the Head's; no separation-of-duties rule is imposed, so `approved_by_user_id` may equal `decided_by_user_id`. Both columns already exist. The original question, for reference:
 `PROJECT.md` §12 gives Head "final approval where required", but not when it is required.
 *Impact:* whether `final_result.approved_by_user_id` is mandatory for `ISSUED` and must differ from
 `decided_by_user_id` (a four-eyes rule). Both columns already exist; this is a constraint, not a

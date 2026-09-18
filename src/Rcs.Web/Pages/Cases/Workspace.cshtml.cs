@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Rcs.Application.Cases;
+using Rcs.Application.Lifecycle;
 using Rcs.Application.Workflow;
 using Rcs.Web.Review;
 using Rcs.Web.Ui;
@@ -7,15 +8,25 @@ using Rcs.Web.Ui;
 namespace Rcs.Web.Pages.Cases;
 
 /// <summary>
-/// The case workspace (PROJECT.md §17): header, the original incoming letter, the workflow as a nested tree, and the
-/// activity history. The two one-click transitions live here; everything that needs a reason has its own form page.
+/// The case workspace (PROJECT.md §17): header, the original incoming letter, the workflow as a nested tree, the
+/// final results, and the activity history. The one-click transitions live here; everything that needs a reason or a
+/// confirmation has its own form page.
 /// </summary>
-public sealed class WorkspaceModel(ICaseQueries cases, IWorkflowService workflow, CurrentActor actor, UiText text) : ReviewPageModel(actor, text)
+public sealed class WorkspaceModel(
+    ICaseQueries cases,
+    ILifecycleQueries lifecycleQueries,
+    IWorkflowService workflow,
+    ICaseLifecycleService lifecycle,
+    CurrentActor actor,
+    UiText text) : ReviewPageModel(actor, text)
 {
     [BindProperty(SupportsGet = true)]
     public Guid CaseId { get; set; }
 
     public CaseWorkspace? Workspace { get; private set; }
+
+    /// <summary>Every result of the case, newest first. Superseded and revoked ones stay readable (WORKFLOW.md §8.6).</summary>
+    public IReadOnlyList<FinalResultView> FinalResults { get; private set; } = [];
 
     [TempData]
     public string? ActionError { get; set; }
@@ -34,6 +45,7 @@ public sealed class WorkspaceModel(ICaseQueries cases, IWorkflowService workflow
         }
 
         Workspace = result.Value;
+        FinalResults = await lifecycleQueries.ListFinalResultsAsync(Actor.Context, CaseId, HttpContext.RequestAborted);
         return Page();
     }
 
@@ -69,5 +81,41 @@ public sealed class WorkspaceModel(ICaseQueries cases, IWorkflowService workflow
         }
 
         return ToWorkspace(CaseId, "request-" + requestId);
+    }
+
+    /// <summary>F2 — the Head issues the result, recording the decision and the single approval (ADR-040).</summary>
+    public async Task<IActionResult> OnPostIssueResultAsync(Guid finalResultId, int rowVersion, string? overrideNote)
+    {
+        if (!HasActor)
+        {
+            return Page();
+        }
+
+        var result = await lifecycle.IssueFinalResultAsync(
+            Actor.Context, new IssueFinalResultCommand(CaseId, finalResultId, rowVersion, overrideNote), HttpContext.RequestAborted);
+        if (!result.Succeeded)
+        {
+            ActionError = Text.Error(result.Error!);
+        }
+
+        return ToWorkspace(CaseId, "final-result-" + finalResultId);
+    }
+
+    /// <summary>F4 — the decision is withdrawn without a replacement, with a mandatory reason.</summary>
+    public async Task<IActionResult> OnPostRevokeResultAsync(Guid finalResultId, int rowVersion, string? reason)
+    {
+        if (!HasActor)
+        {
+            return Page();
+        }
+
+        var result = await lifecycle.RevokeFinalResultAsync(
+            Actor.Context, new RevokeFinalResultCommand(CaseId, finalResultId, rowVersion, reason ?? string.Empty), HttpContext.RequestAborted);
+        if (!result.Succeeded)
+        {
+            ActionError = Text.Error(result.Error!);
+        }
+
+        return ToWorkspace(CaseId, "final-result-" + finalResultId);
     }
 }

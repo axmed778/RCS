@@ -47,14 +47,15 @@
         </div>
         <div class="field">
             <label asp-for="Input.SentDate">@T["Field.SentDate"]</label>
-            <input asp-for="Input.SentDate" type="date" />
+            <input asp-for="Input.SentDate" type="date" data-deadline-from />
             <span asp-validation-for="Input.SentDate" class="form-error"></span>
         </div>
     </div>
 
     <div class="field">
-        <label asp-for="Input.DueDate">@T["Field.DueDate"] <span class="hint">(@T["Common.Optional"])</span></label>
-        <input asp-for="Input.DueDate" type="date" />
+        <label asp-for="Input.DueDate">@T["Field.DueDate"]</label>
+        <input asp-for="Input.DueDate" type="date" data-deadline-to data-deadline-days="@Rcs.Web.Pages.Cases.RequestNewModel.DeadlineDays" />
+        <div class="hint">@T.Format("RequestNew.DeadlineHint", Rcs.Web.Pages.Cases.RequestNewModel.DeadlineDays)</div>
         <span asp-validation-for="Input.DueDate" class="form-error"></span>
     </div>
 
