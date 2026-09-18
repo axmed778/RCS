@@ -1,11 +1,12 @@
 @model RequestNodeView
 @{
     var request = Model.Request;
+    var appearance = WorkflowAppearance.ForRequest(request);
     var workspace = Model.Workspace;
     var derived = workspace.Progress.Requests.TryGetValue(request.Id, out var requestProgress) ? requestProgress : null;
     var closeable = derived?.State == RequestProgressState.AnsweredCloseable;
 }
-<div class="node node--request" id="request-@request.Id">
+<div class="node node--request" id="request-@request.Id" data-graph-node data-kind="request" data-entity="@request.Id" data-title="@request.Target.Name" data-label="@T["Request.Title"]" data-meta="@(request.DispatchLetter is { } outgoing ? T.Text(outgoing.RegistryNumber) + " · " + T.Date(outgoing.SentAt) : request.RequestNumber)" data-status="@T[appearance.LabelKey]" data-tone="@appearance.Tone">
     <div class="node__head">
         <div>
             <div class="node__label">@T["Request.Title"] · <span class="mono">@request.RequestNumber</span></div>
@@ -46,6 +47,10 @@
         <div class="node__meta">@T["Request.RequestedItems"]: @items</div>
     }
 
+    @if (request.SourceRequirementId is { } parentId && workspace.FindRequirement(parentId) is { } parentRequirement)
+    {
+        <div class="node__meta"><strong>@T["Graph.ParentRequirement"]:</strong> <a href="#requirement-@parentId">@parentRequirement.Title</a></div>
+    }
     <div class="node__actions">
         @if (request.Status is RequestStatus.Sent or RequestStatus.Answered && Model.May(BusinessAction.RegisterResponse))
         {
@@ -70,8 +75,9 @@
         <ul class="tree">
             @foreach (var response in request.Responses)
             {
+                var responseAppearance = WorkflowAppearance.ForResponse(response);
                 <li>
-                    <div class="node node--response" id="response-@response.Id">
+                    <div class="node node--response" id="response-@response.Id" data-graph-node data-kind="response" data-entity="@response.Id" data-title="@T.Code("ResponseType", response.TypeCode)" data-label="@T["Response.Title"]" data-meta="@(response.Letter is { } responseLetter ? T.Text(responseLetter.LetterNumber) + " · " + T.Date(responseLetter.LetterDate) : T["Letter.NotVisible"].Value)" data-summary="@response.Summary" data-status="@T[responseAppearance.LabelKey]" data-tone="@responseAppearance.Tone">
                         <div class="node__head">
                             <div>
                                 <div class="node__label">@T["Response.Title"]</div>

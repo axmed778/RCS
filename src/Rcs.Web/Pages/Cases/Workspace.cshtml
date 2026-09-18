@@ -2,6 +2,7 @@
 @model Rcs.Web.Pages.Cases.WorkspaceModel
 @{
     var workspace = Model.Workspace;
+    ViewData["Workspace"] = true;
     ViewData["Title"] = workspace is null ? T["Cases.Title"].Value : workspace.Header.CaseNumber;
 }
 
@@ -29,7 +30,23 @@
         </div>
     </div>
 
-    <div class="card">
+    <div class="workspace-summary"><span class="status-dot"></span><strong>@T.Progress(progress.Headline)</strong><span>@T.Summary(progress.Summary)</span></div>
+    <div data-workspace data-collapse="@T["Graph.Collapse"]" data-expand="@T["Graph.Expand"]" data-related="@T["Graph.Related"]" data-case-id="@header.Id">
+    <div class="workspace-tools" hidden>
+        <div><span class="tool-icon" aria-hidden="true">⑂</span><strong>@T["Workspace.Workflow"]</strong><span class="tool-note">@T["Graph.ReadOnly"]</span></div>
+        <div class="graph-controls"><button type="button" class="btn" data-zoom="out" aria-label="@T["Graph.ZoomOut"]">−</button><output data-zoom-value>100%</output><button type="button" class="btn" data-zoom="in" aria-label="@T["Graph.ZoomIn"]">+</button><button type="button" class="btn" data-zoom="fit">@T["Graph.Fit"]</button><button type="button" class="btn" data-zoom="reset">1:1</button></div>
+    </div>
+    <div class="workspace-body">
+    <section class="canvas" aria-label="@T["Workspace.Workflow"]" hidden><div class="graph-viewport"><div class="graph-stage"></div></div><div class="graph-legend">
+        <span><i class="status-dot tone-positive"></i>@T["Graph.Positive"]</span><span><i class="status-dot tone-conditional"></i>@T["Graph.Conditional"]</span><span><i class="status-dot tone-negative"></i>@T["Graph.Negative"]</span><span><i class="status-dot tone-waiting"></i>@T["Graph.Waiting"]</span>
+    </div></section>
+    <aside class="inspector" aria-label="@T["Graph.Inspector"]" hidden>
+        <div class="inspector-heading"><span class="inspector-icon" aria-hidden="true">▤</span><div><div class="eyebrow" data-inspector-type></div><h2 data-inspector-title></h2></div></div>
+        <div class="inspector-tabs"><button type="button" class="is-active" data-inspector-tab="details" aria-pressed="true">@T["Graph.Details"]</button><button type="button" data-inspector-tab="history" aria-pressed="false">@T["Graph.History"] <span data-history-count></span></button></div>
+        <div class="inspector-content" data-inspector-details></div><div class="inspector-content" data-inspector-history hidden></div>
+    </aside>
+    <div class="workspace-source">
+    <div class="card" id="case-@header.Id" data-graph-node data-kind="case" data-entity="@header.Id" data-title="@header.CaseNumber" data-label="@T["Workspace.Header.Case"]" data-meta="@header.Title" data-status="@T.CaseState(header.State)" data-tone="case">
         <dl class="facts">
             <div><dt>@T["Workspace.Header.Case"]</dt><dd class="mono">@header.CaseNumber</dd></div>
             <div><dt>@T["Workspace.Header.Requester"]</dt><dd>@header.RequestingOrganization.Name</dd></div>
@@ -54,7 +71,7 @@
     <div class="section-title">@T["Workspace.OriginalLetter"]</div>
     @if (workspace.InitiatingLetter is { } letter)
     {
-        <div class="node node--letter">
+        <div class="node node--letter" id="letter-@letter.Id" data-graph-node data-kind="letter" data-entity="@letter.Id" data-title="@T.Text(letter.LetterNumber)" data-label="@T["Workspace.OriginalLetter"]" data-meta="@letter.Sender.Name · @T.Date(letter.LetterDate)" data-status="@T.Code("CorrespondenceStatus", "RECEIVED")" data-tone="waiting">
             <div class="node__head">
                 <div>
                     <div class="node__title mono">@T.Text(letter.LetterNumber) · @T.Date(letter.LetterDate)</div>
@@ -82,7 +99,7 @@
     }
     else
     {
-        <ul class="tree">
+        <ul class="tree" data-root-requests>
             @foreach (var request in workspace.TopLevelRequests)
             {
                 <li>
@@ -113,10 +130,10 @@
         }
         else
         {
-            <ul class="activity">
+            <ul class="activity" data-case-activity>
                 @foreach (var entry in workspace.Activity)
                 {
-                    <li>
+                    <li data-entity="@entry.EntityId">
                         <span class="activity__when mono">@T.DateTime(entry.RecordedAt)</span>
                         <span class="activity__what">@T.Code("ActionCode", entry.ActionCode) — @T.Code("EntityType", entry.EntityType)</span>
                         @if (entry.Detail is { Length: > 0 } detail)
@@ -142,5 +159,8 @@
                 }
             </ul>
         }
+    </div>
+    </div>
+    </div>
     </div>
 }

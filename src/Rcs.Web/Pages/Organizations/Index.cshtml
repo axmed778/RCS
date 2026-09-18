@@ -18,7 +18,9 @@
 }
 else
 {
-    <div class="table-wrap">
+    <div class="list-toolbar"><label for="list-search">@T["List.Filter"]</label><input type="search" id="list-search" data-list-filter placeholder="@T["List.FilterHint"]" /><span class="list-count" data-list-count></span></div>
+    <p class="empty" data-list-empty hidden>@T["List.NoMatch"]</p>
+    <div class="table-wrap" data-filter-table>
         <table>
             <thead>
                 <tr>
