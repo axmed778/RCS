@@ -25,6 +25,18 @@ public sealed class DatabaseOptions
     public int MigrationLockTimeoutSeconds { get; set; } = 60;
 }
 
+/// <summary><c>Rcs:Business</c>. How the department's business calendar is interpreted.</summary>
+public sealed class BusinessOptions
+{
+    public const string SectionName = "Rcs:Business";
+
+    /// <summary>
+    /// The time zone dates on letters and in forms are read and written in. It decides only how a date becomes an
+    /// instant and back; the deadline rules themselves are unresolved (OB-2 / OQ-5).
+    /// </summary>
+    public string TimeZone { get; set; } = "Asia/Baku";
+}
+
 /// <summary><c>Rcs:Storage</c>. Placeholder for the document object store; nothing reads it in Phase 1.</summary>
 public sealed class StorageOptions
 {

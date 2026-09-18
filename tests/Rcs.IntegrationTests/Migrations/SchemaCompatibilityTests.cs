@@ -40,19 +40,19 @@ public sealed class SchemaCompatibilityTests : IAsyncLifetime
     public async Task DatabaseBehindTheReleaseIsRejected()
     {
         await database.MigrateAsync();
-        var newerRelease = Releases.RealPlus(Releases.Migration(2, "newer", "CREATE TABLE rcs.it_newer (id integer);"));
+        var newerRelease = Releases.RealPlus(Releases.Migration(Releases.Next(), "newer", "CREATE TABLE rcs.it_newer (id integer);"));
 
         var report = await CheckAsync(database.RuntimeConnectionString, newerRelease);
 
         Assert.Equal(SchemaCompatibilityStatus.DatabaseBehind, report.Status);
-        Assert.Equal(1, report.DatabaseVersion);
-        Assert.Equal(2, report.ExpectedVersion);
+        Assert.Equal(MigrationSet.LoadEmbedded().LatestVersion, report.DatabaseVersion);
+        Assert.Equal(Releases.Next(), report.ExpectedVersion);
     }
 
     [Fact]
     public async Task DatabaseAheadOfTheReleaseIsRejected()
     {
-        await database.MigrateAsync(Releases.RealPlus(Releases.Migration(2, "newer", "CREATE TABLE rcs.it_newer (id integer);")));
+        await database.MigrateAsync(Releases.RealPlus(Releases.Migration(Releases.Next(), "newer", "CREATE TABLE rcs.it_newer (id integer);")));
 
         var report = await CheckAsync(database.RuntimeConnectionString, MigrationSet.LoadEmbedded());
 

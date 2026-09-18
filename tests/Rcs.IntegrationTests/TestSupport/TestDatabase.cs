@@ -140,6 +140,9 @@ internal static class Releases
     public static MigrationSet WithRealFileEdited(string fileName, Func<string, string> edit) =>
         MigrationSet.Create(RealFiles().Select(file => file.FileName == fileName ? (file.FileName, edit(file.Content)) : file));
 
+    /// <summary>The first migration number after the real set, so a test-only migration never collides with a shipped one.</summary>
+    public static int Next(int offset = 0) => MigrationSet.LoadEmbedded().LatestVersion + 1 + offset;
+
     public static (string FileName, string Content) Migration(int id, string name, string sql, bool transactional = true) =>
         ($"{id:D4}_{name}.sql", $"-- description: test-only {name}\n{(transactional ? string.Empty : "-- transactional: false\n")}{sql}\n");
 }

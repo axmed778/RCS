@@ -18,6 +18,7 @@ public static class RcsEntryPoint
             {
                 "migrate" => await MigrateCommand.RunAsync(args[1..]),
                 "check-schema" => await CheckSchemaCommand.RunAsync(args[1..]),
+                "seed-demo" => await SeedDemoCommand.RunAsync(args[1..]),
                 _ => PrintUsage(args[0]),
             };
         }
@@ -34,6 +35,7 @@ public static class RcsEntryPoint
         Console.Error.WriteLine("  Rcs.Web                 run the web application (requires a compatible schema)");
         Console.Error.WriteLine("  Rcs.Web migrate         apply pending migrations with ConnectionStrings:Migration");
         Console.Error.WriteLine("  Rcs.Web check-schema    verify the schema with ConnectionStrings:Runtime; exit 3 if incompatible");
+        Console.Error.WriteLine("  Rcs.Web seed-demo       load Development-only synthetic demonstration data (refused elsewhere)");
         return ExitCodes.UsageOrConfigurationError;
     }
 }

@@ -64,7 +64,7 @@ public sealed class WebHostTests : IAsyncLifetime
     public async Task StartupFailsWhenTheDatabaseIsBehindTheRelease()
     {
         await database.MigrateAsync();
-        await database.ExecuteAsync("DELETE FROM rcs.schema_migration WHERE migration_id = 1", database.MigrationConnectionString);
+        await database.ExecuteAsync($"DELETE FROM rcs.schema_migration WHERE migration_id = {MigrationSet.LoadEmbedded().LatestVersion}", database.MigrationConnectionString);
         await using var factory = new RcsWebFactory(database.RuntimeConnectionString);
 
         var exception = Record.Exception(() => factory.CreateClient());

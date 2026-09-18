@@ -158,15 +158,61 @@ keeps them equal. `Rcs.Web check-schema` runs the same check for deployment scri
   already proves `btree_gist` supports this shape.
 - **No `ON DELETE CASCADE`**, no `DELETE` grants on business tables (ADR-030).
 
+## The schema so far
+
+Migrations `0002`–`0012` create the first business schema — the vertical slice of the Case workflow:
+
+| Migration | Tables |
+|---|---|
+| `0002_identity` | `app_user`, `role` (seeded), `user_role` |
+| `0003_lookup_vocabularies` | `organization_type`, `correspondence_kind`, `response_type`, `response_outcome`, `requirement_origin_type`, `deadline_basis`, `assignment_role`, `assignment_end_reason`, `void_reason`, `waiver_reason` — each seeded with its frozen codes |
+| `0004_organizations` | `organization`, `organization_alias` |
+| `0005_cases` | `case_record`, `case_state_change` |
+| `0006_correspondence` | `correspondence` |
+| `0007_requests` | `request` |
+| `0008_responses` | `response`, `response_supersession` |
+| `0009_requirements` | `requirement`, `requirement_evidence`, and the child-request foreign key on `request` |
+| `0010_assignments` | `assignment`, with the three per-scope `RESPONSIBLE` exclusion constraints |
+| `0011_audit_event` | `audit_event` — `INSERT` and `SELECT` only for `rcs_app` |
+| `0012_operation_receipts` | `operation_receipt` |
+
+**Names (DECISIONS.md ADR-037).** The domain entities *user* and *case* are PostgreSQL reserved words, so the
+tables are **`app_user`** and **`case_record`**; no other entity is renamed and no identifier is ever quoted.
+Columns and foreign keys keep the domain names (`case_id`, `*_user_id`), and `audit_event.entity_type` records
+**domain** names (`case`, `user`, `request`, …), not table names.
+
+**Seeded lookup identifiers (ADR-038).** Rows seeded by a migration carry fixed UUIDv7 literals, because three
+frozen constraints need a row-local predicate naming one code: the per-scope assignment exclusions
+(`RESPONSIBLE`), the one-initiating-letter-per-case index (`INITIATING`) and the requirement origin `CHECK`
+(`RESPONSE`). Application code resolves lookups **by code**, never by identifier.
+
+**Columns deliberately left for later** — additive, and named in the migration that defers them: `case_type_id`
+and `closure_type_id` on `case_record`, `delivery_method_id` and `withdrawal_reason_id` on `correspondence`, and
+the document / internal-record arcs of `requirement_evidence`. They arrive with the migrations that build the
+workflows using them, so nothing here has to be thrown away.
+
+## Demo data
+
+`Rcs.Web seed-demo` loads **synthetic** organizations, users and three demonstration cases by driving the real
+application services, so every consequence and audit event is produced the way the application produces them.
+It is **Development-only** (refused elsewhere), deterministic, and safe to re-run: a case already present is
+skipped. To start from a clean slate, drop and recreate the development database, migrate, and seed again.
+
 ## Deliberately not created yet
 
-- **`audit_event`.** Its `actor_user_id` and `case_id` are real foreign keys to `user` and `case` (DOMAIN_MODEL.md
-  §2.18), which do not exist yet. Creating the table now would mean shipping those columns without their foreign
-  keys, so it arrives with the identity migration (user) and gains its case foreign key with the case migration.
-  Its grant will be `INSERT, SELECT` only for `rcs_app`.
-- **`operation_receipt`** (ADR-020). A receipt is bound to a real user, so it waits for the same identity migration.
-  The contract exists in `Rcs.Application.Idempotency`; it must be implemented before the first retry-sensitive
-  command (upload, correspondence or response registration) ships.
+These are frozen parts of the model that the first vertical slice does not need. Each arrives with the workflow
+that uses it, as a new migration:
+
+- **Documents** — `document`, `document_version`, `document_link` and the content-addressed object store
+  (DOCUMENT_MODEL.md). Until then `requirement_evidence` carries the response arc only.
+- **`final_result`** and its closure vocabulary (`closure_type`, `decision_type`), with the case-closure guards
+  G1–G5 and the `case_record` columns they need.
+- **`requirement_resolution_correction`** (ADR-010, transition Q7) and **`case_access_grant`** (restricted-case
+  grants — until then a restricted case is visible to its assignees, Chief and Head only).
+- **`internal_record`**, `organization` search-normalisation columns (DEF-09, after PS-1), and the background
+  job/lock table (ARCHITECTURE.md §14.2).
+- **Authentication tables** — credentials and server-side sessions (ADR-033, SECURITY.md §6, §8). The Review
+  build has no authentication at all; it acts as one Development-only synthetic user (README.md).
 
 ## Case-level serialization (ADR-019)
 

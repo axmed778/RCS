@@ -1,0 +1,153 @@
+@model RequirementNodeView
+@{
+    var requirement = Model.Requirement;
+    var workspace = Model.Workspace;
+    var derived = workspace.Progress.Requirements.TryGetValue(requirement.Id, out var requirementProgress) ? requirementProgress : null;
+    var isOpen = requirement.Status is RequirementStatus.Open or RequirementStatus.InProgress;
+    var stateClass = requirement.Status switch
+    {
+        RequirementStatus.Fulfilled or RequirementStatus.Waived or RequirementStatus.Void => "is-resolved",
+        RequirementStatus.Failed => "is-failed",
+        _ => string.Empty,
+    };
+    var caseId = workspace.Header.Id;
+}
+<div class="node node--requirement @stateClass" id="requirement-@requirement.Id">
+    <div class="node__head">
+        <div>
+            <div class="node__label">@T["Requirement.Title"]</div>
+            <div class="node__title">@requirement.Title</div>
+        </div>
+        <div class="badges">
+            @{
+                var storedStatus = T.RequirementStatus(requirement.Status);
+                var derivedLabel = derived is null ? null : T.RequirementProgress(derived);
+            }
+            @if (derivedLabel is not null)
+            {
+                <span class="badge @T.RequirementProgressBadge(derived!)">@derivedLabel</span>
+            }
+            @if (derivedLabel != storedStatus)
+            {
+                <span class="badge badge--plain">@storedStatus</span>
+            }
+            <span class="badge @(requirement.IsBlocking ? "badge--warn" : "badge--plain")">
+                @(requirement.IsBlocking ? T["Requirement.Blocking"] : T["Requirement.NonBlocking"])
+            </span>
+        </div>
+    </div>
+
+    <div class="node__meta">
+        @if (requirement.RaisedBy is { } raisedBy)
+        {
+            <span>@T["Requirement.RaisedBy"]: @raisedBy.Name</span>
+        }
+        @if (requirement.AddressedTo is { } addressedTo)
+        {
+            <span> · @T["Requirement.AddressedTo"]: @addressedTo.Name</span>
+        }
+        @if (requirement.DueAt is not null)
+        {
+            <span> · @T["Requirement.Due"]: <span class="mono">@T.Date(requirement.DueAt)</span></span>
+        }
+    </div>
+    @if (requirement.Description is { Length: > 0 } description)
+    {
+        <div class="node__meta">@description</div>
+    }
+
+    @if (requirement.ResolvedAt is not null)
+    {
+        <div class="node__meta">
+            <strong>@T["Requirement.Resolution"]:</strong>
+            @T.RequirementStatus(requirement.Status)
+            · @T.Date(requirement.ResolvedAt)
+            @if (requirement.ResolvedBy is { } resolvedBy)
+            {
+                <text> · @T["Requirement.ResolvedBy"]: @resolvedBy.DisplayName</text>
+            }
+            @if (requirement.WaiverReasonCode is { Length: > 0 } waiverReason)
+            {
+                <text> · @T.Code("WaiverReason", waiverReason)</text>
+            }
+            @if (requirement.VoidReasonCode is { Length: > 0 } voidReason)
+            {
+                <text> · @T.Code("VoidReason", voidReason)</text>
+            }
+            @if (requirement.ResolutionNote is { Length: > 0 } note)
+            {
+                <text> · @note</text>
+            }
+            @if (requirement.FailureReasonNote is { Length: > 0 } failure)
+            {
+                <text> · @failure</text>
+            }
+        </div>
+    }
+
+    @if (requirement.Evidence.Count > 0)
+    {
+        <div class="node__meta">
+            <strong>@T["Requirement.Evidence"]:</strong>
+            @foreach (var evidence in requirement.Evidence)
+            {
+                var source = evidence.ResponseId is { } responseId ? workspace.FindResponse(responseId) : null;
+                <div>
+                    @if (source is not null)
+                    {
+                        <text>@T.Code("ResponseType", source.TypeCode)</text>
+                        @if (source.Letter is { } evidenceLetter)
+                        {
+                            <text> · <span class="mono">@evidenceLetter.LetterNumber</span> · @T.Date(evidenceLetter.LetterDate)</text>
+                        }
+                    }
+                    @if (evidence.Note is { Length: > 0 } evidenceNote)
+                    {
+                        <text> — @evidenceNote</text>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <div class="node__actions">
+        @if (requirement.Status == RequirementStatus.Open && Model.May(BusinessAction.StartRequirement))
+        {
+            <form method="post" asp-page-handler="Start" data-single-submit style="display:inline">
+                <input type="hidden" name="requirementId" value="@requirement.Id" />
+                <input type="hidden" name="rowVersion" value="@requirement.RowVersion" />
+                <button class="btn btn--small" type="submit">@T["Requirement.Start"]</button>
+            </form>
+        }
+        @if (isOpen && Model.May(BusinessAction.RegisterOutgoingRequest))
+        {
+            <a class="btn btn--small" href="/cases/@caseId/requests/new?requirementId=@requirement.Id">@T["Requirement.ChildRequest"]</a>
+        }
+        @if (isOpen && Model.May(BusinessAction.FulfillRequirement))
+        {
+            <a class="btn btn--small" href="/cases/@caseId/requirements/@requirement.Id/fulfil">@T["Requirement.Fulfill"]</a>
+        }
+        @if (isOpen && Model.May(BusinessAction.WaiveRequirement))
+        {
+            <a class="btn btn--small" href="/cases/@caseId/requirements/@requirement.Id/waive">@T["Requirement.Waive"]</a>
+        }
+        @if (isOpen && Model.May(BusinessAction.VoidRequirement))
+        {
+            <a class="btn btn--small" href="/cases/@caseId/requirements/@requirement.Id/void">@T["Requirement.Void"]</a>
+        }
+        @if (isOpen && Model.May(BusinessAction.FailRequirement))
+        {
+            <a class="btn btn--small btn--danger" href="/cases/@caseId/requirements/@requirement.Id/fail">@T["Requirement.Fail"]</a>
+        }
+    </div>
+
+    @if (requirement.ChildRequests.Count > 0)
+    {
+        <ul class="tree">
+            @foreach (var child in requirement.ChildRequests)
+            {
+                <li><partial name="_RequestNode" model="new RequestNodeView(child, workspace)" /></li>
+            }
+        </ul>
+    }
+</div>

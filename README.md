@@ -3,8 +3,10 @@
 Internal request tracking and workflow management system for processing incoming requests, attachments,
 supplier communications, approvals, and related documentation.
 
-**Status: Implementation Phase 1 — repository foundation and database migration infrastructure.** There is no
-business functionality and no user interface yet.
+**Status: Review MVP — the first working vertical slice of the Case workflow, with a server-rendered UI.**
+It exists to be demonstrated to the product owner for business and UX feedback. **It is not production ready:**
+there is no authentication (a Development-only review actor stands in), no document upload, no final result, no
+search and no dashboards beyond simple counts. See [Review build](#review-build) below.
 
 The authoritative design is in [`/docs`](docs/). Settled decisions are logged in
 [`docs/DECISIONS.md`](docs/DECISIONS.md); do not revisit them in code.
@@ -13,10 +15,10 @@ The authoritative design is in [`/docs`](docs/). Settled decisions are logged in
 
 ```text
 src/
-  Rcs.Domain            closed vocabularies, pure rules. No database, HTTP or filesystem
-  Rcs.Application       use-case contracts: unit of work, case serialization lock, id generator, idempotency
-  Rcs.Infrastructure    PostgreSQL (Npgsql), migration runner, schema compatibility check, lock implementation
-  Rcs.Web               ASP.NET Core host and composition root; health endpoints; `migrate` and `check-schema`
+  Rcs.Domain            closed vocabularies, workflow rules, authorization policy, derived progress. No I/O
+  Rcs.Application       use-case contracts and read models; unit of work, case lock, id generator, idempotency
+  Rcs.Infrastructure    PostgreSQL (Npgsql, hand-written SQL): services, queries, audit writer, migrations, demo seed
+  Rcs.Web               ASP.NET Core host, Razor Pages UI (Azerbaijani), health endpoints; `migrate`, `check-schema`, `seed-demo`
 tests/
   Rcs.UnitTests         no database
   Rcs.IntegrationTests  real PostgreSQL
@@ -99,14 +101,43 @@ dotnet run --project src/Rcs.Web -- migrate
 # Verify the schema with the runtime role (exit 0 compatible, 3 incompatible).
 dotnet run --project src/Rcs.Web -- check-schema
 
+# Load the Development-only synthetic demonstration data. Refused in any other environment; safe to repeat.
+dotnet run --project src/Rcs.Web -- seed-demo
+
 # Start the host. It refuses to start unless the schema matches this release exactly.
 dotnet run --project src/Rcs.Web
-#   http://127.0.0.1:5080/health/live    process is up
-#   http://127.0.0.1:5080/health/ready   database reachable and schema compatible
+#   http://127.0.0.1:5080/              the Review UI (Development only)
+#   http://127.0.0.1:5080/health/live   process is up
+#   http://127.0.0.1:5080/health/ready  database reachable and schema compatible
 ```
 
 Exit codes: `0` success · `1` migration failed · `2` usage or configuration error · `3` schema incompatible ·
 `130` cancelled.
+
+## Review build
+
+The Review build exists so the Case workflow can be **demonstrated and reviewed before authentication is
+built**. It is enabled by `Rcs:Review:Enabled`, which is `true` only in `appsettings.Development.json`.
+
+| Rule | |
+|---|---|
+| **Development only** | the host **refuses to start** if the flag is true in any other environment |
+| **One synthetic actor** | every request acts as the seeded user `review.demo` ("Nümayiş istifadəçisi", Chief). It is not authentication: no credentials, no session, no sign-in, and no way to act as somebody else |
+| **Attribution is real** | every row and every `audit_event` records that user, their roles at the time, and the client host — exactly as a real session would |
+| **Authority is real** | every action is checked by the same `can()` policy the final system will use, with roles read from `user_role` at action time |
+| **Nothing is exposed otherwise** | with the flag off, the business pages are not mapped at all; only the health endpoints answer |
+| **Synthetic data only** | the demo seed is Development-only and refuses to run elsewhere. No production data, ever (SECURITY.md §18.4) |
+
+The banner **RCS Review Build — Development / Synthetic Data** is on every page for the same reason.
+
+Pages: `/` (dashboard) · `/cases` · `/cases/new` · `/cases/{id}` (the case workspace) ·
+`/cases/{id}/requests/new` · `/cases/{id}/requests/{requestId}/responses/new` ·
+`/cases/{id}/responses/{responseId}/requirements/new` ·
+`/cases/{id}/requirements/{requirementId}/{fulfil|waive|void|fail}` · `/organizations` · `/organizations/new`.
+
+The interface language is Azerbaijani. Every string comes from `src/Rcs.Web/Resources/SharedResource.resx`,
+keyed by stable codes (a database vocabulary code, or a `WORKFLOW.md` §11.3 ladder row); a second language is a
+second `.resx` and no code change.
 
 How migrations, history, checksums, locking and the compatibility check work: **[database/README.md](database/README.md)**.
 

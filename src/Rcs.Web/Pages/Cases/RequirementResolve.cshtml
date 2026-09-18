@@ -1,0 +1,98 @@
+@page "/cases/{caseId:guid}/requirements/{requirementId:guid}/{action}"
+@model Rcs.Web.Pages.Cases.RequirementResolveModel
+@{
+    ViewData["Title"] = T[Model.TitleKey].Value;
+    var requirement = Model.Requirement;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T[Model.TitleKey]</h1>
+        <p class="intro">@T[Model.IntroKey]</p>
+        @if (requirement is not null)
+        {
+            <p class="intro"><strong>@requirement.Title</strong>
+                @if (requirement.AddressedTo is { } addressedTo)
+                {
+                    <span> — @T["Requirement.AddressedTo"]: @addressedTo.Name</span>
+                }
+            </p>
+        }
+    </div>
+    <a class="btn" href="/cases/@Model.CaseId">@T["Common.Back"]</a>
+</div>
+
+<form class="form card" method="post" data-single-submit>
+    <div asp-validation-summary="ModelOnly" class="alert"></div>
+    <input type="hidden" asp-for="Input.RowVersion" />
+
+    @if (Model.Action == "fulfil")
+    {
+        <div class="field">
+            <label asp-for="Input.EvidenceResponseId">@T["Field.EvidenceResponse"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <select asp-for="Input.EvidenceResponseId">
+                <option value="">@T["Common.None"]</option>
+                @foreach (var response in Model.CaseResponses)
+                {
+                    <option value="@response.Id">
+                        @T.Code("ResponseType", response.TypeCode) · @(response.Letter is { } letter ? letter.LetterNumber + " · " + T.Date(letter.LetterDate) : T.Date(response.ReceivedAt))
+                    </option>
+                }
+            </select>
+            <span asp-validation-for="Input.EvidenceResponseId" class="form-error"></span>
+        </div>
+    }
+
+    @if (Model.Action is "waive" or "void")
+    {
+        <div class="field">
+            <label asp-for="Input.ReasonCode">@(Model.Action == "waive" ? T["Field.WaiverReason"] : T["Field.VoidReason"])</label>
+            <select asp-for="Input.ReasonCode">
+                <option value="">@T["Common.Select"]</option>
+                @foreach (var reason in Model.Reasons)
+                {
+                    <option value="@reason.Code">@T.Code(Model.ReasonPrefix, reason.Code)</option>
+                }
+            </select>
+            <span asp-validation-for="Input.ReasonCode" class="form-error"></span>
+        </div>
+    }
+
+    @if (Model.Action == "void")
+    {
+        <div class="field">
+            <label asp-for="Input.VoidSourceResponseId">@T["Field.VoidSourceResponse"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <select asp-for="Input.VoidSourceResponseId">
+                <option value="">@T["Common.None"]</option>
+                @foreach (var response in Model.CaseResponses)
+                {
+                    <option value="@response.Id">
+                        @T.Code("ResponseType", response.TypeCode) · @(response.Letter is { } letter ? letter.LetterNumber + " · " + T.Date(letter.LetterDate) : T.Date(response.ReceivedAt))
+                    </option>
+                }
+            </select>
+        </div>
+    }
+
+    <div class="field">
+        <label asp-for="Input.ResolutionNote">
+            @(Model.Action switch
+            {
+                "fail" => T["Field.FailureReason"],
+                "fulfil" => T["Field.ResolutionNote"],
+                _ => T["Field.Note"],
+            })
+            @if (Model.Action == "fulfil")
+            {
+                <span class="hint">(@T["Common.Optional"])</span>
+            }
+        </label>
+        <textarea asp-for="Input.ResolutionNote" maxlength="2000"></textarea>
+        <span asp-validation-for="Input.ResolutionNote" class="form-error"></span>
+    </div>
+
+    <div class="actions">
+        <button class="btn btn--primary" type="submit">@T["Action.Confirm"]</button>
+        <a class="btn" href="/cases/@Model.CaseId">@T["Action.Cancel"]</a>
+    </div>
+</form>

@@ -1,0 +1,66 @@
+@page "/cases/{caseId:guid}/responses/{responseId:guid}/requirements/new"
+@model Rcs.Web.Pages.Cases.RequirementNewModel
+@{
+    ViewData["Title"] = T["RequirementNew.Title"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["RequirementNew.Title"]</h1>
+        <p class="intro">@T["RequirementNew.Intro"]</p>
+        @if (Model.SourceResponse is { } source)
+        {
+            <p class="intro">
+                <strong>@T.Format("RequirementNew.ForResponse", T.Code("ResponseType", source.TypeCode), T.Code("ResponseOutcome", source.OutcomeCode))</strong>
+                @if (source.Letter is { } letter)
+                {
+                    <span class="mono"> · @letter.LetterNumber · @T.Date(letter.LetterDate)</span>
+                }
+            </p>
+        }
+    </div>
+    <a class="btn" href="/cases/@Model.CaseId">@T["Common.Back"]</a>
+</div>
+
+<form class="form card" method="post" data-single-submit>
+    <div asp-validation-summary="ModelOnly" class="alert"></div>
+    <input type="hidden" asp-for="Input.OperationId" />
+
+    <div class="field">
+        <label asp-for="Input.Title">@T["Field.RequirementTitle"]</label>
+        <input asp-for="Input.Title" type="text" maxlength="200" />
+        <span asp-validation-for="Input.Title" class="form-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Description">@T["Field.Description"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <textarea asp-for="Input.Description" maxlength="2000"></textarea>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label asp-for="Input.AddressedToOrganizationId">@T["Field.AddressedTo"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <select asp-for="Input.AddressedToOrganizationId">
+                <option value="">@T["Common.None"]</option>
+                @foreach (var organization in Model.Organizations)
+                {
+                    <option value="@organization.Id">@organization.Name</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label asp-for="Input.DueDate">@T["Requirement.Due"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <input asp-for="Input.DueDate" type="date" />
+        </div>
+    </div>
+
+    <div class="field field--check">
+        <input asp-for="Input.IsBlocking" type="checkbox" />
+        <label asp-for="Input.IsBlocking">@T["Field.IsBlocking"]</label>
+    </div>
+
+    <div class="actions">
+        <button class="btn btn--primary" type="submit">@T["Action.Create"]</button>
+        <a class="btn" href="/cases/@Model.CaseId">@T["Action.Cancel"]</a>
+    </div>
+</form>

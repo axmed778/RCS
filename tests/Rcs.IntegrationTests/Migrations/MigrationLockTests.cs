@@ -48,7 +48,7 @@ public sealed class MigrationLockTests : IAsyncLifetime
     [Fact]
     public async Task LockIsReleasedAfterAFailedRun()
     {
-        var failing = Releases.RealPlus(Releases.Migration(2, "fails", "SELECT 1 / 0;"));
+        var failing = Releases.RealPlus(Releases.Migration(Releases.Next(), "fails", "SELECT 1 / 0;"));
         await Assert.ThrowsAsync<MigrationExecutionException>(() => database.MigrateAsync(failing));
 
         Assert.True(await database.ScalarAsync<bool>($"SELECT pg_try_advisory_lock({MigrationRunner.MigrationLockKey})"));

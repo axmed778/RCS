@@ -1,0 +1,59 @@
+@page "/cases"
+@model Rcs.Web.Pages.Cases.IndexModel
+@{
+    ViewData["Title"] = T["Cases.Title"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["Cases.Title"]</h1>
+        <p>@T["Cases.Subtitle"]</p>
+    </div>
+    <a class="btn btn--primary" href="/cases/new">@T["Cases.New"]</a>
+</div>
+
+@if (Model.Cases.Count == 0)
+{
+    <div class="card"><div class="empty">@T["Cases.Empty"]</div></div>
+}
+else
+{
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>@T["Cases.Number"]</th>
+                    <th>@T["Cases.Subject"]</th>
+                    <th>@T["Cases.Requester"]</th>
+                    <th>@T["Cases.Responsible"]</th>
+                    <th>@T["Cases.State"]</th>
+                    <th>@T["Cases.Progress"]</th>
+                    <th>@T["Cases.RegisteredAt"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Cases)
+                {
+                    <tr>
+                        <td class="mono"><a href="/cases/@item.Id">@item.CaseNumber</a></td>
+                        <td>
+                            @item.Title
+                            @if (item.IncomingLetterNumber is { Length: > 0 } number)
+                            {
+                                <div class="node__meta mono">@number · @T.Date(item.IncomingLetterDate)</div>
+                            }
+                        </td>
+                        <td>@item.RequestingOrganization.Name</td>
+                        <td>@(item.Responsible?.DisplayName ?? T["Cases.Unassigned"].Value)</td>
+                        <td><span class="badge">@T.CaseState(item.State)</span></td>
+                        <td>
+                            @T.Progress(item.Progress.Headline)
+                            <div class="node__meta">@T.Summary(item.Progress.Summary)</div>
+                        </td>
+                        <td class="mono">@T.Date(item.RegisteredAt)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

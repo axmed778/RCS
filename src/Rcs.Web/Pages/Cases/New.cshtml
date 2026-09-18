@@ -1,0 +1,91 @@
+@page "/cases/new"
+@model Rcs.Web.Pages.Cases.NewModel
+@{
+    ViewData["Title"] = T["CaseNew.Title"].Value;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@T["CaseNew.Title"]</h1>
+        <p class="intro">@T["CaseNew.Intro"]</p>
+    </div>
+    <a class="btn" href="/cases">@T["Common.Back"]</a>
+</div>
+
+<form class="form card" method="post" data-single-submit>
+    <div asp-validation-summary="ModelOnly" class="alert"></div>
+    <input type="hidden" asp-for="Input.OperationId" />
+
+    <div class="field">
+        <label asp-for="Input.RequestingOrganizationId">@T["Field.RequestingOrganization"]</label>
+        <select asp-for="Input.RequestingOrganizationId">
+            <option value="">@T["Common.Select"]</option>
+            @foreach (var organization in Model.Organizations)
+            {
+                <option value="@organization.Id">@organization.Name</option>
+            }
+        </select>
+        <span asp-validation-for="Input.RequestingOrganizationId" class="form-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Title">@T["Field.Title"]</label>
+        <input asp-for="Input.Title" type="text" maxlength="200" />
+        <span asp-validation-for="Input.Title" class="form-error"></span>
+    </div>
+
+    <div class="field">
+        <label asp-for="Input.Subject">@T["Field.Subject"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <textarea asp-for="Input.Subject" maxlength="2000"></textarea>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label asp-for="Input.IncomingLetterNumber">@T["Field.IncomingLetterNumber"]</label>
+            <input asp-for="Input.IncomingLetterNumber" type="text" maxlength="80" />
+            <span asp-validation-for="Input.IncomingLetterNumber" class="form-error"></span>
+        </div>
+        <div class="field">
+            <label asp-for="Input.IncomingRegistryNumber">@T["Field.IncomingRegistryNumber"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <input asp-for="Input.IncomingRegistryNumber" type="text" maxlength="80" />
+        </div>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label asp-for="Input.LetterDate">@T["Field.LetterDate"]</label>
+            <input asp-for="Input.LetterDate" type="date" />
+            <span asp-validation-for="Input.LetterDate" class="form-error"></span>
+        </div>
+        <div class="field">
+            <label asp-for="Input.ReceivedDate">@T["Field.ReceivedDate"] <span class="hint">(@T["Common.Optional"])</span></label>
+            <input asp-for="Input.ReceivedDate" type="date" />
+            <span asp-validation-for="Input.ReceivedDate" class="form-error"></span>
+        </div>
+    </div>
+
+    @if (Model.MayAssign)
+    {
+        <div class="field">
+            <label asp-for="Input.ResponsibleUserId">@T["Field.Responsible"]</label>
+            <select asp-for="Input.ResponsibleUserId">
+                <option value="">@T["Cases.Unassigned"]</option>
+                @foreach (var employee in Model.Employees)
+                {
+                    <option value="@employee.Id">@employee.DisplayName@(employee.JobTitle is { Length: > 0 } job ? " — " + job : string.Empty)</option>
+                }
+            </select>
+            <span asp-validation-for="Input.ResponsibleUserId" class="form-error"></span>
+        </div>
+    }
+
+    <div class="field">
+        <label asp-for="Input.Notes">@T["Field.Notes"] <span class="hint">(@T["Common.Optional"])</span></label>
+        <textarea asp-for="Input.Notes" maxlength="2000"></textarea>
+    </div>
+
+    <div class="actions">
+        <button class="btn btn--primary" type="submit">@T["Action.Save"]</button>
+        <a class="btn" href="/cases">@T["Action.Cancel"]</a>
+    </div>
+</form>
