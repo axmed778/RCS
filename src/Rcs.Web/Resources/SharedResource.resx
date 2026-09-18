@@ -1092,4 +1092,32 @@
   <data name="AssignmentStatus.VOID" xml:space="preserve">
     <value>Etibarsız</value>
   </data>
+  <data name="Shell.Skip" xml:space="preserve"><value>Əsas məzmuna keç</value></data>
+  <data name="Shell.Navigation" xml:space="preserve"><value>Əsas naviqasiya</value></data>
+  <data name="Shell.Workspace" xml:space="preserve"><value>İş sahəsi</value></data>
+  <data name="Shell.Local" xml:space="preserve"><value>Yerli sistem</value></data>
+  <data name="Shell.Review" xml:space="preserve"><value>Nümayiş versiyası</value></data>
+  <data name="Graph.Positive" xml:space="preserve"><value>Müsbət cavab</value></data>
+  <data name="Graph.Conditional" xml:space="preserve"><value>Şərtli cavab</value></data>
+  <data name="Graph.Negative" xml:space="preserve"><value>Mənfi cavab</value></data>
+  <data name="Graph.Waiting" xml:space="preserve"><value>Cavab gözlənilir</value></data>
+  <data name="Graph.NoVerdict" xml:space="preserve"><value>Yekun rəy gözlənilir</value></data>
+  <data name="Graph.Conflict" xml:space="preserve"><value>Ziddiyyətli cavablar</value></data>
+  <data name="Graph.ReadOnly" xml:space="preserve"><value>Əlaqələr üzrə görünüş</value></data>
+  <data name="Graph.Inspector" xml:space="preserve"><value>Seçilmiş element</value></data>
+  <data name="Graph.Details" xml:space="preserve"><value>Ümumi məlumat</value></data>
+  <data name="Graph.History" xml:space="preserve"><value>Tarixçə</value></data>
+  <data name="Graph.Fit" xml:space="preserve"><value>Ekrana sığdır</value></data>
+  <data name="Graph.ZoomIn" xml:space="preserve"><value>Yaxınlaşdır</value></data>
+  <data name="Graph.ZoomOut" xml:space="preserve"><value>Uzaqlaşdır</value></data>
+  <data name="Graph.Collapse" xml:space="preserve"><value>Budağı yığ</value></data>
+  <data name="Graph.Expand" xml:space="preserve"><value>Budağı aç</value></data>
+  <data name="Graph.ParentRequirement" xml:space="preserve"><value>Əlaqəli tələb</value></data>
+  <data name="Graph.SourceResponse" xml:space="preserve"><value>Mənbə cavab</value></data>
+  <data name="List.Filter" xml:space="preserve"><value>Siyahıda axtar</value></data>
+  <data name="List.FilterHint" xml:space="preserve"><value>Nömrə, mövzu və ya təşkilat</value></data>
+  <data name="List.NoMatch" xml:space="preserve"><value>Axtarışa uyğun nəticə yoxdur.</value></data>
+  <data name="Graph.ResponseReceived" xml:space="preserve"><value>Cavab alınıb</value></data>
+  <data name="Graph.Related" xml:space="preserve"><value>Əlaqəli elementlər</value></data>
+  <data name="Shell.Search" xml:space="preserve"><value>İşlərdə axtar</value></data>
 </root>

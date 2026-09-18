@@ -12,7 +12,7 @@
     };
     var caseId = workspace.Header.Id;
 }
-<div class="node node--requirement @stateClass" id="requirement-@requirement.Id">
+<div class="node node--requirement @stateClass" id="requirement-@requirement.Id" data-graph-node data-kind="requirement" data-entity="@requirement.Id" data-title="@requirement.Title" data-label="@T["Requirement.Title"]" data-meta="@(requirement.IsBlocking ? T["Requirement.Blocking"].Value : T["Requirement.NonBlocking"].Value)" data-status="@T.RequirementStatus(requirement.Status)" data-tone="@(requirement.Status == RequirementStatus.Fulfilled ? "positive" : requirement.Status == RequirementStatus.Failed ? "negative" : isOpen ? "conditional" : "waiting")" data-blocking="@requirement.IsBlocking.ToString().ToLowerInvariant()">
     <div class="node__head">
         <div>
             <div class="node__label">@T["Requirement.Title"]</div>
@@ -110,6 +110,10 @@
         </div>
     }
 
+    @if (requirement.SourceResponseId is { } sourceId && workspace.FindResponse(sourceId) is { } sourceResponse)
+    {
+        <div class="node__meta"><strong>@T["Graph.SourceResponse"]:</strong> <a href="#response-@sourceId">@T.Code("ResponseType", sourceResponse.TypeCode)</a></div>
+    }
     <div class="node__actions">
         @if (requirement.Status == RequirementStatus.Open && Model.May(BusinessAction.StartRequirement))
         {

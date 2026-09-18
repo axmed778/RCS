@@ -12,10 +12,13 @@
     <title>@(ViewData["Title"] is string title ? title + " — RCS" : "RCS")</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
-<body>
+<body class="@(ViewData["Workspace"] is true ? "workspace-page" : "standard-page")">
+    <a class="skip-link" href="#main">@T["Shell.Skip"]</a>
     <header>
         <div class="topbar">
-            <div class="topbar__name">@T["App.Name"]</div>
+            <a class="topbar__name" href="/" title="@T["App.Name"]"><span class="brand-mark" aria-hidden="true">R</span> RCS</a>
+            <div class="breadcrumb"><a href="@(path.StartsWith("/organizations", StringComparison.OrdinalIgnoreCase) ? "/organizations" : "/cases")">@(path.StartsWith("/organizations", StringComparison.OrdinalIgnoreCase) ? T["Nav.Organizations"] : T["Nav.Cases"])</a><span aria-hidden="true">/</span><strong>@ViewData["Title"]</strong></div>
+            <a class="shell-search" href="/cases#list-search"><span aria-hidden="true">⌕</span> @T["Shell.Search"]</a>
             <div class="topbar__actor">
                 @if (Actor.IsAvailable)
                 {
@@ -27,13 +30,14 @@
             <span class="banner__title">@T["App.Banner"]</span>
             <span class="banner__note"> — @T["App.BannerNote"]</span>
         </div>
-        <nav class="nav">
-            <a class="@Active("/")" href="/">@T["Nav.Home"]</a>
-            <a class="@Active("/cases")" href="/cases">@T["Nav.Cases"]</a>
-            <a class="@Active("/organizations")" href="/organizations">@T["Nav.Organizations"]</a>
-        </nav>
+        <nav class="nav" aria-label="@T["Shell.Navigation"]">
+            <div class="nav-caption">@T["Shell.Workspace"]</div>
+            <a class="@Active("/")" href="/"><span class="nav-icon" aria-hidden="true">⌂</span>@T["Nav.Home"]</a>
+            <a class="@Active("/cases")" href="/cases"><span class="nav-icon" aria-hidden="true">▤</span>@T["Nav.Cases"]</a>
+            <a class="@Active("/organizations")" href="/organizations"><span class="nav-icon" aria-hidden="true">▥</span>@T["Nav.Organizations"]</a>
+        <div class="nav-bottom"><span class="status-dot tone-positive"></span>@T["Shell.Local"]<small>@T["Shell.Review"]</small></div></nav>
     </header>
-    <main>
+    <main id="main">
         @if (!Actor.IsAvailable)
         {
             <div class="card">
@@ -48,5 +52,6 @@
     </main>
     <footer>@T["App.Footer"]</footer>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/workspace.js" asp-append-version="true"></script>
 </body>
 </html>
