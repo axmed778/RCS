@@ -113,7 +113,7 @@ department, assigned or not.
 | 9 | **Correct** structured records after others depend on them (§24) | corrections with downstream effects need a second pair of eyes |
 | 10 | **Resolve response conflicts** — record which response supersedes which (`WORKFLOW.md` §4.5), or retract a supersession recorded in error (`WORKFLOW.md` §4.7, amendment A-10) | choosing between two contradictory official letters |
 | 11 | **Void a response** that is not the actor's own recent entry | removes an official act from the active record |
-| 12 | **Approve a final result** — **only under approval Model A** (§28, OQ-P1) | unresolved business decision |
+| ~~12~~ | ~~Approve a final result~~ — **removed 2026-09-18: approval is the Head's alone** (ADR-040, §17). A Chief may draft and decide a final result; approving it is Head-only | the act the Head is accountable for |
 | 13 | **Correct a requirement resolution recorded in error** — return a `FULFILLED`/`WAIVED`/`VOID`/`FAILED` requirement to an open state (`WORKFLOW.md` Q7) | withdraws a recorded outcome that others relied on; the correct outcome then needs its own authority |
 | 14 | **Share a document into another case** — a version-pinned link outside the document's home case (`DOCUMENT_MODEL.md` §4.8) | a disclosure decision: it makes that version visible to another dossier's viewers |
 
@@ -132,7 +132,7 @@ The highest **business** authority. Not a system administrator.
 |---|---|
 | 1 | **Override closure guards** — close a case with unresolved obligations, mandatory reason, nothing falsified (`WORKFLOW.md` §9.4) |
 | 2 | **Override the final-result readiness guard** (D1) and the supporting-document guard (D4) |
-| 3 | **Approve a final result** — under either approval model; the second approval under Model B |
+| 3 | **Approve a final result** — the single approval the model requires (ADR-040); no Chief may substitute |
 | 4 | **See every restricted case** without needing a grant |
 | 5 | **Grant and revoke business roles** (Worker, Chief, Head) and the TechAdmin role (§25.2) |
 | 6 | **Reactivate a cancelled case** (`WORKFLOW.md` T8) — correction of a mistaken cancellation |
@@ -399,7 +399,7 @@ Actions that change the meaning of the record, release obligations, or alter who
 | Cancel a case | **Chief** | **yes** | open items terminated individually first |
 | **Override a closure guard** | **Head** | **yes — mandatory, naming the guard** | unresolved records left untouched |
 | Override final-result guards D1/D4 | **Head** | **yes** | — |
-| Approve a final result | **Head** (Chief under Model A only) | — | §28 OQ-P1 |
+| Approve a final result | **Head** — one approval, never a Chief (ADR-040) | — | §17, WORKFLOW.md §8.4 |
 | Revoke an issued final result | **Head** | **yes** | — |
 | Grant / revoke restricted access | **Chief** | **yes** | case must be restricted |
 | Reactivate a cancelled case | **Head** | **yes** | correction only |
@@ -408,9 +408,9 @@ Actions that change the meaning of the record, release obligations, or alter who
 | Deactivate a user account | **TechAdmin** | **yes** | final step after handover: open work reassigned first (§25.4) |
 | Technical configuration | **TechAdmin** | — | no business effect |
 
-**No approval ceremonies are added.** Every row above is a single action by one authorised person with
-a reason — except the final-result approval, where a second person is *one of the two candidate models*
-and remains an open business decision (§28). For 13 people, reasons and attribution are the control;
+**No approval ceremonies are added.** Every row above is a single action by one authorised person with a
+reason, and that now includes the final-result approval: **one approval, by the Head** (ADR-040, closing
+OQ-P1 — four eyes was considered and rejected). For 13 people, reasons and attribution are the control;
 multi-step sign-offs would be friction without a stated requirement.
 
 ---
@@ -554,7 +554,7 @@ historical record exactly as before.
 | Reopen Case | ✘ | ✔ | ✔ | ✘ |
 | Cancel Case | ✘ | ✔ | ✔ | ✘ |
 | Create FinalResult (draft) | △³ | ✔ | ✔ | ✘ |
-| Approve FinalResult | ✘ | △⁸ | ✔ | ✘ |
+| Approve FinalResult | ✘ | ✘⁸ | ✔ | ✘ |
 | Override closure guard | ✘ | ✘ | ✔ | ✘ |
 | Grant restricted access | ✘ | ✔ | ✔ | ✘ |
 | Manage users | ✘ | ✘ | △⁹ | ✔ |
@@ -598,9 +598,10 @@ record depends on it. Voiding for a **business** reason — `NO_LONGER_REQUIRED`
 `SUPERSEDED_BY_RESPONSE`, `BRANCH_REMOVED` — is a Chief judgement (§16, row 3). This is the precise
 line `PROJECT.md` asks for between correction and decision.
 
-**⁸ Chief — approve FinalResult.** Permitted **only if approval Model A** (single authorised approval)
-is adopted. Under Model B (four-eyes) approval is Head's, and the approver must differ from the
-decision-maker. **Unresolved — OQ-P1 (§28).**
+**⁸ Chief — approve FinalResult. ✘ as of 2026-09-18** (ADR-040, closing OQ-P1). Exactly **one** approval is
+required and it is the **Head's**. A Chief may create and decide a final result — `decided_by_user_id` — but
+the `approved_by_user_id` of an `ISSUED` result is always a Head. No four-eyes rule is imposed: the Head may
+also be the decision-maker.
 
 **⁹ Head — manage users.** Head may *order* an account deactivated and may grant or revoke roles, but
 does not create accounts, reset credentials or configure the authentication source. Account mechanics
@@ -663,10 +664,9 @@ the answer must be*, not *how the question is transported*.
 
 ### 28.1 Business decisions still needed
 
-**OQ-P1 — Single approval or four-eyes for the final result?** (Domain Model OQ-14, `WORKFLOW.md`
-OQ-W2.) Both models are designed (`WORKFLOW.md` §8.4); **neither is assumed**. The only thing that
-changes here is matrix footnote ⁸ — whether Chief may approve. No schema change either way.
-*Blocking:* the final-result screen, nothing else.
+**OQ-P1 — CLOSED 2026-09-18: one approval, by the Head.** (DECISIONS.md ADR-040; Domain Model OQ-14,
+`WORKFLOW.md` OQ-W2.) Model A is adopted with the Head as the approver, so matrix footnote ⁸ resolves
+against Chief: a Chief may decide a final result but may not approve it. No schema change was needed.
 
 **OQ-P2 — CLOSED: NO.** There is no dispatch approval in this application, because there is no dispatch
 in this application (`PROJECT.md` §1.1, `WORKFLOW.md` §14.0). No permission row, no approver column and

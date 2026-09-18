@@ -68,6 +68,12 @@ internal sealed class PostgresWorkflowService(CommandRunner runner, BusinessCale
                 return Invalid("validation.due_before_sent", nameof(command.DueDate));
             }
 
+            // ADR-041: the deadline is the external sent date + 10 calendar days unless the person changed the
+            // suggestion. Recording the basis as INTERNAL only when the suggestion stood keeps the row truthful —
+            // a hand-entered date says nothing about whether it is statutory, internal or agreed.
+            var dueDate = command.DueDate ?? RequestDeadline.Suggest(command.SentDate);
+            var deadlineIsDepartmentDefault = RequestDeadline.IsDefaultFor(command.SentDate, dueDate);
+
             var target = await scope.UnitOfWork.Command("SELECT is_active, is_own_organization FROM rcs.organization WHERE id = @id")
                 .With("id", command.TargetOrganizationId)
                 .SingleOrDefaultAsync(reader => new { Active = reader.Bool("is_active"), Own = reader.Bool("is_own_organization") }, ct);
@@ -160,12 +166,15 @@ internal sealed class PostgresWorkflowService(CommandRunner runner, BusinessCale
             }
 
             var requestNumber = await NextRequestNumberAsync(scope.UnitOfWork, caseRow, ct);
-            var dueAt = command.DueDate is { } dueDate ? calendar.EndOfDay(dueDate) : (DateTimeOffset?)null;
+            var dueAt = calendar.EndOfDay(dueDate);
+            var deadlineBasisId = deadlineIsDepartmentDefault
+                ? await PostgresLookupQueries.ActiveIdAsync(scope.UnitOfWork, LookupKind.DeadlineBasis, DeadlineBasisCodes.Internal, ct)
+                : null;
 
             await scope.UnitOfWork.Command("""
                     INSERT INTO rcs.request (id, case_id, request_number, target_organization_id, source_requirement_id, dispatch_correspondence_id,
-                                             subject, requested_items_note, due_at, status, created_by_user_id)
-                    VALUES (@id, @case, @request_number, @target, @source_requirement, @dispatch, @subject, @note, @due_at, 'SENT', @actor)
+                                             subject, requested_items_note, due_at, deadline_basis_id, status, created_by_user_id)
+                    VALUES (@id, @case, @request_number, @target, @source_requirement, @dispatch, @subject, @note, @due_at, @deadline_basis, 'SENT', @actor)
                     """)
                 .With("id", requestId)
                 .With("case", caseRow.Id)
@@ -176,6 +185,7 @@ internal sealed class PostgresWorkflowService(CommandRunner runner, BusinessCale
                 .With("subject", subject)
                 .With("note", Blank(command.RequestedItemsNote))
                 .With("due_at", dueAt)
+                .With("deadline_basis", deadlineBasisId)
                 .With("actor", scope.Actor.UserId)
                 .ExecuteAsync(ct);
 
@@ -188,6 +198,7 @@ internal sealed class PostgresWorkflowService(CommandRunner runner, BusinessCale
                     dispatch_correspondence_id = letterId,
                     status = "SENT",
                     due_at = dueAt,
+                    deadline_basis = deadlineIsDepartmentDefault ? DeadlineBasisCodes.Internal : null,
                 },
                 OccurredAt: sentAt), ct);
 

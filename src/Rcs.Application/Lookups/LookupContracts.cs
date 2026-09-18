@@ -8,6 +8,9 @@ public enum LookupKind
     ResponseOutcome,
     VoidReason,
     WaiverReason,
+    DeadlineBasis,
+    DecisionType,
+    ClosureType,
 }
 
 /// <param name="Code">The stable code; user interfaces translate it.</param>

@@ -15,9 +15,17 @@ public static class DemoData
 {
     public const string ReviewActorUsername = "review.demo";
 
+    /// <summary>
+    /// The second synthetic identity of the review build: a Head, so the acts reserved to the highest business
+    /// authority — approving a final result, overriding a closure guard — can be demonstrated as themselves rather
+    /// than by widening what a Chief may do (ADR-040; PERMISSIONS.md §23).
+    /// </summary>
+    public const string ReviewHeadUsername = "review.head";
+
     public static readonly Guid ReviewActorUserId = new("01995c10-0001-7000-8000-000000000001");
     public static readonly Guid WorkerAUserId = new("01995c10-0001-7000-8000-000000000002");
     public static readonly Guid WorkerBUserId = new("01995c10-0001-7000-8000-000000000003");
+    public static readonly Guid ReviewHeadUserId = new("01995c10-0001-7000-8000-000000000004");
 
     public static readonly Guid OwnOrganizationId = new("01995c10-0002-7000-8000-000000000001");
     public static readonly Guid ArchitectureAuthorityId = new("01995c10-0002-7000-8000-000000000002");
@@ -66,6 +74,7 @@ public sealed class DemoDataSeeder(
         seededAnything |= await SeedParallelBranchCaseAsync(actor, cancellationToken);
         seededAnything |= await SeedNestedRequirementCaseAsync(actor, cancellationToken);
         seededAnything |= await SeedOursToActCaseAsync(actor, cancellationToken);
+        seededAnything |= await SeedReadyForDecisionCaseAsync(actor, cancellationToken);
 
         logger.LogInformation(seededAnything ? "Demo data seeded." : "Demo data was already present; nothing was created.");
         return seededAnything;
@@ -107,6 +116,7 @@ public sealed class DemoDataSeeder(
         await User(DemoData.ReviewActorUserId, DemoData.ReviewActorUsername, "Nümayiş istifadəçisi (sintetik)", "Şöbə rəisi", "CHIEF");
         await User(DemoData.WorkerAUserId, "emekdas.a", "Əməkdaş A (sintetik)", "Baş mütəxəssis", "WORKER");
         await User(DemoData.WorkerBUserId, "emekdas.b", "Əməkdaş B (sintetik)", "Aparıcı mütəxəssis", "WORKER");
+        await User(DemoData.ReviewHeadUserId, DemoData.ReviewHeadUsername, "Nümayiş rəhbəri (sintetik)", "İdarə rəisi", "HEAD");
 
         OrganizationSeed[] organizations =
         [
@@ -316,7 +326,64 @@ public sealed class DemoDataSeeder(
         return true;
     }
 
+    /// <summary>
+    /// A case whose work is finished — its one request answered and closed — so the decision can be drafted, issued
+    /// and the case closed without building anything first. It keeps one <b>non-blocking</b> requirement open, which
+    /// holds nothing up but makes the closure screen's warning real (WORKFLOW.md §9.2.1, ADR-012).
+    /// </summary>
+    private async Task<bool> SeedReadyForDecisionCaseAsync(ActorContext actor, CancellationToken cancellationToken)
+    {
+        const string incomingLetter = "Rİİ-162/2026";
+        if (await CaseExistsAsync(incomingLetter, cancellationToken))
+        {
+            return false;
+        }
+
+        var today = calendar.Today;
+        var caseId = await Required(await cases.CreateAsync(actor, new CreateCaseCommand(
+            NewOperation(),
+            DemoData.RegionalDevelopmentOfficeId,
+            "Anbar binasının tikintisinə rəy (nümunə)",
+            "Nümunə ünvan 4 — anbar binasının tikintisi üçün rəy sorğusu.",
+            incomingLetter,
+            "DAX-501/2026",
+            today.AddDays(-30),
+            today.AddDays(-29),
+            DemoData.WorkerBUserId,
+            "Sintetik nümayiş məlumatı — qərar mərhələsi."), cancellationToken));
+
+        var architecture = await Required(await workflow.RegisterRequestAsync(actor, new RegisterRequestCommand(
+            NewOperation(), caseId, DemoData.ArchitectureAuthorityId, "Memarlıq rəyi",
+            "ŞŞ-262/2026", today.AddDays(-25), null, null, null), cancellationToken));
+
+        var approval = await Required(await workflow.RegisterResponseAsync(actor, new RegisterResponseCommand(
+            NewOperation(), caseId, architecture, "MO-198/2026", null, today.AddDays(-8), today.AddDays(-7),
+            "OPINION", ResponseOutcomeCodes.Approved, true,
+            "Layihə memarlıq tələblərinə uyğundur."), cancellationToken));
+
+        // The request is closed before the requirement is raised: a blocking requirement would prevent closure
+        // (§3.4), and a non-blocking one raised afterwards leaves it closed (§9.2, one definition of blocking).
+        var rowVersion = await RequestRowVersionAsync(architecture, cancellationToken);
+        await Required(await workflow.CloseRequestAsync(
+            actor, new CloseRequestCommand(caseId, architecture, rowVersion, "Rəy alındı, sorğu bağlanır."), cancellationToken));
+
+        await Required(await workflow.CreateRequirementAsync(actor, new CreateRequirementCommand(
+            NewOperation(), caseId, approval, "Yenilənmiş situasiya planı",
+            "Arxivə əlavə edilmək üçün; qərarın verilməsini dayandırmır.",
+            false, today.AddDays(20), DemoData.RegionalDevelopmentOfficeId), cancellationToken));
+
+        return true;
+    }
+
     // ----------------------------------------------------------------- helpers
+
+    private async Task<int> RequestRowVersionAsync(Guid requestId, CancellationToken cancellationToken)
+    {
+        await using var unitOfWork = (PostgresUnitOfWork)await unitOfWorkFactory.BeginAsync(cancellationToken);
+        return await unitOfWork.Command("SELECT row_version FROM rcs.request WHERE id = @id")
+            .With("id", requestId)
+            .ScalarAsync<int>(cancellationToken);
+    }
 
     private async Task<bool> CaseExistsAsync(string incomingLetterNumber, CancellationToken cancellationToken)
     {

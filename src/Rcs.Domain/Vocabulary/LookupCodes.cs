@@ -30,6 +30,13 @@ public static class RequirementOriginCodes
     public const string Response = "RESPONSE";
 }
 
+/// <summary><c>deadline_basis</c> — DOMAIN_MODEL.md §2.19; WORKFLOW.md §12.1.</summary>
+public static class DeadlineBasisCodes
+{
+    /// <summary>The department's own 10-calendar-day rule (ADR-041), as opposed to a statutory or agreed date.</summary>
+    public const string Internal = "INTERNAL";
+}
+
 /// <summary><c>assignment_role</c> — DOMAIN_MODEL.md §2.7.</summary>
 public static class AssignmentRoleCodes
 {
@@ -63,6 +70,7 @@ public static class AuditEntityTypes
     public const string Requirement = "requirement";
     public const string RequirementEvidence = "requirement_evidence";
     public const string Assignment = "assignment";
+    public const string FinalResult = "final_result";
 }
 
 /// <summary><c>audit_event.action_code</c> — the frozen vocabulary (DOMAIN_MODEL.md §2.18).</summary>

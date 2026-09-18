@@ -22,6 +22,47 @@
         <div class="tile"><div class="tile__value">@summary.ReadyForFinalResult</div><div class="tile__label">@T["Home.ReadyForResult"]</div></div>
     </div>
 
+    <div class="section-title">@T["Home.Awaiting.Title"]</div>
+    <div class="card">
+        <p class="intro">@T["Home.Awaiting.Intro"]</p>
+        @if (summary.AwaitingResponse.Count == 0)
+        {
+            <div class="empty">@T["Home.Awaiting.Empty"]</div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>@T["Cases.Number"]</th>
+                            <th>@T["Field.TargetOrganization"]</th>
+                            <th>@T["Request.Due"]</th>
+                            <th>@T["Cases.Progress"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var reminder in summary.AwaitingResponse)
+                        {
+                            <tr>
+                                <td class="mono"><a href="/cases/@reminder.CaseId#request-@reminder.RequestId">@reminder.RequestNumber</a></td>
+                                <td>@reminder.TargetOrganizationName</td>
+                                <td class="mono">@T.Date(reminder.DueAt)</td>
+                                <td>
+                                    <span class="badge @T.RequestProgressBadge(reminder.Progress)">@T.RequestProgress(reminder.Progress)</span>
+                                    @if (reminder.CaseIsOnHold)
+                                    {
+                                        <span class="badge badge--plain">@T["Home.Awaiting.OnHold"]</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
     <div class="section-title">@T["Home.RecentCases"]</div>
     @if (summary.RecentCases.Count == 0)
     {

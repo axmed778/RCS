@@ -93,7 +93,16 @@ internal sealed record CaseGraph(
 /// </summary>
 internal static class CaseGraphLoader
 {
-    public static async Task<CaseGraph> LoadAsync(NpgsqlConnection connection, IReadOnlyCollection<Guid> caseIds, bool includeLetters, CancellationToken cancellationToken)
+    /// <param name="transaction">
+    /// The caller's transaction when the read happens inside one — a command evaluating closure guards under the
+    /// case lock reads the same rows as the workspace does, so there is one loader and no second interpretation.
+    /// </param>
+    public static async Task<CaseGraph> LoadAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction? transaction,
+        IReadOnlyCollection<Guid> caseIds,
+        bool includeLetters,
+        CancellationToken cancellationToken)
     {
         if (caseIds.Count == 0)
         {
@@ -113,7 +122,7 @@ internal static class CaseGraphLoader
                 JOIN rcs.organization AS r ON r.id = c.recipient_organization_id
                 JOIN rcs.app_user AS u ON u.id = c.registered_by_user_id
                 WHERE c.case_id = ANY(@cases)
-                """, connection).WithIds("cases", caseIds).ListAsync(reader => new LetterRow(
+                """, connection, transaction).WithIds("cases", caseIds).ListAsync(reader => new LetterRow(
                     reader.Uuid("id"),
                     reader.Uuid("case_id"),
                     VocabularyCodes.FromCode<CorrespondenceDirection>(reader.Text("direction")),
@@ -138,7 +147,7 @@ internal static class CaseGraphLoader
             JOIN rcs.organization AS t ON t.id = r.target_organization_id
             LEFT JOIN rcs.correspondence AS d ON d.id = r.dispatch_correspondence_id
             WHERE r.case_id = ANY(@cases)
-            """, connection).WithIds("cases", caseIds).ListAsync(reader => new RequestRowFull(
+            """, connection, transaction).WithIds("cases", caseIds).ListAsync(reader => new RequestRowFull(
                 reader.Uuid("id"),
                 reader.Uuid("case_id"),
                 reader.Text("request_number"),
@@ -164,7 +173,7 @@ internal static class CaseGraphLoader
             JOIN rcs.response_outcome AS oc ON oc.id = p.response_outcome_id
             JOIN rcs.app_user AS u ON u.id = p.recorded_by_user_id
             WHERE r.case_id = ANY(@cases)
-            """, connection).WithIds("cases", caseIds).ListAsync(reader => new ResponseRowFull(
+            """, connection, transaction).WithIds("cases", caseIds).ListAsync(reader => new ResponseRowFull(
                 reader.Uuid("id"),
                 reader.Uuid("request_id"),
                 reader.Uuid("correspondence_id"),
@@ -194,7 +203,7 @@ internal static class CaseGraphLoader
             LEFT JOIN rcs.waiver_reason AS wr ON wr.id = q.waiver_reason_id
             LEFT JOIN rcs.void_reason AS vr ON vr.id = q.void_reason_id
             WHERE q.case_id = ANY(@cases)
-            """, connection).WithIds("cases", caseIds).ListAsync(reader => new RequirementRowFull(
+            """, connection, transaction).WithIds("cases", caseIds).ListAsync(reader => new RequirementRowFull(
                 reader.Uuid("id"),
                 reader.Uuid("case_id"),
                 reader.UuidOrNull("source_response_id"),
@@ -224,7 +233,7 @@ internal static class CaseGraphLoader
             JOIN rcs.requirement AS q ON q.id = e.requirement_id
             JOIN rcs.app_user AS u ON u.id = e.recorded_by_user_id
             WHERE q.case_id = ANY(@cases) AND e.status = 'ACTIVE'
-            """, connection).WithIds("cases", caseIds).ListAsync(reader => new EvidenceRowFull(
+            """, connection, transaction).WithIds("cases", caseIds).ListAsync(reader => new EvidenceRowFull(
                 reader.Uuid("id"),
                 reader.Uuid("requirement_id"),
                 reader.UuidOrNull("response_id"),

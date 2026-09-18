@@ -20,6 +20,25 @@ public enum BusinessAction
     VoidRequirement,
     FailRequirement,
     CloseRequest,
+
+    /// <summary>Starting or editing a DRAFT final result (WORKFLOW.md §8.1, F1).</summary>
+    DraftFinalResult,
+
+    /// <summary>
+    /// Issuing a final result (F2). One act that records the decision and the approval, so it is the Head's
+    /// alone — a Chief may draft and decide, never approve (ADR-040; PERMISSIONS.md §23).
+    /// </summary>
+    IssueFinalResult,
+
+    /// <summary>Withdrawing an issued result without a replacement (F4) — Head, with a reason.</summary>
+    RevokeFinalResult,
+
+    CloseCase,
+
+    /// <summary>Closing over a failing guard G1, G2, G3 or G5 — Head only, mandatory reason (WORKFLOW.md §9.4).</summary>
+    OverrideClosureGuard,
+
+    ReopenCase,
 }
 
 /// <summary>Who is acting, with roles evaluated at action time (PERMISSIONS.md §27.3).</summary>
@@ -112,6 +131,17 @@ public static class AuthorizationPolicy
             BusinessAction.CloseRequest => actor.IsChiefOrAbove || assigned,
 
             BusinessAction.WaiveRequirement or BusinessAction.FailRequirement => actor.IsChiefOrAbove,
+
+            // PROVISIONAL: PERMISSIONS.md §23 lists no row for drafting a final result — only for approving,
+            // overriding and revoking one. Drafting is treated as the Chief judgement the decision itself is.
+            BusinessAction.DraftFinalResult => actor.IsChiefOrAbove,
+
+            BusinessAction.CloseCase or BusinessAction.ReopenCase => actor.IsChiefOrAbove,
+
+            // The Head's own acts (PERMISSIONS.md §23). IsChiefOrAbove is deliberately NOT used: a Chief who
+            // could approve a final result or override a closure guard would empty both rules of meaning.
+            BusinessAction.IssueFinalResult or BusinessAction.RevokeFinalResult or BusinessAction.OverrideClosureGuard =>
+                actor.Roles.Contains(BusinessRole.Head),
 
             // Business reasons are a Chief judgement; a Worker may only correct their own entry (footnote ⁷).
             BusinessAction.VoidRequirement => actor.IsChiefOrAbove

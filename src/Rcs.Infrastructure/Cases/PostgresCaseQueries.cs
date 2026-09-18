@@ -30,25 +30,73 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
 
     private static readonly JsonDocumentOptions JsonOptions = new();
 
-    public async Task<IReadOnlyList<CaseListItem>> ListAsync(ActorContext actor, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CaseListItem>> ListAsync(ActorContext actor, CancellationToken cancellationToken = default) =>
+        (await LoadListAsync(actor, cancellationToken)).Items;
+
+    public async Task<DashboardSummary> GetDashboardAsync(ActorContext actor, CancellationToken cancellationToken = default)
+    {
+        var (cases, graph) = await LoadListAsync(actor, cancellationToken);
+        var open = cases.Where(item => item.State is CaseLifecycleState.Registered or CaseLifecycleState.Active or CaseLifecycleState.OnHold).ToArray();
+
+        return new DashboardSummary(
+            OpenCases: open.Length,
+            WaitingForExternalResponse: open.Count(item => item.Progress.Requests.Values.Any(IsWaitingOnAuthority)),
+            OpenRequirements: open.Sum(item => item.Progress.Summary.OpenRequirements),
+            OverdueItems: open.Sum(item => item.Progress.Summary.Overdue),
+            ReadyForFinalResult: open.Count(item => item.Progress.IsReadyForFinalResult),
+            RecentCases: open.Take(8).ToArray(),
+            AwaitingResponse: graph is null ? [] : Reminders(open, graph));
+    }
+
+    /// <summary>
+    /// The reminder list of WORKFLOW.md §12.2: outgoing requests still waiting on an authority, most pressing
+    /// first. It reads the progress already derived for the list, so the dashboard costs no extra query.
+    /// </summary>
+    private static IReadOnlyList<DeadlineReminder> Reminders(IReadOnlyList<CaseListItem> open, CaseGraph graph)
+    {
+        var requestsByCase = graph.Requests.ToLookup(request => request.CaseId);
+        return open
+            .SelectMany(item => requestsByCase[item.Id]
+                .Where(request => item.Progress.Requests.TryGetValue(request.Id, out var derived) && IsWaitingOnAuthority(derived))
+                .Select(request => new DeadlineReminder(
+                    item.Id,
+                    item.CaseNumber,
+                    item.Title,
+                    request.Id,
+                    request.RequestNumber,
+                    request.Target.Name,
+                    request.DueAt,
+                    item.Progress.Requests[request.Id],
+                    item.State == CaseLifecycleState.OnHold)))
+            .OrderByDescending(reminder => reminder.Progress.OverdueDays)
+            .ThenBy(reminder => reminder.DueAt ?? DateTimeOffset.MaxValue)
+            .ThenBy(reminder => reminder.RequestNumber, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static bool IsWaitingOnAuthority(RequestProgress derived) =>
+        derived.State is RequestProgressState.AwaitingResponse or RequestProgressState.PartiallyAnswered
+            or RequestProgressState.DueToday or RequestProgressState.Overdue;
+
+    private async Task<(IReadOnlyList<CaseListItem> Items, CaseGraph? Graph)> LoadListAsync(ActorContext actor, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         var authority = await AuthorityAsync(connection, actor, cancellationToken);
         if (authority is null || !authority.HasBusinessRole)
         {
-            return [];
+            return ([], null);
         }
 
         var now = timeProvider.GetUtcNow();
         var headers = await HeadersAsync(connection, authority, now, predicate: null, cancellationToken);
         if (headers.Count == 0)
         {
-            return [];
+            return ([], null);
         }
 
-        var graph = await CaseGraphLoader.LoadAsync(connection, headers.Select(header => header.Id).ToArray(), includeLetters: false, cancellationToken);
-        return headers
+        var graph = await CaseGraphLoader.LoadAsync(connection, transaction: null, headers.Select(header => header.Id).ToArray(), includeLetters: false, cancellationToken);
+        var items = headers
             .Select(header => new CaseListItem(
                 header.Id,
                 header.CaseNumber,
@@ -61,21 +109,8 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
                 header.IncomingLetterDate,
                 progress.Evaluate(SnapshotFor(header, graph), now)))
             .ToArray();
-    }
 
-    public async Task<DashboardSummary> GetDashboardAsync(ActorContext actor, CancellationToken cancellationToken = default)
-    {
-        var cases = await ListAsync(actor, cancellationToken);
-        var open = cases.Where(item => item.State is CaseLifecycleState.Registered or CaseLifecycleState.Active or CaseLifecycleState.OnHold).ToArray();
-
-        return new DashboardSummary(
-            OpenCases: open.Length,
-            WaitingForExternalResponse: open.Count(item => item.Progress.Requests.Values.Any(request =>
-                request.State is RequestProgressState.AwaitingResponse or RequestProgressState.PartiallyAnswered or RequestProgressState.Overdue)),
-            OpenRequirements: open.Sum(item => item.Progress.Summary.OpenRequirements),
-            OverdueItems: open.Sum(item => item.Progress.Summary.Overdue),
-            ReadyForFinalResult: open.Count(item => item.Progress.IsReadyForFinalResult),
-            RecentCases: open.Take(8).ToArray());
+        return (items, graph);
     }
 
     public async Task<CommandResult<CaseWorkspace>> GetWorkspaceAsync(ActorContext actor, Guid caseId, CancellationToken cancellationToken = default)
@@ -96,7 +131,7 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
         }
 
         var header = headers[0];
-        var graph = await CaseGraphLoader.LoadAsync(connection, [caseId], includeLetters: true, cancellationToken);
+        var graph = await CaseGraphLoader.LoadAsync(connection, transaction: null, [caseId], includeLetters: true, cancellationToken);
         var letters = graph.Letters.ToDictionary(letter => letter.Id);
 
         var responsesByRequest = graph.Responses.ToLookup(response => response.RequestId);
@@ -181,7 +216,7 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
 
         var workspace = new CaseWorkspace(
             new CaseHeader(header.Id, header.CaseNumber, header.Title, header.Subject, header.RequestingOrganization, header.Responsible,
-                header.State, header.RegisteredAt, header.CreatedAt, header.CreatedBy, header.Notes, header.IsRestricted),
+                header.State, header.RegisteredAt, header.CreatedAt, header.CreatedBy, header.Notes, header.IsRestricted, header.RowVersion),
             initiating?.ToView(),
             topLevel,
             allResponses,
@@ -208,11 +243,14 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
         UserRef CreatedBy,
         string? Notes,
         bool IsRestricted,
+        int RowVersion,
         DateTimeOffset? ClosedAt,
         DateOnly? HoldUntil,
         string? HoldReason,
         string? IncomingLetterNumber,
-        DateOnly? IncomingLetterDate);
+        DateOnly? IncomingLetterDate,
+        string? ClosureTypeCode,
+        ProgressFinalResultFacts FinalResult);
 
     private static async Task<IReadOnlyList<CaseHeaderRow>> HeadersAsync(
         NpgsqlConnection connection,
@@ -224,14 +262,26 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
     {
         var sql = $"""
             SELECT c.id, c.case_number, c.title, c.subject, c.lifecycle_state, c.registered_at, c.created_at, c.notes,
-                   c.is_restricted, c.closed_at, c.hold_until, c.hold_reason_note,
+                   c.is_restricted, c.closed_at, c.hold_until, c.hold_reason_note, c.row_version,
                    o.id AS requester_id, o.official_name AS requester_official, o.short_name AS requester_short,
                    cu.id AS created_by_id, cu.display_name AS created_by_name,
                    resp.responsible_id, resp.responsible_name,
-                   ini.letter_number AS incoming_letter_number, ini.letter_date AS incoming_letter_date
+                   ini.letter_number AS incoming_letter_number, ini.letter_date AS incoming_letter_date,
+                   ct.code AS closure_type_code,
+                   issued.issued_at, issued.decision_type_code,
+                   EXISTS (SELECT 1 FROM rcs.final_result AS fd
+                           WHERE fd.case_id = c.id AND fd.status = 'DRAFT'
+                             AND fd.decided_by_user_id IS NOT NULL AND fd.approved_by_user_id IS NULL) AS draft_awaiting_approval
             FROM rcs.case_record AS c
             JOIN rcs.organization AS o ON o.id = c.requesting_organization_id
             JOIN rcs.app_user AS cu ON cu.id = c.created_by_user_id
+            LEFT JOIN rcs.closure_type AS ct ON ct.id = c.closure_type_id
+            -- At most one result is ISSUED per case (partial unique index, ADR-013), so this is a single row.
+            LEFT JOIN LATERAL (
+                SELECT f.issued_at, dt.code AS decision_type_code
+                FROM rcs.final_result AS f
+                JOIN rcs.decision_type AS dt ON dt.id = f.decision_type_id
+                WHERE f.case_id = c.id AND f.status = 'ISSUED') AS issued ON true
             LEFT JOIN LATERAL (
                 SELECT u.id AS responsible_id, u.display_name AS responsible_name
                 FROM rcs.assignment AS a
@@ -263,11 +313,18 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
             new UserRef(reader.Uuid("created_by_id"), reader.Text("created_by_name")),
             reader.TextOrNull("notes"),
             reader.Bool("is_restricted"),
+            reader.Int("row_version"),
             reader.InstantOrNull("closed_at"),
             reader.DateOrNull("hold_until"),
             reader.TextOrNull("hold_reason_note"),
             reader.TextOrNull("incoming_letter_number"),
-            reader.DateOrNull("incoming_letter_date")), cancellationToken);
+            reader.DateOrNull("incoming_letter_date"),
+            reader.TextOrNull("closure_type_code"),
+            new ProgressFinalResultFacts(
+                HasIssued: reader.TextOrNull("decision_type_code") is not null,
+                HasDraftAwaitingApproval: reader.Bool("draft_awaiting_approval"),
+                IssuedAt: reader.InstantOrNull("issued_at"),
+                IssuedDecisionTypeCode: reader.TextOrNull("decision_type_code"))), cancellationToken);
     }
 
     private static ProgressSnapshot SnapshotFor(CaseHeaderRow header, CaseGraph graph)
@@ -305,7 +362,7 @@ internal sealed class PostgresCaseQueries(NpgsqlDataSource dataSource, TimeProvi
             .ToArray();
 
         return new ProgressSnapshot(
-            new ProgressCaseFacts(header.State, header.ClosedAt, header.HoldUntil, header.HoldReason),
+            new ProgressCaseFacts(header.State, header.ClosedAt, header.HoldUntil, header.HoldReason, header.ClosureTypeCode, header.FinalResult),
             requests,
             requirements);
     }

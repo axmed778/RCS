@@ -23,9 +23,27 @@
         </div>
         <div class="actions">
             <a class="btn" href="/cases">@T["Common.Back"]</a>
-            @if (AuthorizationPolicy.Decide(workspace.Actor, BusinessAction.RegisterOutgoingRequest, workspace.Relationship).IsAllowed)
+            @if (header.State != CaseLifecycleState.Closed && header.State != CaseLifecycleState.Cancelled
+                 && AuthorizationPolicy.Decide(workspace.Actor, BusinessAction.RegisterOutgoingRequest, workspace.Relationship).IsAllowed)
             {
                 <a class="btn btn--primary" href="/cases/@header.Id/requests/new">@T["Workspace.AddRequest"]</a>
+            }
+            @if (header.State != CaseLifecycleState.Closed && header.State != CaseLifecycleState.Cancelled
+                 && AuthorizationPolicy.Decide(workspace.Actor, BusinessAction.DraftFinalResult, workspace.Relationship).IsAllowed)
+            {
+                <a class="btn" href="/cases/@header.Id/final-result/new">@T["FinalResult.Draft"]</a>
+            }
+            @if (header.State == CaseLifecycleState.Closed)
+            {
+                @if (AuthorizationPolicy.Decide(workspace.Actor, BusinessAction.ReopenCase, workspace.Relationship).IsAllowed)
+                {
+                    <a class="btn" href="/cases/@header.Id/reopen">@T["Reopen.Action"]</a>
+                }
+            }
+            else if (header.State != CaseLifecycleState.Cancelled
+                     && AuthorizationPolicy.Decide(workspace.Actor, BusinessAction.CloseCase, workspace.Relationship).IsAllowed)
+            {
+                <a class="btn" href="/cases/@header.Id/close">@T["Close.Action"]</a>
             }
         </div>
     </div>
@@ -120,6 +138,105 @@
                 </li>
             }
         </ul>
+    }
+
+    @{
+        var mayIssueResult = AuthorizationPolicy.Decide(workspace.Actor, BusinessAction.IssueFinalResult, workspace.Relationship).IsAllowed;
+    }
+    <div class="section-title">@T["Workspace.FinalResult"]</div>
+    @if (Model.FinalResults.Count == 0)
+    {
+        <div class="card"><div class="empty">@T["FinalResult.None"]</div></div>
+    }
+    else
+    {
+        @foreach (var result in Model.FinalResults)
+        {
+            var resultTone = result.Status switch
+            {
+                FinalResultStatus.Issued => "positive",
+                FinalResultStatus.Revoked => "negative",
+                FinalResultStatus.Draft => "conditional",
+                _ => "waiting",
+            };
+                @* A graph node, so the decision appears on the canvas and its actions reach the inspector. *@
+                <div class="node node--result" id="final-result-@result.Id" data-graph-node data-kind="result" data-entity="@result.Id"
+                     data-title="@T.Code("DecisionType", result.DecisionTypeCode)" data-label="@T["FinalResult.Title"]"
+                     data-meta="@result.ResultNumber · @T.Date(result.IssuedAt)" data-summary="@result.Summary"
+                     data-status="@T.Code("FinalResultStatus", result.Status.ToCode())" data-tone="@resultTone">
+                    <div class="node__head">
+                        <div>
+                            <div class="node__label">@T["FinalResult.Title"] · <span class="mono">@result.ResultNumber</span></div>
+                            <div class="node__title">@T.Code("DecisionType", result.DecisionTypeCode)</div>
+                        </div>
+                        <div class="badges">
+                            <span class="badge @T.FinalResultBadge(result.Status)">@T.Code("FinalResultStatus", result.Status.ToCode())</span>
+                        </div>
+                    </div>
+                    <div class="node__meta">@result.Summary</div>
+                    @if (result.Reasoning is { Length: > 0 } reasoning)
+                    {
+                        <div class="node__meta"><strong>@T["FinalResult.Reasoning"]:</strong> @reasoning</div>
+                    }
+                    <div class="node__meta">
+                        @if (result.IssuedAt is not null)
+                        {
+                            <span>@T["FinalResult.Issued"]: <span class="mono">@T.Date(result.IssuedAt)</span></span>
+                            <span> · @T["FinalResult.Decided"]: @T.Text(result.DecidedByName)</span>
+                            <span> · @T["FinalResult.Approved"]: @T.Text(result.ApprovedByName)</span>
+                        }
+                        else
+                        {
+                            <span>@T["FinalResult.NotIssued"]</span>
+                        }
+                    </div>
+                    @if (result.SupersedesFinalResultId is { } supersedes)
+                    {
+                        <div class="node__meta"><strong>@T["FinalResult.Supersedes"]:</strong> <a href="#final-result-@supersedes">@T["FinalResult.EarlierResult"]</a></div>
+                    }
+                    @if (result.RevocationReasonNote is { Length: > 0 } revocation)
+                    {
+                        <div class="node__meta"><strong>@T["FinalResult.RevocationReason"]:</strong> @revocation</div>
+                    }
+
+                    @if (result.Status == FinalResultStatus.Draft && mayIssueResult)
+                    {
+                        <form class="form" method="post" asp-page-handler="IssueResult" data-single-submit style="margin-top:.75rem">
+                            <input type="hidden" name="finalResultId" value="@result.Id" />
+                            <input type="hidden" name="rowVersion" value="@result.RowVersion" />
+                            @if (!progress.IsReadyForFinalResult)
+                            {
+                                <div class="alert">@T["FinalResult.NotReadyWarning"]</div>
+                                <div class="field">
+                                    <label for="override-@result.Id">@T["FinalResult.OverrideNote"]</label>
+                                    <textarea id="override-@result.Id" name="overrideNote" maxlength="2000" required></textarea>
+                                </div>
+                            }
+                            <div class="actions">
+                                <button class="btn btn--primary" type="submit">@T["FinalResult.Issue"]</button>
+                            </div>
+                        </form>
+                    }
+                    @if (result.Status == FinalResultStatus.Issued && mayIssueResult)
+                    {
+                        <form class="form" method="post" asp-page-handler="RevokeResult" data-single-submit style="margin-top:.75rem">
+                            <input type="hidden" name="finalResultId" value="@result.Id" />
+                            <input type="hidden" name="rowVersion" value="@result.RowVersion" />
+                            <div class="field">
+                                <label for="revoke-@result.Id">@T["FinalResult.RevocationReason"]</label>
+                                <textarea id="revoke-@result.Id" name="reason" maxlength="2000" required></textarea>
+                            </div>
+                            <div class="actions">
+                                <button class="btn" type="submit">@T["FinalResult.Revoke"]</button>
+                            </div>
+                        </form>
+                    }
+                    @if (!mayIssueResult && result.Status == FinalResultStatus.Draft)
+                    {
+                        <p class="hint">@T["FinalResult.HeadApproves"]</p>
+                    }
+                </div>
+        }
     }
 
     <div class="section-title">@T["Workspace.Activity"]</div>

@@ -47,13 +47,34 @@ public sealed record CaseListItem(
     DateOnly? IncomingLetterDate,
     CaseProgress Progress);
 
+/// <summary>
+/// One outgoing request the department is still waiting on, for the dashboard reminder (WORKFLOW.md §12.2,
+/// §12.5). The reminder is a read of the same derived progress the workspace shows — nothing is stored, and no
+/// notification leaves the application.
+/// </summary>
+/// <param name="CaseIsOnHold">
+/// Shown alongside an overdue count rather than suppressing it: a hold is a statement about the department's
+/// work, not about the authority's clock (§12.5).
+/// </param>
+public sealed record DeadlineReminder(
+    Guid CaseId,
+    string CaseNumber,
+    string CaseTitle,
+    Guid RequestId,
+    string RequestNumber,
+    string TargetOrganizationName,
+    DateTimeOffset? DueAt,
+    RequestProgress Progress,
+    bool CaseIsOnHold);
+
 public sealed record DashboardSummary(
     int OpenCases,
     int WaitingForExternalResponse,
     int OpenRequirements,
     int OverdueItems,
     int ReadyForFinalResult,
-    IReadOnlyList<CaseListItem> RecentCases);
+    IReadOnlyList<CaseListItem> RecentCases,
+    IReadOnlyList<DeadlineReminder> AwaitingResponse);
 
 /// <summary>An official letter as recorded here: numbers and dates of an act that happened externally.</summary>
 public sealed record LetterView(
@@ -82,7 +103,8 @@ public sealed record CaseHeader(
     DateTimeOffset CreatedAt,
     UserRef CreatedBy,
     string? Notes,
-    bool IsRestricted);
+    bool IsRestricted,
+    int RowVersion);
 
 public sealed record RequestNode(
     Guid Id,

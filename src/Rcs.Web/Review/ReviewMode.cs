@@ -18,8 +18,21 @@ public sealed class ReviewOptions
 
     public bool Enabled { get; set; }
 
-    /// <summary>The synthetic user every action is attributed to. Created by the demo seed.</summary>
+    /// <summary>The synthetic user actions are attributed to by default — a Chief. Created by the demo seed.</summary>
     public string ActorUsername { get; set; } = "review.demo";
+
+    /// <summary>
+    /// The synthetic Head. Approving a final result and overriding a closure guard belong to the highest business
+    /// authority alone (ADR-040; PERMISSIONS.md §23), so reviewing them needs a second identity rather than a Chief
+    /// with extra powers. Whichever identity is selected, the audit records that user — the attribution is real.
+    /// </summary>
+    public string HeadUsername { get; set; } = "review.head";
+
+    /// <summary>
+    /// The only usernames the switch will accept. A cookie naming anyone else is ignored, so the switch can never
+    /// become a way to act as an arbitrary user.
+    /// </summary>
+    public IReadOnlyList<string> SelectableUsernames => [ActorUsername, HeadUsername];
 }
 
 /// <summary>Thrown at startup when the review build is configured outside Development.</summary>
@@ -33,6 +46,9 @@ public sealed class ReviewModeNotAllowedException(string environmentName)
 public sealed class CurrentActor(IHttpContextAccessor accessor)
 {
     internal const string ItemKey = "rcs.review.actor";
+
+    /// <summary>The cookie naming which synthetic identity to act as. Development-only, and never a credential.</summary>
+    public const string SelectionCookie = "rcs_review_actor";
 
     public ActorProfile? Profile => accessor.HttpContext?.Items.TryGetValue(ItemKey, out var value) == true ? value as ActorProfile : null;
 
@@ -62,10 +78,11 @@ public sealed class ReviewActorMiddleware(RequestDelegate next, IUserDirectory u
             return;
         }
 
-        var profile = await users.FindByUsernameAsync(options.ActorUsername, context.RequestAborted);
+        var username = Selected(context);
+        var profile = await users.FindByUsernameAsync(username, context.RequestAborted);
         if (profile is null)
         {
-            logger.LogWarning("The review actor '{Username}' does not exist. Run the demo seed: Rcs.Web seed-demo.", options.ActorUsername);
+            logger.LogWarning("The review actor '{Username}' does not exist. Run the demo seed: Rcs.Web seed-demo.", username);
         }
         else
         {
@@ -74,4 +91,14 @@ public sealed class ReviewActorMiddleware(RequestDelegate next, IUserDirectory u
 
         await next(context);
     }
+
+    /// <summary>
+    /// The identity this request acts as: the cookie's choice when it names one of the configured synthetic users,
+    /// otherwise the default. An unknown name is ignored rather than trusted, so the cookie cannot widen anything.
+    /// </summary>
+    private string Selected(HttpContext context) =>
+        context.Request.Cookies.TryGetValue(CurrentActor.SelectionCookie, out var requested)
+        && options.SelectableUsernames.Contains(requested, StringComparer.Ordinal)
+            ? requested
+            : options.ActorUsername;
 }

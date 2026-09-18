@@ -832,6 +832,25 @@ A policy framework, **not a production allowlist** — that list is a business d
 own workstation applications (`PROJECT.md` §24). This is the smallest safe design that meets the
 requirement, and it needs no scanning, sandboxing or conversion to be correct.
 
+**The accepted families, confirmed 2026-09-18** (DECISIONS.md **ADR-042**, closing OQ-D3, OQ-D4, OQ-D5 and
+OB-5). The department must be able to retain:
+
+| Family | Notes |
+|---|---|
+| **PDF** | the common official format |
+| **KMZ** | geographic data; a ZIP container, stored as opaque bytes and never extracted (§9.3) |
+| **Word**, **Excel** | including **macro-enabled** workbooks and documents: authorities send them, so they are **accepted**, stored, visibly marked and download-only. OQ-D4 is answered "accept" |
+| **AutoCAD** | `.dwg` / `.dxf`, stored as opaque bytes, never parsed. OQ-D5 is answered "yes, required" |
+| **ArchiCAD** | required as a family. **The exact extension and MIME mapping is not yet confirmed** and is deliberately not invented here — until the department confirms it, an ArchiCAD file is stored as opaque bytes like any other |
+
+Two rules come with that list, and they are the reason it is short:
+
+1. **Class E stays empty.** Nothing is refused outright, and in particular **nothing is refused because the
+   application cannot preview it** — storage and preview are separate concerns (§9.4, §9.5).
+2. **Maximum 500 MB per file** (ADR-042, closing OQ-A5 / OB-7), enforced at the reverse proxy and in the
+   application. At that size the upload protocol of §7 must **stream** to disk while hashing; a file is never
+   buffered in memory (`ARCHITECTURE.md` §12.3).
+
 ### 9.2 Type detection
 
 | Rule | |
@@ -1057,12 +1076,19 @@ right one?" is unanswerable. Here it is arithmetic.
 
 ## 12. Retention
 
-### 12.1 No retention period exists
+### 12.1 Retention is indefinite *(decided 2026-09-18)*
 
-`PROJECT.md` gives none, and **none is invented here** (Domain Model OQ-9). The V1 rule is the
-conservative one:
+The product owner has answered OB-8 (DECISIONS.md **ADR-043**, closing OQ-D1, OQ-D2 and Domain Model OQ-9):
+
+> **Retention is indefinite. Files are never physically deleted, and there is no business hard delete and no
+> physical purge — ever.**
 
 > **Nothing is ever physically deleted except orphaned temporary files.**
+
+That was the conservative V1 default; it is now the decision. Withdrawn, superseded and incorrect files stay
+retained with their reasons, and the rest of this section stands unchanged — with two consequences worth
+stating: storage grows monotonically, so **backup capacity is a standing operational requirement**
+(`SECURITY.md` §14), and the integrity sweep (§11) is the control that must keep working for years.
 
 ### 12.2 Three separable concepts
 
@@ -1266,29 +1292,22 @@ Separated the way the frozen documents separate them. **No answer is invented.**
 
 ### 16.1 Business decisions still needed
 
-**OQ-D1 — What is the retention period, per document class?**
-None has been provided and none is assumed (§12.1). *Impact:* until answered, nothing is ever physically
-destroyed, which is the safe default but grows storage without bound. Answering it introduces the purge
-machinery in §12.3. *Blocking:* nothing in V1.
+**OQ-D1 — CLOSED 2026-09-18: there is no retention period; retention is indefinite.** (DECISIONS.md
+ADR-043, OB-8.) §12.3's purge machinery is therefore hypothetical and is not built.
 
-**OQ-D2 — Is physical destruction of document bytes ever permitted at all?**
-Distinct from OQ-D1: a retention *period* implies destruction; some archives require permanent
-preservation instead. *Impact:* if never, §12.3 is never built and `storage_object` is never needed.
-(Domain Model OQ-9.)
+**OQ-D2 — CLOSED 2026-09-18: no. Physical destruction of document bytes is never permitted.** (ADR-043,
+Domain Model OQ-9.) `storage_object` and its reference count are not needed.
 
-**OQ-D3 — Which file types are accepted, and is anything forbidden outright?**
-`PROJECT.md` does not state an allowlist, so none is invented (§9.1). *Current position:* everything is
-accepted and everything is download-only (class D). *Impact:* populating class E is a policy list, not a
-model change.
+**OQ-D3 — CLOSED 2026-09-18: PDF, KMZ, Word, Excel, AutoCAD and ArchiCAD are accepted and retained; class
+E stays empty.** (ADR-042, OB-5; §9.1.) Nothing is refused for lack of preview support.
+**Still to confirm:** the exact ArchiCAD extension and MIME mapping — named as a family, not as a file list,
+and deliberately not invented here.
 
-**OQ-D4 — Must macro-enabled Office documents be accepted and retained?**
-Authorities do send `.xlsm`. *Impact:* accept (class D, visibly marked) or forbid (class E). Refusing an
-official document the department actually received is itself a records-management problem, which is why
-this is a business decision and not a security default.
+**OQ-D4 — CLOSED 2026-09-18: yes, accept them.** (ADR-042.) Macro-enabled Office documents are stored,
+visibly marked and download-only (class D) — never parsed or rendered server-side.
 
-**OQ-D5 — Are DWG/DXF drawings required?**
-`PROJECT.md` §5.7 mentions technical drawings without naming formats. *Impact:* none on the model — they
-are opaque bytes either way (§9.3). It matters for workstation tooling and for any future preview.
+**OQ-D5 — CLOSED 2026-09-18: yes, AutoCAD drawings are required** (`.dwg` / `.dxf`, ADR-042). They remain
+opaque bytes (§9.3); the answer matters for workstation tooling, not for this model.
 
 **OQ-D6 — Should a malware finding be visible as a business state?**
 Currently a scan verdict is a security fact that does not alter `document_version.status` (§9.6).

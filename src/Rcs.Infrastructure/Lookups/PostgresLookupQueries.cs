@@ -30,6 +30,12 @@ internal sealed class PostgresLookupQueries(NpgsqlDataSource dataSource) : ILook
         LookupKind.ResponseOutcome => ("response_outcome", "is_verdict"),
         LookupKind.VoidReason => ("void_reason", "counts_as_business_outcome"),
         LookupKind.WaiverReason => ("waiver_reason", null),
+        LookupKind.DeadlineBasis => ("deadline_basis", null),
+        LookupKind.DecisionType => ("decision_type", null),
+
+        // produces_decision carries closure guard G3 (WORKFLOW.md §9.2), so the closure form can say which types
+        // need an issued result without a second query.
+        LookupKind.ClosureType => ("closure_type", "produces_decision"),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown lookup."),
     };
 }
