@@ -67,5 +67,25 @@
     <footer>@T["App.Footer"]</footer>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/workspace.js" asp-append-version="true"></script>
+    <dialog id="document-preview" class="preview-dialog" aria-label="Sənədin ön baxışı">
+        <div class="preview-surface">
+        <div class="preview-toolbar">
+            <strong data-preview-title>Sənədin ön baxışı</strong>
+            <button type="button" class="btn" data-preview-action="previous" aria-label="Əvvəlki səhifə">←</button>
+            <span data-preview-page></span>
+            <button type="button" class="btn" data-preview-action="next" aria-label="Növbəti səhifə">→</button>
+            <button type="button" class="btn" data-preview-action="out" aria-label="Kiçilt">−</button>
+            <button type="button" class="btn" data-preview-action="in" aria-label="Böyüt">+</button>
+            <button type="button" class="btn" data-preview-action="fit">Uyğunlaşdır</button>
+            <button type="button" class="btn" data-preview-action="fullscreen">Tam ekran</button>
+            <button type="button" class="btn" data-preview-action="close">Bağla</button>
+        </div>
+        <p data-preview-status role="status" aria-live="polite"></p>
+        <div class="preview-viewport" data-preview-viewport></div>
+        <button type="button" class="btn" data-preview-action="retry" hidden>Yenidən sına</button>
+        <form data-preview-token>@Html.AntiForgeryToken()</form>
+        </div>
+    </dialog>
+    <script src="~/js/preview.js" asp-append-version="true"></script>
 </body>
 </html>

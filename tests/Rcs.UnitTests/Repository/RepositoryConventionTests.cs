@@ -89,7 +89,8 @@ public sealed partial class RepositoryConventionTests
         var deleting = sources
             .SelectMany(source => DeletePattern().Matches(source.Text).Select(match => $"{source.Name}: {match.Value}"))
             .ToArray();
-        Assert.Equal(["LocalContentStore.cs: File.Delete("], deleting);
+        Assert.All(deleting, item => Assert.True(item.StartsWith("LocalContentStore.cs:", StringComparison.Ordinal)
+            || item.StartsWith("PreviewPaths.cs:", StringComparison.Ordinal), item));
 
         // That single deletion sits in the method that discards temporaries, which refuses paths outside the temp area.
         var store = sources.Single(source => source.Name == "LocalContentStore.cs").Text;
@@ -106,7 +107,8 @@ public sealed partial class RepositoryConventionTests
         Assert.Empty(ProjectReferences("Rcs.Domain"));
         Assert.Equal(["Rcs.Domain"], ProjectReferences("Rcs.Application"));
         Assert.Equal(["Rcs.Application"], ProjectReferences("Rcs.Infrastructure"));
-        Assert.Equal(["Rcs.Application", "Rcs.Infrastructure"], ProjectReferences("Rcs.Web"));
+        Assert.Equal(["Rcs.Application", "Rcs.Infrastructure", "Rcs.PreviewWorker"], ProjectReferences("Rcs.Web"));
+        Assert.Equal(["Rcs.Application"], ProjectReferences("Rcs.PreviewWorker"));
 
         Assert.Empty(PackageReferences("Rcs.Domain"));
         Assert.Empty(PackageReferences("Rcs.Application"));

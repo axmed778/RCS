@@ -42,20 +42,21 @@ route or page-handler behavior changed. No dependencies, framework, CDN, fonts o
 ## Run in the existing WSL checkout
 
 ```sh
-cd /home/almadatov/src/rcs
+cd "$RCS_REPO/src/Rcs.Web"
 DOTNET_ENVIRONMENT=Development DOTNET_CLI_TELEMETRY_OPTOUT=1 \
-  /home/almadatov/.dotnet/dotnet run --project src/Rcs.Web --no-build -- --urls http://127.0.0.1:5080
+  dotnet run --no-build -- --urls http://127.0.0.1:5080
 ```
 
 Open <http://localhost:5080/cases>. Use **2026/0001** for the parallel scenario and **2026/0002** for the nested scenario.
 Click the communication-map requirement to inspect its evidence and related child request.
 
-To rebuild and test (the existing local `.pgpass` supplies credentials):
+Set `RCS_REPO` to the local checkout and put the .NET SDK on `PATH`. To rebuild and test,
+provide `RCS_TEST_ADMIN_CONNECTION` through the local environment/secrets configuration
+(the integration suite needs PostgreSQL 18 and the preview OS prerequisites in `PREVIEW.md`):
 
 ```sh
-cd /home/almadatov/src/rcs
-RCS_TEST_ADMIN_CONNECTION='Host=localhost;Port=5432;Username=almadatov;Database=postgres' \
-  DOTNET_CLI_TELEMETRY_OPTOUT=1 /home/almadatov/.dotnet/dotnet test Rcs.sln --no-restore
+cd "$RCS_REPO"
+DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet test Rcs.sln --no-restore
 ```
 
 ## Review limitations
@@ -82,3 +83,7 @@ Authentication and production readiness remain outside this Review MVP.
 - `tests/Rcs.IntegrationTests/Web/ReviewUiTests.cs`
 - `tests/Rcs.IntegrationTests/Web/WorkflowAppearanceTests.cs` (new)
 - `docs/REVIEW_UI.md` (this report)
+
+## Document Preview
+
+Sənədlər rows expose Ön baxış in the existing workspace. The in-RCS dialog preserves the dark workspace and offers close/Escape, fullscreen, page navigation, zoom and fit. It polls pending work and shows Azerbaijani ready, pending, failed, unsupported and retry states. PDF/Office use image pages, raster formats use normalized images, and KMZ/DXF use a local canvas with bounds and point/line/polygon geometry. No map tiles or CDN are requested. Limited page/geometry output is labeled. Original download remains available separately.

@@ -39,6 +39,7 @@ public static class WebHostComposition
         // Refuses to start unless the schema is exactly the one this release expects.
         builder.Services.AddHostedService<SchemaCompatibilityGate>();
         builder.Services.AddHostedService<Rcs.Web.Documents.TemporaryUploadSweeper>();
+        builder.Services.AddHostedService<Rcs.Web.Previews.PreviewService>();
         builder.Services.AddHealthChecks()
             .AddCheck<DatabaseSchemaHealthCheck>("database-schema", tags: [ReadyTag]);
 
@@ -74,6 +75,7 @@ public static class WebHostComposition
             app.UseMiddleware<ReviewActorMiddleware>();
             app.MapRazorPages();
             Rcs.Web.Documents.DocumentEndpoints.MapDocumentEndpoints(app);
+            Rcs.Web.Previews.PreviewEndpoints.Map(app);
         }
 
         return app;

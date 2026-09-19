@@ -2,9 +2,15 @@
 @using Rcs.Application.Documents
 @using Rcs.Domain.Documents
 @using Rcs.Web.Documents
+@inject Rcs.Application.Previews.IDocumentPreviewQueries PreviewQueries
+@inject Rcs.Web.Review.CurrentActor PreviewActor
+@inject Microsoft.Extensions.Options.IOptions<Rcs.Infrastructure.Previews.PreviewOptions> PreviewSettings
 @{
     var active = Model.Placements.Where(placement => placement.IsActive).ToArray();
     var removed = Model.Placements.Where(placement => !placement.IsActive).ToArray();
+    var previews = PreviewActor.IsAvailable && PreviewSettings.Value.Enabled
+        ? await PreviewQueries.GetSummariesAsync(PreviewActor.Context, Model.CaseId, active.Where(p => p.Shown is not null).Select(p => p.Shown!.Id).Distinct().ToArray())
+        : new Dictionary<Guid, Rcs.Application.Previews.PreviewSummary>();
 }
 @* Files of one context. Visually subordinate to the workflow: a compact list inside the node, details on their own page. *@
 <div class="doc-list">
@@ -37,6 +43,18 @@
                         <a class="doc-item__title" href="/cases/@Model.CaseId/documents/@placement.LinkId">@FileTypePolicy.Sanitize(placement.Title)</a>
                         @if (shown is not null)
                         {
+                            @if (PreviewSettings.Value.Enabled)
+                            {
+                                var previewStatus = previews.GetValueOrDefault(shown.Id)?.Status;
+                                var previewLabel = previewStatus switch
+                                {
+                                    PreviewStatus.Ready => "Ön baxış hazırdır",
+                                    PreviewStatus.Failed => "Ön baxış alınmadı",
+                                    PreviewStatus.Unsupported => "Ön baxış mümkün deyil",
+                                    _ => "Ön baxış hazırlanır…"
+                                };
+                                <button type="button" class="btn btn--small" data-preview="/cases/@Model.CaseId/documents/@placement.LinkId/versions/@shown.Id/preview">@previewLabel</button>
+                            }
                             <a class="btn btn--small" href="/cases/@Model.CaseId/documents/@placement.LinkId/versions/@shown.Id/download"
                                title="@T["Documents.DownloadTitle"]">@T["Documents.Download"]</a>
                         }

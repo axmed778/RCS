@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The preview worker (DECISIONS.md ADR-044). A separate executable the application starts per job inside a sandbox:
+    no database credentials, no access to the content store, no network. It is the ONLY place format-specific parsing
+    and conversion code lives. It references Rcs.Application for the job/manifest contract only - never Infrastructure,
+    never Npgsql (RepositoryConventionTests guards this).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Rcs.PreviewWorker</RootNamespace>
+    <!-- Keep the worker's own heap small; the converters it starts are limited separately (prlimit). -->
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rcs.Application\Rcs.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rcs.UnitTests" />
+    <InternalsVisibleTo Include="Rcs.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

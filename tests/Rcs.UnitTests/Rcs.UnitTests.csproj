@@ -26,4 +26,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../src/Rcs.PreviewWorker/Rcs.PreviewWorker.csproj" />
+  </ItemGroup>
 </Project>

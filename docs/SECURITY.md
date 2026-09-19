@@ -1584,3 +1584,13 @@ security invariant is weakened; invariants 5, 7 and 10 are made more precise.
 
 *End of document. No application code, configuration files, database migrations or infrastructure
 definitions are contained in or implied by this security design.*
+
+## Preview security amendment (ADR-044)
+
+ADR-044 supersedes the no-preview rule in §10.1, §11.5 and control B-32 only for isolated derivation. ASP.NET still does not decode, render or unzip original files. The worker has no inherited credentials, no database socket, no network and no original-store mount. It reads a staged copy whose hash is checked against the exact DocumentVersion. Bubblewrap is mandatory outside Development; the explicit Unisolated mode is for development only.
+
+Only inert PNG/JPEG derivatives and bounded geometry JSON are served. No HTML, SVG, original PDF or Office bytes are rendered under the application origin. Every request uses the exact same version-scoped authorization as download, including restricted cases, removed placements and pinned cross-case versions. Retrying requires antiforgery validation. Metadata and artifacts are private/no-store; artifact responses have nosniff, same-origin resource policy and sandbox CSP. Viewer labels use textContent, never input-derived HTML.
+
+KMZ central-directory names, entry counts, expanded sizes and compression ratios are checked before bounded KML streaming. No archive paths are extracted. DTDs and external entities are prohibited. Converters run with fresh profiles and macros disabled; macro-enabled Office files stay excluded by policy. Manifests and output sizes/types are checked before ingestion.
+
+These controls do not make parser exploits impossible. Deployment must add a separate service identity, cgroup aggregate memory/process limits, filesystem quotas, OS patching and validated offline converter/font packages. Per-process prlimit and .NET heap limits are not an aggregate cgroup memory limit. See PREVIEW.md; do not represent development execution as fully hardened deployment.

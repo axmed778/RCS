@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Rcs.Application\Rcs.Application.csproj" />
     <ProjectReference Include="..\Rcs.Infrastructure\Rcs.Infrastructure.csproj" />
+    <ProjectReference Include="..\Rcs.PreviewWorker\Rcs.PreviewWorker.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,4 +19,14 @@
     <Content Update="appsettings*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <Target Name="CopyPreviewWorker" AfterTargets="Build">
+    <ItemGroup>
+      <PreviewWorkerFiles Include="../Rcs.PreviewWorker/bin/$(Configuration)/$(TargetFramework)/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PreviewWorkerFiles)" DestinationFolder="$(OutDir)preview-worker" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishPreviewWorker" AfterTargets="Publish">
+    <MSBuild Projects="../Rcs.PreviewWorker/Rcs.PreviewWorker.csproj" Targets="Publish"
+             Properties="Configuration=$(Configuration);PublishDir=$(PublishDir)preview-worker/" />
+  </Target>
 </Project>

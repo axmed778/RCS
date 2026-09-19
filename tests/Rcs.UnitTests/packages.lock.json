@@ -186,6 +186,12 @@
           "Rcs.Application": "[1.0.0, )"
         }
       },
+      "rcs.previewworker": {
+        "type": "Project",
+        "dependencies": {
+          "Rcs.Application": "[1.0.0, )"
+        }
+      },
       "Npgsql": {
         "type": "CentralTransitive",
         "requested": "[10.0.3, )",
