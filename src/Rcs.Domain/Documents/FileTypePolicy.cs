@@ -21,6 +21,12 @@ public enum FileFamily
 
     /// <summary>Accepted and stored as opaque bytes, download-only: class E (refused outright) stays empty.</summary>
     Unclassified,
+
+    /// <summary>
+    /// Raster photographs and scans (PNG, JPEG, WebP). Not one of ADR-042's named families — images were always
+    /// accepted as unclassified bytes — but classified since ADR-044 so a preview can re-encode them. Still download-only.
+    /// </summary>
+    Image,
 }
 
 /// <summary>What a bounded look at the leading bytes can prove about a file's container.</summary>
@@ -36,6 +42,9 @@ public enum ContentSignature
     OleCompound,
     Dwg,
     Dxf,
+    Png,
+    Jpeg,
+    Webp,
 }
 
 /// <summary>One explicitly accepted extension, the family it belongs to and the container its content must show.</summary>
@@ -97,12 +106,20 @@ public static class FileTypePolicy
         new(".xlsm", FileFamily.Excel, "application/vnd.ms-excel.sheet.macroEnabled.12", ContentSignature.Zip, true),
         new(".dwg", FileFamily.AutoCad, "image/vnd.dwg", ContentSignature.Dwg, false),
         new(".dxf", FileFamily.AutoCad, "image/vnd.dxf", ContentSignature.Dxf, false),
+
+        // ADR-044: raster images are classified so their previews can be re-encoded; ".jpg" is the canonical extension.
+        new(".png", FileFamily.Image, "image/png", ContentSignature.Png, false),
+        new(".jpg", FileFamily.Image, "image/jpeg", ContentSignature.Jpeg, false),
+        new(".jpeg", FileFamily.Image, "image/jpeg", ContentSignature.Jpeg, false),
+        new(".webp", FileFamily.Image, "image/webp", ContentSignature.Webp, false),
     ];
 
     private static readonly byte[] PdfMagic = "%PDF-"u8.ToArray();
     private static readonly byte[] ZipMagic = [0x50, 0x4B, 0x03, 0x04];
     private static readonly byte[] ZipEmptyMagic = [0x50, 0x4B, 0x05, 0x06];
     private static readonly byte[] OleMagic = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+    private static readonly byte[] PngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    private static readonly byte[] JpegMagic = [0xFF, 0xD8, 0xFF];
     private static readonly byte[] BinaryDxfMagic = "AutoCAD Binary DXF\r\n\0"u8.ToArray();
 
     /// <summary>The lower-case extension of a file name (".pdf"), or null. The extension never decides handling.</summary>
@@ -148,6 +165,22 @@ public static class FileTypePolicy
             return ContentSignature.OleCompound;
         }
 
+        if (head.StartsWith(PngMagic))
+        {
+            return ContentSignature.Png;
+        }
+
+        if (head.StartsWith(JpegMagic))
+        {
+            return ContentSignature.Jpeg;
+        }
+
+        // A RIFF container, a 4-byte size, then the WEBP form type.
+        if (head.Length >= 12 && head[..4].SequenceEqual("RIFF"u8) && head[8..12].SequenceEqual("WEBP"u8))
+        {
+            return ContentSignature.Webp;
+        }
+
         // DWG: "AC" followed by the release code, e.g. AC1015, AC1032 (and the early AC1.40 / AC2.10 forms).
         if (head.Length >= 6 && head[0] == (byte)'A' && head[1] == (byte)'C'
             && (head[2] is (byte)'1' or (byte)'2') && IsDigitOrDot(head[3]) && IsDigitOrDot(head[4]) && IsDigitOrDot(head[5]))
@@ -182,6 +215,9 @@ public static class FileTypePolicy
             ContentSignature.Pdf => new DetectedFileType("application/pdf", FileFamily.Pdf, signature, extension, extension == ".pdf", false),
             ContentSignature.Dwg => new DetectedFileType("image/vnd.dwg", FileFamily.AutoCad, signature, extension, extension == ".dwg", false),
             ContentSignature.Dxf => new DetectedFileType("image/vnd.dxf", FileFamily.AutoCad, signature, extension, extension == ".dxf", false),
+            ContentSignature.Png => new DetectedFileType("image/png", FileFamily.Image, signature, extension, extension == ".png", false),
+            ContentSignature.Jpeg => new DetectedFileType("image/jpeg", FileFamily.Image, signature, extension, extension is ".jpg" or ".jpeg", false),
+            ContentSignature.Webp => new DetectedFileType("image/webp", FileFamily.Image, signature, extension, extension == ".webp", false),
 
             // A ZIP or OLE container whose extension does not say which member format it is stays the container.
             ContentSignature.Zip => new DetectedFileType(ZipMimeType, FileFamily.Unclassified, signature, extension, extension == ".zip", false),
@@ -263,9 +299,12 @@ public static class FileTypePolicy
             return ".zip";
         }
 
-        var matches = AcceptedFormats.Where(format => string.Equals(format.MimeType, mimeType, StringComparison.OrdinalIgnoreCase)).ToArray();
-        return matches.Length == 1 ? matches[0].Extension : null;
+        // The first row of a type is its canonical extension (".jpg" before ".jpeg").
+        return AcceptedFormats.FirstOrDefault(format => string.Equals(format.MimeType, mimeType, StringComparison.OrdinalIgnoreCase))?.Extension;
     }
+
+    /// <summary>The canonical extension of a stored type (".pdf", ".docx"), or null for an unclassified one.</summary>
+    public static string? CanonicalExtensionOf(string mimeType) => CanonicalExtension(mimeType);
 
     private static string StripExtension(string fileName)
     {

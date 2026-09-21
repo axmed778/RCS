@@ -69,7 +69,8 @@ Rules:
 | ADR-032 | Authorization model | Frozen |
 | ADR-033 | Authentication and sessions | Frozen |
 | ADR-034 | Pull-based backup topology, no automatic HA | Frozen |
-| ADR-035 | Uploaded files are untrusted and never processed server-side | Frozen |
+| ADR-035 | Uploaded files are untrusted; original no-preview rule | Partially superseded by ADR-044 |
+| ADR-044 | Isolated derived Document Preview | Accepted |
 | ADR-036 | Documents reach context only through links; exclusive arcs | Frozen |
 | ADR-037 | Physical table names avoid reserved words; audit `entity_type` keeps domain names | Frozen *(schema pass)* |
 | ADR-038 | Seeded lookup rows have fixed identifiers, so constraints can name them | Frozen *(schema pass — decides DEF-04)* |
@@ -617,6 +618,8 @@ index is the numeric view.
 
 ### ADR-035 — Uploaded files are untrusted and never processed server-side
 
+**Amendment:** the no-preview portion is superseded by ADR-044 below; the original decision is retained for traceability.
+
 **Status:** Frozen · **Sources:** `SECURITY.md` §10, §11; `DOCUMENT_MODEL.md` §9; `PROJECT.md` §23, §24
 
 - **Decision:** the server only hashes file bytes and performs **bounded signature-based type detection**
@@ -778,3 +781,17 @@ they went:
 | Implementation planning | **Yes** | ADR-019 and ADR-020 are first-class work items with their own tests |
 | **Production database initialization** | **No** | **blocked by PS-1** |
 | Server build / deployment scripting | No | PS-2, DEF-11; backup tooling DEF-01 before go-live |
+
+### ADR-044 — Isolated, derived Document Preview
+
+**Status:** Accepted for the Document Preview extension, 2026-09-19, at the product owner's request.
+**Supersedes:** ADR-035's prohibition on server-side preview, conversion and bounded geometry parsing only.
+ADR-035's untrusted-input rule, download protections and ban on parsing in the web process remain in force.
+ADR-042's macro-enabled Office exclusion and ADR-043's indefinite retention of original bytes remain unchanged.
+
+- A DocumentVersion has immutable original bytes. document_preview is a separate generation and durable PostgreSQL job; document_preview_artifact holds derived outputs. No preview creates a document version or changes evidence.
+- In-process coordination claims with SKIP LOCKED, bounded attempts and a token-fenced lease. A separate Rcs.PreviewWorker process receives staged input and returns a validated manifest. There is no broker or persistent converter service.
+- PDF uses Poppler to produce inert PNG pages. Word and Excel use local LibreOffice then the same PDF pipeline. PNG/JPEG/WebP are re-encoded by libvips. KMZ and bounded ASCII DXF yield numeric geometry, drawn without external maps. DWG and ArchiCAD remain UNSUPPORTED. Macro-enabled formats remain download-only.
+- Bubblewrap is the default Linux boundary: no network, clean environment, read-only input/runtime/tools, private work/output and bounded tmpfs. Converter limits use prlimit; parent timeout kills the process tree. See PREVIEW.md for deployment hardening still required.
+- All preview reads and retries use download's exact version/placement authorization. Unknown and unauthorized identifiers both return 404. Preview opening is audited as PREVIEW. Derivatives use no-store, nosniff and restrictive CSP.
+- Preview artifacts are reproducible cache, excluded from evidence manifests. Original retention and download behavior are unchanged. No original deletion is introduced. Superseded or orphaned derivative cleanup is deferred.

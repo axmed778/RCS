@@ -27,8 +27,43 @@ public sealed class DocumentUiTests : IAsyncLifetime
                 ["Rcs:Storage:RootPath"] = Path.Combine(fixture.StorageRoot, "objects"),
                 ["Rcs:Storage:TempPath"] = Path.Combine(fixture.StorageRoot, "temporary"),
                 ["Rcs:Storage:MaxUploadBytes"] = limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["Rcs:Preview:StorageRoot"] = Path.Combine(fixture.StorageRoot, "previews"),
+                ["Rcs:Preview:TempRoot"] = Path.Combine(fixture.StorageRoot, "preview-jobs"),
             }));
         }
+    }
+
+    [Fact]
+    public async Task PreviewArtifactHeadersAndGuessedUrlsAreSafeAndRetryRequiresToken()
+    {
+        var caseId = (await fixture.Queries.ListAsync(fixture.Chief))[0].Id;
+        var settings = fixture.Service<Microsoft.Extensions.Options.IOptions<Rcs.Infrastructure.Previews.PreviewOptions>>().Value;
+        settings.Worker.Path = RepositoryRoot.Combine("src", "Rcs.PreviewWorker", "bin", "Debug", "net10.0", "Rcs.PreviewWorker.dll");
+        using var input = new MemoryStream(PreviewSamples.Bytes("sample.png"));
+        var uploaded = await fixture.Documents.UploadDocumentAsync(fixture.Chief, new(fixture.NewOperation(), caseId,
+            new(DocumentTargetKind.Case, caseId), DocumentLinkRoleCodes.Supporting, "Header test", DocumentKindCodes.Other, null, null, null), new(input, "image.png", null));
+        Assert.True(uploaded.Succeeded);
+        var runner = fixture.Service<Rcs.Application.Previews.IPreviewJobRunner>();
+        await runner.ReconcileAsync();
+        await runner.RunNextAsync();
+        var value = uploaded.Value!;
+        var details = await fixture.Service<Rcs.Application.Previews.IDocumentPreviewQueries>().OpenAsync(fixture.Chief, caseId, value.LinkId!.Value, value.VersionId);
+        var artifact = details.Value!.Artifacts.First();
+        var route = $"/cases/{caseId}/documents/{value.LinkId}/versions/{value.VersionId}/preview";
+        await using var factory = new ReviewFactory(fixture);
+        using var client = factory.CreateClient();
+        var response = await client.GetAsync(new Uri(route + $"/artifacts/{artifact.Id}", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("image/png", response.Content.Headers.ContentType!.MediaType);
+        Assert.Contains("no-store", response.Headers.CacheControl!.ToString(), StringComparison.Ordinal);
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal("default-src 'none'; sandbox", Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
+        Assert.Equal("same-origin", Assert.Single(response.Headers.GetValues("Cross-Origin-Resource-Policy")));
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(new Uri(route.Replace(caseId.ToString(), Guid.NewGuid().ToString(), StringComparison.Ordinal) + $"/artifacts/{artifact.Id}", UriKind.Relative))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync(new Uri(route + "/retry", UriKind.Relative), new StringContent(string.Empty))).StatusCode);
+        var metadata = await client.GetStringAsync(new Uri(route, UriKind.Relative));
+        Assert.DoesNotContain(fixture.StorageRoot, metadata, StringComparison.Ordinal);
+        Assert.DoesNotContain("storageKey", metadata, StringComparison.Ordinal);
     }
 
     [Fact]

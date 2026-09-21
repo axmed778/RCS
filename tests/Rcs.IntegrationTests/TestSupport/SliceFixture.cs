@@ -23,6 +23,7 @@ internal sealed class SliceFixture : IAsyncDisposable
     public TestDatabase Database { get; private set; } = null!;
 
     public ICaseService Cases => provider.GetRequiredService<ICaseService>();
+    internal T Service<T>() where T : notnull => provider.GetRequiredService<T>();
 
     public ICaseQueries Queries => provider.GetRequiredService<ICaseQueries>();
 
@@ -66,6 +67,9 @@ internal sealed class SliceFixture : IAsyncDisposable
             ["ConnectionStrings:Runtime"] = fixture.Database.RuntimeConnectionString,
             ["Rcs:Storage:RootPath"] = Path.Combine(fixture.StorageRoot, "objects"),
             ["Rcs:Storage:TempPath"] = Path.Combine(fixture.StorageRoot, "temporary"),
+            ["Rcs:Preview:Enabled"] = "true",
+            ["Rcs:Preview:StorageRoot"] = Path.Combine(fixture.StorageRoot, "previews"),
+            ["Rcs:Preview:TempRoot"] = Path.Combine(fixture.StorageRoot, "preview-jobs"),
             ["Rcs:Database:ExpectedSchemaVersion"] = Rcs.Infrastructure.Migrations.MigrationSet.LoadEmbedded().LatestVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
         }).Build());
 

@@ -103,6 +103,17 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IDocumentQueries, PostgresDocumentQueries>();
         services.AddSingleton<IDocumentIntegrityService, DocumentIntegrityService>();
         services.AddSingleton<DemoDataSeeder>();
+        services.AddOptions<Rcs.Infrastructure.Previews.PreviewOptions>()
+            .Bind(configuration.GetSection(Rcs.Infrastructure.Previews.PreviewOptions.SectionName))
+            .Validate(o => o.WorkerConcurrency is >= 1 and <= 4 && o.MaxAttempts is >= 1 and <= 10 && o.JobTimeoutSeconds is >= 5 and <= 1800, "Invalid preview execution limits.")
+            .Validate(o => !o.AllowMacroEnabledOffice, "Macro-enabled Office previews are excluded by ADR-042.");
+        services.AddSingleton<Rcs.Infrastructure.Previews.PreviewPaths>();
+        services.AddSingleton<Rcs.Infrastructure.Previews.PreviewSandbox>();
+        services.AddSingleton<Rcs.Infrastructure.Previews.PreviewCapabilityRegistry>();
+        services.AddSingleton<Rcs.Infrastructure.Previews.PreviewPlanner>();
+        services.AddSingleton<Rcs.Application.Previews.IPreviewJobRunner, Rcs.Infrastructure.Previews.PreviewJobRunner>();
+        services.AddSingleton<Rcs.Application.Previews.IDocumentPreviewQueries, Rcs.Infrastructure.Previews.PostgresPreviewQueries>();
+        services.AddSingleton<Rcs.Application.Previews.IPreviewAdministration, Rcs.Infrastructure.Previews.PostgresPreviewAdministration>();
 
         return services;
     }

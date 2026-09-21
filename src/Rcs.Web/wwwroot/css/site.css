@@ -602,3 +602,14 @@ form.form { max-width: 860px; }
 .upload-progress[hidden] { display: none; }
 .upload-progress progress { width: 100%; }
 .node-documents { min-width: 0; }
+
+.preview-dialog { width: min(1200px, 95vw); max-width: 98vw; height: 90vh; max-height: 98vh; background: #111b2b; color: #e2e8f0; border: 1px solid #34465e; border-radius: 12px; padding: 16px; }
+.preview-dialog::backdrop { background: #000b; }
+.preview-surface { height: 100%; }
+.preview-surface:fullscreen { width: 100vw; height: 100vh; padding: 16px; background: #111b2b; color: #e2e8f0; }
+.preview-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.preview-toolbar strong { flex: 1; }
+.preview-viewport { overflow: auto; height: calc(100% - 120px); background: #0a1220; padding: 16px; text-align: center; }
+.preview-viewport img { max-width: none; height: auto; }
+.preview-viewport canvas { max-width: none; }
+.preview-dialog.is-fullscreen { position: fixed; inset: 0; margin: 0; width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; border-radius: 0; }

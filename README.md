@@ -195,3 +195,6 @@ Everything works offline once NuGet packages are restored (`packages.lock.json` 
 - **PS-1 is unresolved:** do not initialize a production database, and do not write collation-dependent SQL.
 - **The schema changes only through new migrations.** Applied migrations are immutable.
 - **Runtime never uses the migration credentials**, and never runs as a superuser (startup checks this).
+
+Document Preview is an optional schema-15 extension (ADR-044). See [PREVIEW.md](docs/PREVIEW.md)
+for supported formats, offline prerequisites, configuration, sandbox boundaries and operator commands.

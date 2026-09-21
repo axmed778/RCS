@@ -102,6 +102,9 @@ public static class AuditEntityTypes
     public const string Document = "document";
     public const string DocumentVersion = "document_version";
     public const string DocumentLink = "document_link";
+
+    /// <summary>A derived preview generation (ADR-044): never a business record, but retries and regenerations are recorded.</summary>
+    public const string DocumentPreview = "document_preview";
 }
 
 /// <summary><c>audit_event.action_code</c> — the frozen vocabulary (DOMAIN_MODEL.md §2.18).</summary>
@@ -118,4 +121,7 @@ public static class AuditActionCodes
     public const string Void = "VOID";
     public const string Assign = "ASSIGN";
     public const string PermissionDenied = "PERMISSION_DENIED";
+
+    /// <summary>A derived preview of an exact version was opened (ADR-044): a disclosure of content, like a download.</summary>
+    public const string Preview = "PREVIEW";
 }

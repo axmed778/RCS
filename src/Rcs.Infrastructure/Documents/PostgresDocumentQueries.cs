@@ -68,40 +68,19 @@ internal sealed class PostgresDocumentQueries(
         var now = timeProvider.GetUtcNow();
 
         await using var unitOfWork = (PostgresUnitOfWork)await unitOfWorkFactory.BeginAsync(cancellationToken);
-        var profile = await ActorStore.LoadAsync(unitOfWork, actor.UserId, now, cancellationToken);
-        if (profile is null)
+        var access = await DocumentVersionAccess.AuthorizeAsync(
+            unitOfWork, audit, ids, actor, now, caseId, linkId, versionId, BusinessAction.ViewDocument.ToString(), cancellationToken);
+        if (access.Access is not { } granted)
         {
+            if (access.DenialRecorded)
+            {
+                await unitOfWork.CommitAsync(cancellationToken);
+            }
+
             return notFound;
         }
 
-        var link = await DocumentSql.LoadLinkAsync(unitOfWork, linkId, cancellationToken);
-        var version = await DocumentSql.LoadVersionAsync(unitOfWork, versionId, cancellationToken);
-        if (link is null || version is null)
-        {
-            // An identifier that names nothing: there is nothing to disclose and nothing to audit against.
-            return notFound;
-        }
-
-        var caseRow = await CaseSql.LoadAsync(unitOfWork, link.ContextCaseId, cancellationToken);
-        var relationship = caseRow is null
-            ? null
-            : new CaseRelationship(caseRow.IsRestricted, await CaseSql.ActorIsAssignedAsync(unitOfWork, caseRow.Id, profile.UserId, now, cancellationToken));
-        var decision = AuthorizationPolicy.Decide(profile.Authority(), BusinessAction.ViewDocument, relationship);
-
-        // §10.2: a removed link, a link that does not expose this version, a link reached through the wrong case, or a
-        // case the actor cannot see — every one is refused the same way, as "not found", and recorded.
-        var denial = !decision.IsAllowed ? decision.DenialCode
-            : link.ContextCaseId != caseId ? "document.context_mismatch"
-            : !DocumentSql.Exposes(link, version) ? "document.version_not_exposed"
-            : null;
-        if (denial is not null)
-        {
-            await audit.WriteAsync(unitOfWork, profile, actor.ClientHost, ids.NewId(), new AuditEntry(
-                AuditActionCodes.PermissionDenied, AuditEntityTypes.DocumentVersion, version.Id, null, link.ContextCaseId,
-                After: new { attempted_action = BusinessAction.ViewDocument.ToString(), denial_code = denial, link_id = link.Id }), cancellationToken);
-            await unitOfWork.CommitAsync(cancellationToken);
-            return notFound;
-        }
+        var (profile, link, version) = (granted.Profile, granted.Link, granted.Version);
 
         // §11.4: a broken object fails explicitly — never a silent 404, never wrong bytes served as if they were fine.
         var state = await store.CheckAsync(version.VolumeCode, version.RelativePath, version.ByteSize, expectedHash: null, cancellationToken);

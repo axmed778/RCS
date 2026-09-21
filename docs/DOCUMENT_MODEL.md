@@ -1529,3 +1529,11 @@ nothing (§12.4). None adds an entity or column; the domain side is `DOMAIN_MODE
 
 *End of document. No application code, database migrations, API endpoints or UI components are defined
 in or implied by this design.*
+
+## Document Preview extension (ADR-044; schema 0015)
+
+This extension supersedes the earlier “future preview / never in V1” statements in §9.5 for the supported families only. Original class-D delivery remains attachment-only. Derived PNG/JPEG and bounded geometry JSON may be viewed through authorized preview endpoints; originals are never passed through as previews. General archives remain opaque; only the isolated KMZ processor examines KMZ entries.
+
+`DocumentVersion -> document_preview -> document_preview_artifact`. One current generation per exact version; source hash is constrained by a composite foreign key. Processor, processor version, settings and source identity are recorded once. PENDING survives restart; PROCESSING holds a reclaimable lease; READY has validated artifacts; FAILED records a bounded safe code; UNSUPPORTED honestly represents absent capabilities. Retries and regeneration never mutate original versions. Artifact paths, hashes and converter diagnostics are not returned to the viewer.
+
+See PREVIEW.md for formats, limits, configuration and operations. Preview is now implemented as an optional extension; OCR, malware scanning, content search and export remain outside this change.

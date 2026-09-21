@@ -1722,3 +1722,11 @@ without selecting new technology.
 
 *End of document. No application code, database migrations, project scaffolding, package installations
 or framework initialisation are contained in or implied by this design.*
+
+## Document Preview extension (ADR-044)
+
+The original §14 background-coordination design remains: PostgreSQL and an in-process hosted service, no broker. Preview adds a short-lived isolated child executable, Rcs.PreviewWorker, for each conversion. This is the explicit exception to the earlier no-separate-worker wording; there is no separately deployed queue service.
+
+The application stages and hashes immutable input, coordinates leases and retries, validates the worker manifest, then ingests derivatives into a separate preview store. Lease ownership is locked and checked before artifact rows are inserted. A stale worker cannot overwrite database results or delete a newer worker's files. Partial or stale output may remain as unreferenced derived cache after a crash; originals are unaffected.
+
+The worker references only Application/Domain, never Infrastructure or PostgreSQL. The Web project's worker reference is build-only, and its output is copied into preview-worker. All conversion happens offline. See PREVIEW.md for deployment, dependencies and operational commands.

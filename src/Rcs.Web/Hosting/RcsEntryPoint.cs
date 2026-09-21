@@ -20,6 +20,7 @@ public static class RcsEntryPoint
                 "check-schema" => await CheckSchemaCommand.RunAsync(args[1..]),
                 "seed-demo" => await SeedDemoCommand.RunAsync(args[1..]),
                 "verify-documents" => await VerifyDocumentsCommand.RunAsync(args[1..]),
+                "preview" => await PreviewCommand.RunAsync(args[1..]),
                 _ => PrintUsage(args[0]),
             };
         }

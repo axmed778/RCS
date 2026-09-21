@@ -226,3 +226,7 @@ its unit of work.
 - **Several cases:** distinct keys acquired in **ascending key order**, so two commands can never deadlock on
   this lock.
 - An in-process lock is not used: it would not be authoritative across processes or connections.
+
+Schema 0015 adds derived document preview generations/jobs and artifacts (ADR-044).
+Run the normal migration runner and check-schema; do not apply migrations manually.
+Original document retention, object bytes and workflow tables remain unchanged.
