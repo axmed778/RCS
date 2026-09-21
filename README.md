@@ -9,8 +9,14 @@ FinalResult, document upload/download/versioning and isolated previews are imple
 is preserved. Search, AD/LDAP and wider rollout remain out of scope. This is not production-ready.
 
 Start with [Pilot deployment](docs/PILOT_DEPLOYMENT.md), [employee guide](docs/PILOT_USER_GUIDE.md) and the
-[verified readiness checklist](docs/PILOT_READINESS.md). LAN access, trusted HTTPS and service boot must be tested
-on the actual pilot server before real use. Development review mode is only for synthetic demonstrations.
+[verified readiness checklist](docs/PILOT_READINESS.md). Development review mode is only for synthetic demonstrations.
+
+Two pilot modes are supported:
+
+| Mode | For | Notes |
+|---|---|---|
+| **LAN server** (`PILOT_DEPLOYMENT.md` §1–12) | the department, several users | systemd + nginx + HTTPS; document previews work. LAN access, trusted HTTPS and service boot must be tested on the actual server before real use |
+| **Windows single laptop** (§13, `deploy/windows-pilot/`) | one employee on one machine | a desktop icon starts `Rcs.Launcher.exe`, which starts RCS on `http://127.0.0.1:5080` and opens the browser. Self-contained publish, an already-installed local PostgreSQL, data under `C:\ProgramData\RCS\Pilot`. **Previews are off**: their converters are Linux-only |
 
 The authoritative design is in [`/docs`](docs/). Settled decisions are logged in
 [`docs/DECISIONS.md`](docs/DECISIONS.md); do not revisit them in code.
@@ -23,6 +29,7 @@ src/
   Rcs.Application       use-case contracts and read models; unit of work, case lock, id generator, idempotency
   Rcs.Infrastructure    PostgreSQL (Npgsql, hand-written SQL): services, queries, audit writer, migrations, demo seed
   Rcs.Web               ASP.NET Core host, Razor Pages UI (Azerbaijani), health endpoints; `migrate`, `check-schema`, `seed-demo`
+  Rcs.Launcher          the Windows single-laptop desktop icon: one instance, starts the app, waits for healthy, opens the browser
 tests/
   Rcs.UnitTests         no database
   Rcs.IntegrationTests  real PostgreSQL

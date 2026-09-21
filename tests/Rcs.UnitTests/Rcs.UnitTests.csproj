@@ -20,6 +20,8 @@
     <ProjectReference Include="..\..\src\Rcs.Domain\Rcs.Domain.csproj" />
     <ProjectReference Include="..\..\src\Rcs.Application\Rcs.Application.csproj" />
     <ProjectReference Include="..\..\src\Rcs.Infrastructure\Rcs.Infrastructure.csproj" />
+    <!-- The desktop launcher's logic (single instance, readiness, settings) is tested like any other code. -->
+    <ProjectReference Include="..\..\src\Rcs.Launcher\Rcs.Launcher.csproj" />
   </ItemGroup>
 
   <ItemGroup>

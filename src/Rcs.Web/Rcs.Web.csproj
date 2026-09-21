@@ -25,7 +25,12 @@
     </ItemGroup>
     <Copy SourceFiles="@(PreviewWorkerFiles)" DestinationFolder="$(OutDir)preview-worker" SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="PublishPreviewWorker" AfterTargets="Publish">
+  <!--
+    The preview worker is Linux-only: its converters (poppler, libvips, LibreOffice) and its bubblewrap sandbox do
+    not exist on Windows, and the Windows single-laptop pilot runs with previews switched off. Publishing it into a
+    Windows package would ship ~40 MB of code that can never run there.
+  -->
+  <Target Name="PublishPreviewWorker" AfterTargets="Publish" Condition="!$(RuntimeIdentifier.StartsWith('win'))">
     <MSBuild Projects="../Rcs.PreviewWorker/Rcs.PreviewWorker.csproj" Targets="Publish"
              Properties="Configuration=$(Configuration);PublishDir=$(PublishDir)preview-worker/" />
   </Target>
