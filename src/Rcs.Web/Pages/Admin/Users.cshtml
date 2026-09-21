@@ -1,0 +1,124 @@
+@page "/admin/users"
+@model Rcs.Web.Pages.Admin.UsersModel
+@using Rcs.Domain.Vocabulary
+@{
+    ViewData["Title"] = T["Admin.Users"].Value;
+}
+<div class="page-head">
+    <div>
+        <h1>@T["Admin.Users"]</h1>
+        <p class="intro">@T["Admin.UsersHint"]</p>
+    </div>
+    <a class="btn" href="/">@T["Common.Back"]</a>
+</div>
+@if (Model.ActionError is { Length: > 0 } error) { <div class="alert" role="alert">@error</div> }
+@if (Model.Notice is { Length: > 0 } notice) { <div class="alert">@notice</div> }
+@if (Model.TemporaryPassword is { Length: > 0 } temporary)
+{
+    @* Shown once, to be handed over in person; it is not stored in readable form anywhere (SECURITY.md §6.7). *@
+    <div class="alert"><strong>@T["Admin.TemporaryPassword"]</strong> <code class="mono">@temporary</code> — @T["Admin.TemporaryPasswordHint"]</div>
+}
+
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>@T["Admin.User"]</th>
+                <th>@T["Admin.Username"]</th>
+                <th>@T["Admin.Status"]</th>
+                <th>@T["Admin.Roles"]</th>
+                <th>@T["Admin.LastSignIn"]</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var user in Model.Users)
+        {
+            <tr>
+                <td>@user.DisplayName<div class="node__meta">@user.FullName @user.JobTitle</div></td>
+                <td class="mono">@user.Username</td>
+                <td>
+                    <span class="badge">@T.Code("UserStatus", user.Status.ToCode())</span>
+                    @if (user.LockedUntil is { } locked && locked > DateTimeOffset.UtcNow) { <span class="badge badge--warn">@T["Admin.Locked"]</span> }
+                    @if (!user.HasCredential) { <span class="badge badge--warn">@T["Admin.NoCredential"]</span> }
+                    @if (user.MustChangePassword) { <span class="badge badge--info">@T["Admin.MustChange"]</span> }
+                </td>
+                <td>@(user.Roles.Count == 0 ? T["Admin.NoRoles"].Value : string.Join(" · ", user.Roles.Select(role => role.ToCode())))</td>
+                <td class="mono">@(user.LastSignInAt is null ? "—" : T.DateTime(user.LastSignInAt))</td>
+                <td>
+                    <details class="doc-history">
+                        <summary>@T["Admin.Manage"]</summary>
+                        @if (Model.MayAdministerAccounts)
+                        {
+                            <form method="post" asp-page-handler="ResetPassword" class="form form--inline" data-single-submit>
+                                <input type="hidden" name="userId" value="@user.Id" />
+                                <button class="btn btn--small" type="submit">@T["Admin.ResetPassword"]</button>
+                            </form>
+                            <form method="post" asp-page-handler="Status" class="form form--inline" data-single-submit>
+                                <input type="hidden" name="userId" value="@user.Id" />
+                                <input type="hidden" name="rowVersion" value="@user.RowVersion" />
+                                <select name="status" aria-label="@T["Admin.Status"]">
+                                    @foreach (var status in new[] { UserStatus.Active, UserStatus.Suspended, UserStatus.Deactivated })
+                                    {
+                                        <option value="@status.ToCode()" selected="@(status == user.Status)">@T.Code("UserStatus", status.ToCode())</option>
+                                    }
+                                </select>
+                                <input name="reason" maxlength="500" placeholder="@T["Admin.Reason"]" />
+                                <button class="btn btn--small" type="submit">@T["Admin.SetStatus"]</button>
+                            </form>
+                            @if (user.LockedUntil is { } lockedUntil && lockedUntil > DateTimeOffset.UtcNow)
+                            {
+                                <form method="post" asp-page-handler="ReleaseLock" class="form form--inline" data-single-submit>
+                                    <input type="hidden" name="userId" value="@user.Id" />
+                                    <button class="btn btn--small" type="submit">@T["Admin.ReleaseLock"]</button>
+                                </form>
+                            }
+                        }
+                        @if (Model.MayGrantRoles)
+                        {
+                            <form method="post" asp-page-handler="Grant" class="form form--inline" data-single-submit>
+                                <input type="hidden" name="userId" value="@user.Id" />
+                                <select name="role" aria-label="@T["Admin.Roles"]">
+                                    @foreach (var role in new[] { BusinessRole.Worker, BusinessRole.Chief, BusinessRole.Head, BusinessRole.TechAdmin })
+                                    {
+                                        <option value="@role.ToCode()">@role.ToCode()</option>
+                                    }
+                                </select>
+                                <button class="btn btn--small" type="submit">@T["Admin.Grant"]</button>
+                            </form>
+                            @foreach (var role in user.Roles)
+                            {
+                                <form method="post" asp-page-handler="Revoke" class="form form--inline" data-single-submit>
+                                    <input type="hidden" name="userId" value="@user.Id" />
+                                    <input type="hidden" name="role" value="@role.ToCode()" />
+                                    <input name="reason" maxlength="500" required placeholder="@T["Admin.Reason"]" />
+                                    <button class="btn btn--small" type="submit">@T.Format("Admin.Revoke", role.ToCode())</button>
+                                </form>
+                            }
+                        }
+                        else
+                        {
+                            <p class="hint">@T["Admin.HeadGrantsRoles"]</p>
+                        }
+                    </details>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.MayAdministerAccounts)
+{
+    <details class="card">
+        <summary>@T["Admin.CreateUser"]</summary>
+        <p class="hint">@T["Admin.CreateUserHint"]</p>
+        <form method="post" asp-page-handler="Create" class="form" data-single-submit>
+            <div class="field"><label for="username">@T["Admin.Username"]</label><input id="username" name="username" required maxlength="64" /></div>
+            <div class="field"><label for="fullName">@T["Admin.FullName"]</label><input id="fullName" name="fullName" required maxlength="200" /></div>
+            <div class="field"><label for="displayName">@T["Admin.DisplayName"]</label><input id="displayName" name="displayName" required maxlength="200" /></div>
+            <div class="field"><label for="jobTitle">@T["Admin.JobTitle"]</label><input id="jobTitle" name="jobTitle" maxlength="200" /></div>
+            <div class="actions"><button class="btn btn--primary" type="submit">@T["Admin.CreateUser"]</button></div>
+        </form>
+    </details>
+}

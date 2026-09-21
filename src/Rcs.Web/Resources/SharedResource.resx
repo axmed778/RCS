@@ -1555,4 +1555,82 @@
   <data name="Error.document.version_needs_placement" xml:space="preserve"><value>Yeni fayl üçün əlavə olunacağı yeri seçin.</value></data>
   <data name="Error.document.version_withdrawn" xml:space="preserve"><value>Geri götürülmüş fayl yeni sübut kimi əlavə edilə bilməz.</value></data>
   <data name="Error.notfound.document" xml:space="preserve"><value>Sənəd tapılmadı.</value></data>
+  <!-- Authentication, the account screens and the build identifier (pilot readiness). -->
+  <data name="Auth.SignIn" xml:space="preserve"><value>Sistemə daxil ol</value></data>
+  <data name="Auth.SignInHint" xml:space="preserve"><value>Şəxsi istifadəçi adınız və parolunuzla daxil olun. Hesab yalnız sizindir — parolu heç kimlə bölüşməyin.</value></data>
+  <data name="Auth.SignOut" xml:space="preserve"><value>Çıxış</value></data>
+  <data name="Auth.Username" xml:space="preserve"><value>İstifadəçi adı</value></data>
+  <data name="Auth.Password" xml:space="preserve"><value>Parol</value></data>
+  <data name="Auth.Failed" xml:space="preserve"><value>İstifadəçi adı və ya parol yanlışdır.</value></data>
+  <data name="Auth.LockedOut" xml:space="preserve"><value>Hesab müvəqqəti bloklanıb. Təxminən {0} dəqiqədən sonra yenidən cəhd edin.</value></data>
+  <data name="Auth.SignedOut" xml:space="preserve"><value>Sistemdən çıxdınız.</value></data>
+  <data name="Auth.SessionExpired" xml:space="preserve"><value>Sessiyanın vaxtı bitdi. Yenidən daxil olun.</value></data>
+  <data name="Auth.ForgotHint" xml:space="preserve"><value>Parolu unutmusunuzsa və ya hesab bloklanıbsa, texniki inzibatçıya şəxsən müraciət edin.</value></data>
+  <data name="Auth.ChangePassword" xml:space="preserve"><value>Parolu dəyiş</value></data>
+  <data name="Auth.MustChangePassword" xml:space="preserve"><value>Davam etmədən əvvəl müvəqqəti parolu öz parolunuzla əvəz etməlisiniz.</value></data>
+  <data name="Auth.CurrentPassword" xml:space="preserve"><value>Cari parol</value></data>
+  <data name="Auth.NewPassword" xml:space="preserve"><value>Yeni parol</value></data>
+  <data name="Auth.RepeatPassword" xml:space="preserve"><value>Yeni parolu təkrar edin</value></data>
+  <data name="Auth.PasswordsDiffer" xml:space="preserve"><value>Yeni parollar eyni deyil.</value></data>
+  <data name="Auth.PasswordChanged" xml:space="preserve"><value>Parol dəyişdirildi. Digər sessiyalar bağlandı.</value></data>
+  <data name="Auth.PasswordRule" xml:space="preserve"><value>Ən azı {0} simvol. Uzun, yadda qalan bir ifadə seçin — mürəkkəb işarələr tələb olunmur.</value></data>
+  <data name="Auth.NoSession" xml:space="preserve"><value>Bu rejimdə parol dəyişdirmək mümkün deyil.</value></data>
+  <data name="Error.auth.current_password_wrong" xml:space="preserve"><value>Cari parol yanlışdır.</value></data>
+  <data name="Error.auth.password_too_short" xml:space="preserve"><value>Parol çox qısadır.</value></data>
+  <data name="Error.auth.password_too_long" xml:space="preserve"><value>Parol çox uzundur.</value></data>
+  <data name="Error.auth.password_too_common" xml:space="preserve"><value>Bu parol çox sadə və asan tapılandır.</value></data>
+  <data name="Error.auth.password_contains_username" xml:space="preserve"><value>Parol istifadəçi adını ehtiva edə bilməz.</value></data>
+  <data name="Error.auth.password_no_variety" xml:space="preserve"><value>Parol çox təkrarlanandır.</value></data>
+  <data name="Error.auth.password_unchanged" xml:space="preserve"><value>Yeni parol köhnə paroldan fərqli olmalıdır.</value></data>
+  <data name="Error.auth.password_rejected" xml:space="preserve"><value>Bu parol qəbul edilmədi.</value></data>
+  <data name="Error.auth.not_permitted" xml:space="preserve"><value>Bu əməliyyat üçün icazəniz yoxdur.</value></data>
+  <data name="Error.auth.head_grants_roles" xml:space="preserve"><value>Rolları yalnız Rəhbər verir və geri alır.</value></data>
+  <data name="Error.auth.bootstrap_actor_not_tech_admin" xml:space="preserve"><value>Bu əməliyyat üçün texniki inzibatçı hesabı tələb olunur.</value></data>
+  <data name="Error.auth.username_invalid" xml:space="preserve"><value>İstifadəçi adı yalnız kiçik latın hərfləri, rəqəmlər, nöqtə, alt xətt və defisdən ibarət ola bilər.</value></data>
+  <data name="Error.auth.username_taken" xml:space="preserve"><value>Bu istifadəçi adı artıq mövcuddur.</value></data>
+  <data name="Error.auth.role_already_held" xml:space="preserve"><value>İstifadəçi bu rolu artıq daşıyır.</value></data>
+  <data name="Error.auth.role_not_held" xml:space="preserve"><value>İstifadəçi bu rolu daşımır.</value></data>
+  <data name="Error.auth.cannot_disable_self" xml:space="preserve"><value>Öz hesabınızı bağlaya bilməzsiniz.</value></data>
+  <data name="Error.auth.responsibilities_remain" xml:space="preserve"><value>İstifadəçinin aktiv məsul təyinatları var; əvvəlcə işlər başqasına verilməlidir.</value></data>
+  <data name="Error.notfound.user" xml:space="preserve"><value>İstifadəçi tapılmadı.</value></data>
+  <data name="Admin.Users" xml:space="preserve"><value>İstifadəçilər</value></data>
+  <data name="Admin.UsersHint" xml:space="preserve"><value>Hesabları texniki inzibatçı yaradır; rolları yalnız Rəhbər verir.</value></data>
+  <data name="Admin.User" xml:space="preserve"><value>Əməkdaş</value></data>
+  <data name="Admin.Username" xml:space="preserve"><value>İstifadəçi adı</value></data>
+  <data name="Admin.FullName" xml:space="preserve"><value>Tam ad</value></data>
+  <data name="Admin.DisplayName" xml:space="preserve"><value>Göstərilən ad</value></data>
+  <data name="Admin.JobTitle" xml:space="preserve"><value>Vəzifə</value></data>
+  <data name="Admin.Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Admin.Roles" xml:space="preserve"><value>Rollar</value></data>
+  <data name="Admin.NoRoles" xml:space="preserve"><value>Rol verilməyib</value></data>
+  <data name="Admin.LastSignIn" xml:space="preserve"><value>Son giriş</value></data>
+  <data name="Admin.Manage" xml:space="preserve"><value>İdarə et</value></data>
+  <data name="Admin.Locked" xml:space="preserve"><value>Bloklanıb</value></data>
+  <data name="Admin.NoCredential" xml:space="preserve"><value>Parol təyin edilməyib</value></data>
+  <data name="Admin.MustChange" xml:space="preserve"><value>Parol dəyişdirilməlidir</value></data>
+  <data name="Admin.CreateUser" xml:space="preserve"><value>Yeni istifadəçi</value></data>
+  <data name="Admin.CreateUserHint" xml:space="preserve"><value>Yeni hesab heç bir rol daşımır və Rəhbər rol verənə qədər heç nə edə bilmir.</value></data>
+  <data name="Admin.UserCreated" xml:space="preserve"><value>İstifadəçi yaradıldı.</value></data>
+  <data name="Admin.ResetPassword" xml:space="preserve"><value>Parolu sıfırla</value></data>
+  <data name="Admin.PasswordReset" xml:space="preserve"><value>Müvəqqəti parol yaradıldı və bütün sessiyalar bağlandı.</value></data>
+  <data name="Admin.TemporaryPassword" xml:space="preserve"><value>Müvəqqəti parol:</value></data>
+  <data name="Admin.TemporaryPasswordHint" xml:space="preserve"><value>Bu dəyər yalnız indi görünür. Əməkdaşa şəxsən verin; ilk girişdə dəyişdirilməlidir.</value></data>
+  <data name="Admin.SetStatus" xml:space="preserve"><value>Statusu dəyiş</value></data>
+  <data name="Admin.StatusChanged" xml:space="preserve"><value>Status dəyişdirildi.</value></data>
+  <data name="Admin.ReleaseLock" xml:space="preserve"><value>Bloku aç</value></data>
+  <data name="Admin.LockReleased" xml:space="preserve"><value>Blok açıldı.</value></data>
+  <data name="Admin.Grant" xml:space="preserve"><value>Rol ver</value></data>
+  <data name="Admin.Revoke" xml:space="preserve"><value>{0} rolunu geri al</value></data>
+  <data name="Admin.RoleGranted" xml:space="preserve"><value>Rol verildi.</value></data>
+  <data name="Admin.RoleRevoked" xml:space="preserve"><value>Rol geri alındı.</value></data>
+  <data name="Admin.HeadGrantsRoles" xml:space="preserve"><value>Rolları yalnız Rəhbər idarə edir.</value></data>
+  <data name="Admin.Reason" xml:space="preserve"><value>Səbəb</value></data>
+  <data name="UserStatus.ACTIVE" xml:space="preserve"><value>Aktiv</value></data>
+  <data name="UserStatus.SUSPENDED" xml:space="preserve"><value>Dayandırılıb</value></data>
+  <data name="UserStatus.DEACTIVATED" xml:space="preserve"><value>Bağlanıb</value></data>
+  <data name="ActionCode.LOGIN" xml:space="preserve"><value>Giriş</value></data>
+  <data name="ActionCode.LOGOUT" xml:space="preserve"><value>Çıxış</value></data>
+  <data name="ActionCode.PREVIEW" xml:space="preserve"><value>Ön baxış</value></data>
+  <data name="EntityType.user_role" xml:space="preserve"><value>Rol təyinatı</value></data>
+  <data name="App.BuildTitle" xml:space="preserve"><value>Proqram versiyası — problem bildirərkən bu sətri göstərin</value></data>
 </root>

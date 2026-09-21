@@ -5,12 +5,11 @@ namespace Rcs.Web.Review;
 
 /// <summary>
 /// <c>Rcs:Review</c> — the Development-only review build. It exists so the Case workflow can be demonstrated and
-/// reviewed before authentication is built (ADR-033), and it is NOT an authentication implementation.
+/// reviewed using synthetic identities (ADR-045), and it is NOT an authentication implementation.
 /// </summary>
 /// <remarks>
 /// When enabled, every request acts as one clearly identified synthetic user, and the pages carry a banner saying so.
-/// The host refuses to start if it is enabled outside the Development environment, and the business pages are not
-/// mapped at all when it is off — there is no other way in yet.
+/// The host refuses to start if it is enabled outside Development. When it is off, local authentication is required.
 /// </remarks>
 public sealed class ReviewOptions
 {
@@ -42,10 +41,16 @@ public sealed class ReviewModeNotAllowedException(string environmentName)
     public string EnvironmentName { get; } = environmentName;
 }
 
-/// <summary>The actor of the current request, as established by the host. Null when no actor could be resolved.</summary>
+/// <summary>
+/// The actor of the current request, as established by the host: the signed-in user in a real deployment
+/// (<c>RcsAuthentication</c>), or the Development-only review actor when that scaffold is enabled. Pages and endpoints
+/// depend on this and never on how the identity was established. Null when nobody could be resolved.
+/// </summary>
 public sealed class CurrentActor(IHttpContextAccessor accessor)
 {
-    internal const string ItemKey = "rcs.review.actor";
+    internal const string ItemKey = "rcs.actor";
+
+    internal const string SessionItemKey = "rcs.actor.session";
 
     /// <summary>The cookie naming which synthetic identity to act as. Development-only, and never a credential.</summary>
     public const string SelectionCookie = "rcs_review_actor";
@@ -56,7 +61,10 @@ public sealed class CurrentActor(IHttpContextAccessor accessor)
 
     public ActorProfile Require => Profile ?? throw new InvalidOperationException("No actor is available for this request.");
 
-    public ActorContext Context => new(Require.UserId, accessor.HttpContext?.Connection.RemoteIpAddress?.ToString());
+    /// <summary>The session this request belongs to, when it came from a real sign-in.</summary>
+    public Guid? SessionId => accessor.HttpContext?.Items.TryGetValue(SessionItemKey, out var value) == true ? value as Guid? : null;
+
+    public ActorContext Context => new(Require.UserId, accessor.HttpContext?.Connection.RemoteIpAddress?.ToString(), SessionId?.ToString());
 }
 
 /// <summary>

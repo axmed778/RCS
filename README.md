@@ -3,10 +3,14 @@
 Internal request tracking and workflow management system for processing incoming requests, attachments,
 supplier communications, approvals, and related documentation.
 
-**Status: Review MVP — the first working vertical slice of the Case workflow, with a server-rendered UI.**
-It exists to be demonstrated to the product owner for business and UX feedback. **It is not production ready:**
-there is no authentication (a Development-only review actor stands in), no document upload, no final result, no
-search and no dashboards beyond simple counts. See [Review build](#review-build) below.
+**Status: controlled 10-day, single-user pilot readiness release; schema 16.**
+Local Argon2id authentication, revocable sessions, account/role administration, the complete Case lifecycle,
+FinalResult, document upload/download/versioning and isolated previews are implemented. The dark graph workspace
+is preserved. Search, AD/LDAP and wider rollout remain out of scope. This is not production-ready.
+
+Start with [Pilot deployment](docs/PILOT_DEPLOYMENT.md), [employee guide](docs/PILOT_USER_GUIDE.md) and the
+[verified readiness checklist](docs/PILOT_READINESS.md). LAN access, trusted HTTPS and service boot must be tested
+on the actual pilot server before real use. Development review mode is only for synthetic demonstrations.
 
 The authoritative design is in [`/docs`](docs/). Settled decisions are logged in
 [`docs/DECISIONS.md`](docs/DECISIONS.md); do not revisit them in code.
@@ -138,16 +142,15 @@ dotnet run --project src/Rcs.Web -- verify-documents --orphans  # also list obje
 
 ## Review build
 
-The Review build exists so the Case workflow can be **demonstrated and reviewed before authentication is
-built**. It is enabled by `Rcs:Review:Enabled`, which is `true` only in `appsettings.Development.json`.
+The Review build exists so the Case workflow can be **demonstrated with synthetic identities**. It is enabled by `Rcs:Review:Enabled`, which is `true` only in `appsettings.Development.json`.
 
 | Rule | |
 |---|---|
 | **Development only** | the host **refuses to start** if the flag is true in any other environment |
-| **One synthetic actor** | every request acts as the seeded user `review.demo` ("Nümayiş istifadəçisi", Chief). It is not authentication: no credentials, no session, no sign-in, and no way to act as somebody else |
+| **One synthetic actor** | every request acts as the seeded user `review.demo` ("Nümayiş istifadəçisi", Chief). It is not authentication: no credentials, no session, no sign-in, with a controlled switch to the synthetic Head for approval demonstrations |
 | **Attribution is real** | every row and every `audit_event` records that user, their roles at the time, and the client host — exactly as a real session would |
 | **Authority is real** | every action is checked by the same `can()` policy the final system will use, with roles read from `user_role` at action time |
-| **Nothing is exposed otherwise** | with the flag off, the business pages are not mapped at all; only the health endpoints answer |
+| **Real authentication otherwise** | with the flag off, business pages require a local login and server-side session; health endpoints remain anonymous |
 | **Synthetic data only** | the demo seed is Development-only and refuses to run elsewhere. No production data, ever (SECURITY.md §18.4) |
 
 The banner **RCS Review Build — Development / Synthetic Data** is on every page for the same reason.
@@ -196,5 +199,5 @@ Everything works offline once NuGet packages are restored (`packages.lock.json` 
 - **The schema changes only through new migrations.** Applied migrations are immutable.
 - **Runtime never uses the migration credentials**, and never runs as a superuser (startup checks this).
 
-Document Preview is an optional schema-15 extension (ADR-044). See [PREVIEW.md](docs/PREVIEW.md)
+Document Preview was introduced in migration 0015; this release requires schema 16. Preview generation is optional (ADR-044). See [PREVIEW.md](docs/PREVIEW.md)
 for supported formats, offline prerequisites, configuration, sandbox boundaries and operator commands.

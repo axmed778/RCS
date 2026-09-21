@@ -21,6 +21,7 @@ public static class RcsEntryPoint
                 "seed-demo" => await SeedDemoCommand.RunAsync(args[1..]),
                 "verify-documents" => await VerifyDocumentsCommand.RunAsync(args[1..]),
                 "preview" => await PreviewCommand.RunAsync(args[1..]),
+                "user" => await UserCommand.RunAsync(args[1..]),
                 _ => PrintUsage(args[0]),
             };
         }
@@ -39,6 +40,7 @@ public static class RcsEntryPoint
         Console.Error.WriteLine("  Rcs.Web check-schema    verify the schema with ConnectionStrings:Runtime; exit 3 if incompatible");
         Console.Error.WriteLine("  Rcs.Web seed-demo       load Development-only synthetic demonstration data (refused elsewhere)");
         Console.Error.WriteLine("  Rcs.Web verify-documents [--rehash] [--orphans]   check stored document bytes against their metadata; exit 4 on a finding");
+        Console.Error.WriteLine("  Rcs.Web user <bootstrap-admin|create|set-password|grant|list>   installation-time accounts and roles (see 'Rcs.Web user')");
         return ExitCodes.UsageOrConfigurationError;
     }
 }

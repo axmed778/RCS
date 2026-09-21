@@ -613,3 +613,13 @@ form.form { max-width: 860px; }
 .preview-viewport img { max-width: none; height: auto; }
 .preview-viewport canvas { max-width: none; }
 .preview-dialog.is-fullscreen { position: fixed; inset: 0; margin: 0; width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; border-radius: 0; }
+
+
+/* Local authentication reuses the workspace palette and form controls. */
+.auth-page { min-height: 100vh; display: flex; flex-direction: column; }
+.auth-main { flex: 1; display: grid; place-items: center; width: 100%; padding: 2rem 1rem; }
+.auth-card { width: 100%; max-width: 30rem; padding: 1.5rem; background: var(--surface); border: 1px solid var(--line); border-radius: .6rem; }
+.auth-card__brand { display: flex; align-items: center; gap: .5rem; margin-bottom: 1.5rem; font-weight: 600; }
+.auth-footer { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; padding: 1rem; color: var(--ink-faint); }
+.topbar__signout { display: inline; margin: 0; }
+.footer__build { margin-left: .75rem; }

@@ -738,3 +738,13 @@ version — both without model change.
 
 *End of document. No application code, database migrations, API endpoints or UI components are defined
 in or implied by this authorization design.*
+
+
+### Pilot implementation clarification (ADR-045)
+
+The CLI `bootstrap-admin` is serialized and available only before any TECH_ADMIN grant has existed. It cannot
+reset an existing administrator or create additional administrators after installation. The first Head exception
+permits HEAD only, once in the history of the database; suspending the Head or ending their grant cannot reopen it.
+Every later role grant/revocation requires an active Head. Console access and database credentials remain a trusted
+operations boundary; `--by` records attribution and is not an interactive authentication mechanism.
+The synthetic pilot employee holds Worker + Chief + Head, with TechAdmin kept separate.

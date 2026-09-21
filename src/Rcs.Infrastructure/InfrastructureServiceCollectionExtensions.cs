@@ -52,6 +52,16 @@ public static class InfrastructureServiceCollectionExtensions
             .ValidateOnStart();
         services.AddOptions<StorageOptions>()
             .Bind(configuration.GetSection(StorageOptions.SectionName));
+        services.AddOptions<LocalAuthenticationOptions>()
+            .Bind(configuration.GetSection(LocalAuthenticationOptions.SectionName))
+            .Validate(options => options.Argon2MemoryKibibytes is >= 8192 and <= 1048576 && options.Argon2Iterations is >= 2 and <= 16 && options.Argon2Parallelism is >= 1 and <= 16,
+                "Rcs:Authentication Argon2id cost is below the minimum this release accepts (m>=8192 KiB, t>=2, p>=1).")
+            .Validate(options => options.MaxFailedAttempts is >= 3 and <= 50 && options.LockoutMinutes is >= 1 and <= 60,
+                "Rcs:Authentication lockout settings are outside the supported range.")
+            .Validate(options => options.SessionLifetimeHours is >= 1 and <= 24 && options.IdleTimeoutMinutes is >= 1 and <= 720
+                && options.TemporaryCredentialHours is >= 1 and <= 72 && options.AttemptsPerMinutePerHost is >= 1 and <= 100,
+                "Rcs:Authentication session and rate limits are outside the supported range.")
+            .ValidateOnStart();
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IIdGenerator, UuidV7IdGenerator>();
@@ -86,6 +96,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IOperationReceiptStore, PostgresOperationReceiptStore>();
         services.AddSingleton<AuditWriter>();
         services.AddSingleton<CommandRunner>();
+
+        // Local authentication: Argon2id credentials and server-side revocable sessions (ADR-033).
+        services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
+        services.AddSingleton<ILocalAuthenticationService, PostgresAuthenticationService>();
+        services.AddSingleton<IUserAdministration, PostgresUserAdministration>();
+        services.AddSingleton<IdentityBootstrap>();
+        services.AddSingleton<Rcs.Infrastructure.Organizations.DepartmentBootstrap>();
 
         // Modules.
         services.AddSingleton<IUserDirectory, PostgresUserDirectory>();

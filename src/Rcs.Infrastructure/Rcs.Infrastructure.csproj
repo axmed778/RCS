@@ -9,6 +9,8 @@
     <!-- Microsoft.Extensions.* (DI, options, logging) from the shared framework the host already uses. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Npgsql" />
+    <!-- Argon2id password hashing (ADR-033; SECURITY.md §6.2). Pure managed, MIT, no native or transitive assets. -->
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
   </ItemGroup>
 
   <ItemGroup>

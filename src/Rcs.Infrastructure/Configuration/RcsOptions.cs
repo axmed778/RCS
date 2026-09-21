@@ -38,6 +38,47 @@ public sealed class BusinessOptions
 }
 
 /// <summary>
+/// <c>Rcs:Authentication</c> — local sign-in (SECURITY.md §6, §8; ADR-033). The defaults are the baselines those
+/// sections name; the Argon2id cost is deliberately configurable because §6.2 requires it to be tuned on the real
+/// server and recorded with each hash.
+/// </summary>
+public sealed class LocalAuthenticationOptions
+{
+    public const string SectionName = "Rcs:Authentication";
+
+    /// <summary>Absolute session lifetime: a session ends at this age however active it has been.</summary>
+    public int SessionLifetimeHours { get; set; } = 12;
+
+    /// <summary>Idle timeout (SECURITY.md §8.2): long enough to read a letter, short enough to bound an unattended desk.</summary>
+    public int IdleTimeoutMinutes { get; set; } = 60;
+
+    /// <summary>Consecutive failures before the account locks itself for <see cref="LockoutMinutes"/>.</summary>
+    public int MaxFailedAttempts { get; set; } = 5;
+
+    /// <summary>The lock releases itself, so an absent administrator cannot cause a permanent lockout (§6.4).</summary>
+    public int LockoutMinutes { get; set; } = 15;
+
+    /// <summary>How long an administrative temporary password stays usable before it must be reset again (§6.7).</summary>
+    public int TemporaryCredentialHours { get; set; } = 24;
+
+    /// <summary>Sign-in attempts allowed per source address per minute, on top of the per-account lock (§6.4).</summary>
+    public int AttemptsPerMinutePerHost { get; set; } = 10;
+
+    /// <summary>Argon2id memory cost in KiB. 65536 = 64 MiB per hash; raise on a server with room and record it.</summary>
+    public int Argon2MemoryKibibytes { get; set; } = 65536;
+
+    public int Argon2Iterations { get; set; } = 3;
+
+    public int Argon2Parallelism { get; set; } = 2;
+
+    /// <summary>
+    /// Require HTTPS for the session cookie. True by default: a pilot behind the documented nginx/TLS front end keeps
+    /// it, and only a deliberately plain-HTTP LAN pilot turns it off — which the readiness checklist records as an exception.
+    /// </summary>
+    public bool RequireSecureCookie { get; set; } = true;
+}
+
+/// <summary>
 /// <c>Rcs:Storage</c> — the local content-addressed document store (DOCUMENT_MODEL.md §6; ARCHITECTURE.md §8). Paths are
 /// configuration, never code; a relative path resolves against the process working directory (the content root).
 /// </summary>

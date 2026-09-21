@@ -26,9 +26,24 @@
                 @if (Actor.IsAvailable)
                 {
                     <text>@T["App.Actor"]: <strong>@Actor.Require.DisplayName</strong> · @string.Join(" / ", Actor.Require.Roles.Select(role => role.ToCode()))</text>
+                    @if (Actor.Require.Roles.Any(role => role is Rcs.Domain.Vocabulary.BusinessRole.Head or Rcs.Domain.Vocabulary.BusinessRole.TechAdmin))
+                    {
+                        <a class="btn btn--small" href="/admin/users">@T["Admin.Users"]</a>
+                    }
+                    @if (!review.Enabled)
+                    {
+                        <a class="btn btn--small" href="/account/password">@T["Auth.ChangePassword"]</a>
+                        <form class="topbar__signout" method="post" action="/logout">
+                            <button class="btn btn--small" type="submit">@T["Auth.SignOut"]</button>
+                        </form>
+                    }
                 }
             </div>
         </div>
+        @* The synthetic-data banner and the identity switch belong to the Development review scaffold alone. A real
+           deployment shows neither: there is nothing to switch to, and the data is not synthetic. *@
+        @if (review.Enabled)
+        {
         <div class="banner">
             <span class="banner__title">@T["App.Banner"]</span>
             <span class="banner__note"> — @T["App.BannerNote"]</span>
@@ -44,6 +59,7 @@
                 </form>
             }
         </div>
+        }
         <nav class="nav" aria-label="@T["Shell.Navigation"]">
             <div class="nav-caption">@T["Shell.Workspace"]</div>
             <a class="@Active("/")" href="/"><span class="nav-icon" aria-hidden="true">⌂</span>@T["Nav.Home"]</a>
@@ -64,7 +80,8 @@
             @RenderBody()
         }
     </main>
-    <footer>@T["App.Footer"]</footer>
+    @* The build identifier makes a pilot bug report reproducible: case number, page, and exactly this string. *@
+    <footer>@T["App.Footer"] <span class="mono footer__build" title="@T["App.BuildTitle"]">@Rcs.Web.Hosting.BuildInformation.Current.Short</span></footer>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/workspace.js" asp-append-version="true"></script>
     <dialog id="document-preview" class="preview-dialog" aria-label="Sənədin ön baxışı">

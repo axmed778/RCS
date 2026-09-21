@@ -211,8 +211,7 @@ that uses it, as a new migration:
   grants — until then a restricted case is visible to its assignees, Chief and Head only).
 - **`internal_record`**, `organization` search-normalisation columns (DEF-09, after PS-1), and the background
   job/lock table (ARCHITECTURE.md §14.2).
-- **Authentication tables** — credentials and server-side sessions (ADR-033, SECURITY.md §6, §8). The Review
-  build has no authentication at all; it acts as one Development-only synthetic user (README.md).
+*(Authentication tables were on this list and arrived in `0016`; see below.)*
 
 ## Case-level serialization (ADR-019)
 
@@ -230,3 +229,17 @@ its unit of work.
 Schema 0015 adds derived document preview generations/jobs and artifacts (ADR-044).
 Run the normal migration runner and check-schema; do not apply migrations manually.
 Original document retention, object bytes and workflow tables remain unchanged.
+
+Schema **0016** adds local authentication (ADR-045): `user_credential` — one Argon2id credential per user, whose
+PHC-string encoding shape a CHECK validates (cryptographic provenance is enforced by the hasher, not SQL) — and `user_session`, the server-side
+revocable sessions that make suspension take effect immediately rather than at expiry. Nothing in `app_user`,
+`role` or `user_role` changed. The runtime role may insert and update those two tables and delete neither.
+
+## Pilot database
+
+`pilot/create_pilot_database.sql` creates an **empty** `rcs_pilot` owned by `rcs_migrate`; everything else arrives
+through the migration runner, so a pilot database contains the real schema, the real lookup vocabularies and **no
+demo data** (`seed-demo` is Development-only and refuses to run elsewhere). A new database has nobody who can sign
+in and does not know which organization the department itself is, so installation runs, once, from the server
+console: `Rcs.Web user bootstrap-admin`, `user create`, `user set-department`, `user grant`
+(`docs/PILOT_DEPLOYMENT.md` §4). `rcs_dev` is never reused as a pilot database and is never modified by any of this.

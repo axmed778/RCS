@@ -10,6 +10,12 @@
   </PropertyGroup>
   <ItemGroup Label="Runtime">
     <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <!--
+      Argon2id password hashing (ADR-033, SECURITY.md §6.2). .NET ships no memory-hard password hash, and writing
+      one would be exactly the custom cryptography this repository refuses. Pure managed, no native assets, MIT,
+      the managed Blake2 dependency is pinned transitively in package lock files. Restore offline from a prepared cache.
+    -->
+    <PackageVersion Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
   </ItemGroup>
   <ItemGroup Label="Tests">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

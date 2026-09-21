@@ -1,0 +1,20 @@
+@* The sign-in and forced password-change pages: the same dark shell, without navigation, actor or case context. *@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@(ViewData["Title"] is string title ? title + " — RCS" : "RCS")</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="auth-page">
+    <main id="main" class="auth-main">
+        @RenderBody()
+    </main>
+    <footer class="auth-footer">
+        <span>@T["App.Name"]</span>
+        <span class="mono">@Rcs.Web.Hosting.BuildInformation.Current.Short</span>
+    </footer>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+</body>
+</html>

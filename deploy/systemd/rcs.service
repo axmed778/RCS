@@ -1,0 +1,61 @@
+# RCS application service (pilot). Install as /etc/systemd/system/rcs.service.
+#
+#   sudo install -m 0644 deploy/systemd/rcs.service /etc/systemd/system/rcs.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rcs
+#   systemctl status rcs ; journalctl -u rcs -f
+#
+# No Docker or container runtime. The verified framework-dependent publish needs the .NET 10 ASP.NET runtime.
+
+[Unit]
+Description=RCS — case and correspondence system (pilot)
+Documentation=file:/opt/rcs/docs/PILOT_DEPLOYMENT.md
+# The application refuses to start without a compatible schema, so start it after the database is up. On the same
+# machine this is ordering only: PostgreSQL listens on a Unix socket and is not reachable from the network.
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+# Type=exec (not notify): sd_notify would need an extra package, and exec is accurate enough for ordering.
+Type=exec
+User=rcs-app
+Group=rcs-app
+UMask=0027
+WorkingDirectory=/opt/rcs
+ExecStart=/opt/rcs/Rcs.Web
+Environment=DOTNET_ENVIRONMENT=Pilot
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Environment=DOTNET_NOLOGO=1
+# Connection strings and any other secret live in this file, owned by rcs-app, mode 0600. Never in the unit.
+Environment=RCS_SECRETS_FILE=/etc/rcs/rcs-runtime.secrets.json
+
+# Restart on failure, and keep restarting: an unattended department server must come back by itself.
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30
+
+# Logs go to the journal (journalctl -u rcs). No log file to rotate, no log directory to fill.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rcs
+
+# Hardening. The preview worker needs to create user and mount namespaces for bubblewrap, so NoNewPrivileges and
+# PrivateUsers are deliberately NOT set here — the isolation of untrusted documents happens inside that sandbox.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+# The only writable paths: the document store, the preview store and their staging areas.
+ReadWritePaths=/srv/rcs-pilot
+# Resource ceilings for the whole service, including every converter the preview worker starts. prlimit bounds one
+# process; this bounds the tree (docs/PREVIEW.md names this as required deployment hardening).
+MemoryMax=3G
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target
