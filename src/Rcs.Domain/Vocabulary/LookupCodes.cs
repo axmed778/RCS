@@ -122,6 +122,11 @@ public static class AuditActionCodes
     public const string Assign = "ASSIGN";
     public const string PermissionDenied = "PERMISSION_DENIED";
 
+    /// <summary>A sign-in attempt; <c>after_state.outcome</c> says whether it succeeded and why not (SECURITY.md §6.4).</summary>
+    public const string Login = "LOGIN";
+
+    public const string Logout = "LOGOUT";
+
     /// <summary>A derived preview of an exact version was opened (ADR-044): a disclosure of content, like a download.</summary>
     public const string Preview = "PREVIEW";
 }

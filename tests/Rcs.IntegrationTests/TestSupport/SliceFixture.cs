@@ -47,6 +47,16 @@ internal sealed class SliceFixture : IAsyncDisposable
 
     public DemoDataSeeder Seeder => provider.GetRequiredService<DemoDataSeeder>();
 
+    public Rcs.Application.Identity.ILocalAuthenticationService Authentication => provider.GetRequiredService<Rcs.Application.Identity.ILocalAuthenticationService>();
+
+    public Rcs.Application.Identity.IUserAdministration Administration => provider.GetRequiredService<Rcs.Application.Identity.IUserAdministration>();
+
+    public Rcs.Infrastructure.Identity.IdentityBootstrap Bootstrap => provider.GetRequiredService<Rcs.Infrastructure.Identity.IdentityBootstrap>();
+
+    public Rcs.Infrastructure.Organizations.DepartmentBootstrap Department => provider.GetRequiredService<Rcs.Infrastructure.Organizations.DepartmentBootstrap>();
+
+    public Rcs.Application.Identity.IUserDirectory Users => provider.GetRequiredService<Rcs.Application.Identity.IUserDirectory>();
+
     public Rcs.Application.Identifiers.IIdGenerator Ids => provider.GetRequiredService<Rcs.Application.Identifiers.IIdGenerator>();
 
     /// <summary>The synthetic Chief the demo data creates; the Review build acts as this user by default.</summary>

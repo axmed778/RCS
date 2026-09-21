@@ -253,7 +253,14 @@ hostname. This raises the value of HTTPS (§5.4), rate limiting (§6.4) and host
 ## 6. Authentication
 
 The frozen model supports `LOCAL` and `ACTIVE_DIRECTORY` as identity sources
-(`DOMAIN_MODEL.md` §2.3). **Neither is implemented here; AD integration is not designed.**
+(`DOMAIN_MODEL.md` §2.3). **AD integration is still not designed.**
+
+> **Implementation note (2026-09-21, ADR-045).** `LOCAL` is now built, to the requirements in this section:
+> Argon2id credentials in `user_credential` (§6.2), the length-based password policy of §6.3, the per-account
+> lock and per-source limiting of §6.4, and the server-side revocable sessions of §6.5 and §8.2 in `user_session`.
+> The requirements below remain the specification; where the build has not caught up, it is named here:
+> **not built** — password reset delivered by any channel other than in person, break-glass procedure (§6.8) as an
+> organizational artefact, and MFA (deliberately out of scope). AD (§6.6) is untouched.
 
 ### 6.1 Individual identity is non-negotiable
 
@@ -1594,3 +1601,29 @@ Only inert PNG/JPEG derivatives and bounded geometry JSON are served. No HTML, S
 KMZ central-directory names, entry counts, expanded sizes and compression ratios are checked before bounded KML streaming. No archive paths are extracted. DTDs and external entities are prohibited. Converters run with fresh profiles and macros disabled; macro-enabled Office files stay excluded by policy. Manifests and output sizes/types are checked before ingestion.
 
 These controls do not make parser exploits impossible. Deployment must add a separate service identity, cgroup aggregate memory/process limits, filesystem quotas, OS patching and validated offline converter/font packages. Per-process prlimit and .NET heap limits are not an aggregate cgroup memory limit. See PREVIEW.md; do not represent development execution as fully hardened deployment.
+
+
+## Pilot verification clarification (ADR-045)
+
+The pilot uses canonical unpadded Argon2id PHC strings with random 16-byte salts and 32-byte hashes. Existing padded
+pilot hashes remain readable and are upgraded on successful login when no work factor decreases. A mixed cost
+policy is left unchanged for operator review. Input and cost bounds reject oversized/corrupt values. The database
+CHECK validates encoding shape, not the provenance or cryptographic strength of bytes supplied by a database operator.
+
+All failed login states use the same public message, including lockout. Unknown usernames skip Argon2 work, so timing
+can still reveal account existence; this remains a known pilot limitation. Per-source limiting covers login and password
+change; nginx forwarding is trusted only from loopback, one hop. Accounts lock temporarily, with bounded counters and a
+fresh attempt window after expiry. Temporary credentials expire even if a session was opened before their deadline.
+Self-service password change requires a live session belonging to that account, and revokes other sessions; administrative
+reset revokes all sessions. Role/status authority is reread from PostgreSQL. Cookies are HttpOnly, SameSite=Strict,
+and Secure in the HTTPS template. Mutations require antiforgery tokens. Temporary reset values are rendered directly
+in the reset response, not retained in TempData cookies; sensitive pages have Cache-Control: no-store.
+
+The service's data-protection keys live outside the release in `/srv/rcs-pilot/keys`, accessible only to the service
+identity. Protect them as secrets; they are not document originals and are not included in the pilot backup. Losing
+them invalidates browser cookies and requires login again. A fresh restore does not restore active browser access.
+
+The pilot recovery test explicitly unsets `RCS_SECRETS_FILE`, whose last-loaded precedence could otherwise override
+the intended throw-away database. Only `rcs_restore_test_*` names are accepted, creation must succeed before restore,
+and restore exits on the first database error. The scripts never drop a database. Production security controls elsewhere
+in this document remain requirements, not a claim that all have been exercised in this pilot build.

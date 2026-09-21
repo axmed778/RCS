@@ -1,0 +1,30 @@
+@page "/login"
+@model Rcs.Web.Pages.LoginModel
+@{
+    ViewData["Title"] = T["Auth.SignIn"].Value;
+    Layout = "_AuthLayout";
+}
+<div class="auth-card">
+    <div class="auth-card__brand"><span class="brand-mark" aria-hidden="true">R</span> RCS</div>
+    <h1>@T["Auth.SignIn"]</h1>
+    <p class="hint">@T["Auth.SignInHint"]</p>
+    @if (Model.Message is { Length: > 0 } message)
+    {
+        <div class="alert" role="alert">@message</div>
+    }
+    <form method="post" class="form" data-single-submit>
+        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+        <div class="field">
+            <label for="username">@T["Auth.Username"]</label>
+            <input id="username" name="username" value="@Model.Username" autocomplete="username" required maxlength="64" autofocus />
+        </div>
+        <div class="field">
+            <label for="password">@T["Auth.Password"]</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="128" />
+        </div>
+        <div class="actions">
+            <button class="btn btn--primary" type="submit">@T["Auth.SignIn"]</button>
+        </div>
+    </form>
+    <p class="hint">@T["Auth.ForgotHint"]</p>
+</div>

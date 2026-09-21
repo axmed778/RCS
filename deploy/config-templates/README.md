@@ -10,3 +10,13 @@ Templates only. **Real values never enter source control** (SECURITY.md invarian
 
 `RCS_SECRETS_FILE` is loaded after every other source, so its values win. The runtime and migration credentials
 are separate on purpose: the running application must never be able to change the schema (ADR-004, ADR-018).
+
+
+## Controlled pilot (schema 16)
+
+Use `appsettings.Pilot.example.json` with `DOTNET_ENVIRONMENT=Pilot`; follow `docs/PILOT_DEPLOYMENT.md`.
+Keep original objects, temporary uploads, previews, preview staging and cookie keys outside the application release.
+The storage roots must be separate and non-overlapping. The example binds Kestrel to loopback behind nginx and
+requires Secure cookies. Review Actor and demo seed are unavailable outside Development.
+`RCS_SECRETS_FILE` is loaded last and overrides environment connection strings: never pass the live secrets file to a
+restore test. The restore script removes that variable and uses pgpass/peer credentials for its throw-away database.

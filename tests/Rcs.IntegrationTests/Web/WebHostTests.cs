@@ -24,7 +24,15 @@ public sealed class WebHostTests : IAsyncLifetime
             builder.UseEnvironment("IntegrationTest");
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                var settings = new Dictionary<string, string?> { ["ConnectionStrings:Runtime"] = runtimeConnectionString };
+                // Outside Development the host insists that real business bytes live outside the release directory
+                // (DeploymentSafetyGate), so a non-Development test host must say where they go.
+                var storage = Path.Combine(Path.GetTempPath(), "rcs-webhost-tests", Guid.NewGuid().ToString("N"));
+                var settings = new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:Runtime"] = runtimeConnectionString,
+                    ["Rcs:Storage:RootPath"] = Path.Combine(storage, "objects"),
+                    ["Rcs:Storage:TempPath"] = Path.Combine(storage, "temporary"),
+                };
                 foreach (var (key, value) in overrides ?? new Dictionary<string, string?>())
                 {
                     settings[key] = value;
@@ -96,11 +104,17 @@ public sealed class WebHostTests : IAsyncLifetime
         var live = await client.GetAsync(new Uri("/health/live", UriKind.Relative));
         var ready = await client.GetAsync(new Uri("/health/ready", UriKind.Relative));
         var root = await client.GetAsync(new Uri("/", UriKind.Relative));
+        var login = await client.GetAsync(new Uri("/login", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.OK, live.StatusCode);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
         Assert.Equal("Healthy", await ready.Content.ReadAsStringAsync());
-        Assert.Equal(HttpStatusCode.NotFound, root.StatusCode); // no business UI in Phase 1
+
+        // Since pilot readiness the business UI exists outside Development too — behind authentication. The health
+        // endpoints stay open; everything else needs a session, and an anonymous visitor lands on the sign-in page.
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, root.StatusCode);
+        Assert.Contains("/login", root.RequestMessage!.RequestUri!.PathAndQuery, StringComparison.Ordinal);
     }
 
     [Fact]
