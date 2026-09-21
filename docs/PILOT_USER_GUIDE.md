@@ -9,7 +9,24 @@ Bu qısa bələdçi 10 günlük sınaq (pilot) üçündür. Məqsəd sistemi **r
 
 ## 1. Sistemə giriş
 
+RCS iki şəkildə quraşdırıla bilər. İnzibatçı sizə hansının olduğunu deyəcək.
+
+**A) Öz noutbukunuzda (tək kompüter rejimi)**
+
+1. İş masasındakı **RCS** ikonuna iki dəfə klikləyin.
+2. Proqram özü işə düşür və brauzer avtomatik açılır. İlk açılış 10–20 saniyə çəkə bilər.
+3. İkinci dəfə klikləsəniz, ikinci nüsxə açılmır — sadəcə brauzer yenidən açılır.
+4. İşi bitirdikdə **RCS-i dayandır** ikonu ilə proqramı bağlaya bilərsiniz (məcburi deyil).
+5. Nə isə səhv olarsa, ekranda izahlı bir pəncərə çıxır — mətni inzibatçıya göstərin.
+
+Bütün məlumat **yalnız bu noutbukda** saxlanılır. Şəbəkədə heç nə paylaşılmır.
+
+**B) Şəbəkə serverində**
+
 1. Brauzerdə ünvanı açın: **https://rcs.example.lan** (dəqiq ünvanı inzibatçı verəcək).
+
+**Hər iki halda:**
+
 2. İstifadəçi adınızı və parolunuzu daxil edin.
 3. İlk girişdə müvəqqəti parolu **öz parolunuzla əvəz etməlisiniz**. Ən azı 12 simvol; uzun və yadda qalan
    bir ifadə seçin (məsələn üç-dörd sözdən ibarət cümlə). Mürəkkəb işarələr tələb olunmur.
@@ -78,6 +95,9 @@ Sənəd həmişə **bir kontekstə** əlavə olunur (məktub, sorğu, cavab, tə
 5. **Endir** düyməsi həmişə **orijinal faylı** verir.
 
 PDF, Word, Excel, şəkillər (PNG/JPEG/WebP) və KMZ üçün ön baxış var. Sənədin özü heç vaxt dəyişdirilmir.
+
+> **Tək kompüter rejimində ön baxış işləmir.** Bu rejimdə bütün sənədlər normal yüklənir, siyahıda görünür və
+> **endirilir**, sadəcə sistem daxilində baxış pəncərəsi açılmır — faylı endirib öz proqramınızda açın.
 
 ## 7. Yekun qərar (Final Result), bağlama və yenidən açma
 

@@ -272,3 +272,127 @@ sudo systemctl start rcs                                                        
 AD/LDAP or SSO · e-mail or messaging notifications · OCR, AI or content search · cloud anything · Docker or
 Kubernetes · a second machine or automatic failover · production collation (PS-1) · full-text search, which is
 deliberately deferred until the pilot tells us what the employee actually searches by.
+
+---
+
+# Part B — Windows single-laptop pilot
+
+Sections 1–12 describe the **LAN server** pilot and remain the target for a department rollout. This part describes
+the **other supported pilot mode**, added for the 10-day trial: RCS on **one Windows laptop**, used by one employee,
+with no network service at all. Everything below is additional; nothing above is replaced.
+
+Choose this mode when the pilot is one person on one machine. Choose the server mode when more than one person needs
+access, or when document previews are required (see the limitation in §13.7).
+
+## 13. Windows single-laptop pilot
+
+### 13.1 What it is
+
+| | |
+|---|---|
+| Runs on | one Windows 10/11 laptop |
+| Reached at | `http://127.0.0.1:5080` — **loopback only**. Nothing listens on the network |
+| Started by | a desktop icon: **RCS** |
+| Database | a local PostgreSQL 17+ that is **already installed** on that laptop |
+| Documents | `C:\ProgramData\RCS\Pilot\objects` — outside the program folder, outside any repository |
+| Employee needs | the icon and their own username and password. No terminal, no command, no address to remember |
+
+### 13.2 What the employee does
+
+1. Double-clicks **RCS** on the desktop.
+2. The launcher starts the application, waits until it reports healthy, and opens the browser at the sign-in page.
+3. They sign in with their own account and work exactly as in the server mode.
+4. A second double-click does **not** start a second copy — it re-opens the browser window.
+5. **RCS-i dayandır** stops it; so does signing out of Windows.
+
+If something is wrong, the launcher shows a message box naming the problem and where the logs are, rather than a
+console that closes before it can be read.
+
+> **If the icon does nothing at all**, Windows is blocking the unsigned executable — Smart App Control or a WDAC /
+> AppLocker policy. This is a real possibility on a managed laptop and was observed on the engineering machine
+> (*"An Application Control policy has blocked this file"*). Three ways out, best first:
+>
+> 1. **Sign** `Rcs.Launcher.exe` and `Rcs.Web.exe` with the organisation's code-signing certificate.
+> 2. Have IT **allow** the two executables in the policy.
+> 3. Point the desktop shortcut at the fallback instead — it does the same work under Microsoft-signed PowerShell:
+>    `powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Program Files\RCS\windows-pilot\start-rcs.ps1"`
+>
+> Test this **before** handing the laptop over: it is the one failure that looks to the employee like nothing happened.
+
+### 13.3 Prerequisites on the laptop
+
+- **PostgreSQL 17 or later, already installed and running**, with its superuser password known to whoever installs
+  RCS. The pilot package deliberately does **not** bundle a database engine: installing one silently on somebody's
+  laptop is not a decision a script should make.
+- Administrator rights for the installation (writing to `C:\Program Files` and `C:\ProgramData`).
+- Nothing else. The package is self-contained: **no .NET installation is required**.
+
+### 13.4 Package layout
+
+```
+publish\                          (produced by: dotnet publish -c Release -r win-x64 --self-contained true)
+  Rcs.Web.exe                     the application (also the migrate / check-schema / user commands)
+  Rcs.Launcher.exe                the desktop icon's target
+  launcher.json                   written by install.ps1
+  appsettings.json                shipped defaults
+  appsettings.Pilot.json          written by install.ps1 from the template, no secrets
+  windows-pilot\                  copied by install.ps1 so maintenance lives on the laptop
+    install.ps1  backup.ps1  restore-test.ps1  lib\RcsPilot.Common.ps1
+```
+
+Installed layout:
+
+| Path | Holds |
+|---|---|
+| `C:\Program Files\RCS` | the release. Replaceable: nothing here is data |
+| `C:\ProgramData\RCS\Pilot\objects` | **original documents** — the evidence. Backed up |
+| `C:\ProgramData\RCS\Pilot\tmp-uploads` | uploads in flight |
+| `C:\ProgramData\RCS\Pilot\previews`, `preview-tmp` | derived previews (unused in this mode, see §13.7) |
+| `C:\ProgramData\RCS\Pilot\data-protection-keys` | cookie keys — why a reinstall does not sign the employee out |
+| `C:\ProgramData\RCS\Pilot\logs` | application and launcher logs |
+| `C:\ProgramData\RCS\Pilot\backups` | recovery points |
+
+### 13.5 Installation
+
+From an **elevated** PowerShell, in the published package:
+
+```powershell
+.\windows-pilot\install.ps1 -PublishPath . -PilotUser aad -PilotFullName "Ad Soyad" -PilotJobTitle "Baş mütəxəssis"
+```
+
+It asks once for the PostgreSQL superuser password and then, in ten steps: creates the ProgramData folders; checks
+PostgreSQL is answering; creates the `rcs_app` / `rcs_migrate` roles with generated passwords and stores those only
+in the employee's own `%APPDATA%\postgresql\pgpass.conf`; creates an **empty** `rcs_pilot` (an existing one is left
+untouched); copies the release; writes `appsettings.Pilot.json` and `launcher.json` with **no secrets**; runs
+`migrate` and `check-schema`; bootstraps `tech.admin` and the employee's account; records the department; grants
+**Worker + Chief + Head**; creates the three desktop shortcuts; and finally starts the application once to confirm
+it reports healthy.
+
+It prints the two temporary passwords **once**. Hand the employee's password over in person; it must be changed at
+first sign-in.
+
+### 13.6 Backup and restore on the laptop
+
+```powershell
+# The employee can run this from the "RCS ehtiyat nüsxə" desktop shortcut.
+.\windows-pilot\backup.ps1
+
+# Prove a recovery point before real documents are entered, and then weekly.
+.\windows-pilot\restore-test.ps1 -RecoveryPoint C:\ProgramData\RCS\Pilot\backups\20260921T101500Z
+```
+
+Same rules as the server mode: **database dumped first, documents copied second** (ADR-021), previews excluded
+because they are derived, and a dump alone is never called a backup. The restore test only ever creates a database
+named `rcs_restore_test_*`; the guard refuses any other name, including `rcs_pilot`, before anything is created.
+
+**A laptop is a single point of failure.** Copy at least one recovery point onto a USB disk that stays elsewhere.
+
+### 13.7 What this mode does not have, and why
+
+| | |
+|---|---|
+| **Document previews** | **Off.** The converters (poppler, libvips, LibreOffice) and the bubblewrap sandbox that isolates them are Linux-only. The UI shows "Ön baxış mümkün deyil"; documents still upload, download and are listed normally. A pilot that needs previews uses the server mode |
+| **HTTPS** | Not used, and not needed: the only address is `http://127.0.0.1`, which never leaves the machine. `RequireSecureCookie` is therefore false in this mode alone — it is the one setting that differs from the server template, and it is recorded as an explicit exception in `PILOT_READINESS.md` |
+| **Access from another computer** | None. The launcher refuses any address that is not loopback |
+| **A service that starts at boot** | No. RCS runs when the employee opens it. Nothing runs in the background otherwise |
+| **Full-disk encryption, screen lock, endpoint protection** | Not RCS's to configure, and they matter more here than on a server: the documents are on a laptop that leaves the building. Confirm them before real documents are entered |

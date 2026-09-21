@@ -83,3 +83,56 @@ separately and require fresh login after restoring to a new server.
 | Technical administrator: server, network, backup/recovery | Pending |
 | Employee: account and walkthrough | Pending |
 | Product owner: 10-day pilot and exceptions | Pending |
+
+---
+
+# E. Windows single-laptop mode — separate checklist
+
+Use this list **instead of** B1–B10 when the pilot runs on one Windows laptop (`PILOT_DEPLOYMENT.md` §13). Sections
+A (authentication, roles, storage, backup rules) and C (limitations) still apply.
+
+## E1. Verified on the engineering machine
+
+| # | Item | State | Evidence |
+|---|---|---|---|
+| E1.1 | The Windows package publishes and is self-contained | **GO** | `dotnet publish -r win-x64 --self-contained` produced `Rcs.Web.exe` (console) and `Rcs.Launcher.exe` (GUI subsystem — no console window), 371 files, ~111 MB, no .NET needed on the laptop |
+| E1.13 | The published `Rcs.Web.exe` executes on Windows | **GO** | run on this machine: `check-schema` started and reported "ConnectionStrings:Runtime is not configured", exit 2 — the binary runs; only a database was absent |
+| E1.14 | An Application Control policy can block the unsigned launcher | **FINDING** | `Rcs.Launcher.exe` was refused here: *"An Application Control policy has blocked this file"* (Smart App Control). `start-rcs.ps1` is the documented fallback; signing both executables is the real fix. Carried into E2.1 |
+| E1.2 | The Linux-only preview worker is excluded from the Windows package | **GO** | the publish target is skipped for `win-*` runtimes |
+| E1.3 | Launcher: one instance per laptop, loopback only, never Development | **GO** | unit tests — a second claim from another thread is refused; routable and non-loopback addresses rejected; `EnvironmentName=Development` rejected |
+| E1.4 | Launcher waits for **healthy**, not merely "started", and reports failure in a window | **GO** | unit tests for ready / application-exited / timed-out; message box on Windows, no console |
+| E1.5 | All pilot paths are under `C:\ProgramData\RCS\Pilot` | **GO** | unit test over the shipped template: storage, previews and data-protection keys, none inside the release or a repository |
+| E1.6 | Data-protection keys persist outside the release | **GO** | unit test: `…\Pilot\data-protection-keys`, so a reinstall does not sign the employee out |
+| E1.7 | The template carries no secret and never enables the review actor | **GO** | unit test: no `Password=`, empty migration connection string, `Review:Enabled=false` |
+| E1.8 | Every script parses under Windows PowerShell 5.1 | **GO** | parsed with the real PowerShell parser on Windows; all four files, 0 errors |
+| E1.9 | The database-name guard refuses anything but a throw-away target | **GO** | executed on Windows: `rcs_pilot`, `rcs_dev`, `postgres`, `template1`, an injection attempt and an empty name are all refused; `rcs_restore_test_*` accepted |
+| E1.10 | The directory guard refuses drive roots, Windows, Program Files and any repository | **GO** | executed on Windows: all refused; `C:\ProgramData\RCS\Pilot` accepted |
+| E1.11 | Backup dumps the database before copying documents, and never mirrors or deletes | **GO** | unit test on ordering; no `/MIR`, no `Remove-Item`; credentials excluded from the recovery point |
+| E1.12 | Scripts are UTF-8 with BOM so PowerShell 5.1 reads them correctly | **GO** | unit test; this was a real defect found by running the parser, not by reading the files |
+
+## E2. NOT verified — must be done on the employee's laptop
+
+Nothing in this section could be tested here: this engineering machine has **Smart App Control enforcing**, which
+blocks locally built executables, and it has **no native Windows PostgreSQL**. Every item below is therefore
+unverified by construction, not by omission.
+
+| # | Item | State | What closes it |
+|---|---|---|---|
+| E2.1 | `Rcs.Launcher.exe` actually runs on the laptop | **NO-GO** | **Expect a block if the laptop runs Smart App Control or WDAC/AppLocker — it was blocked on the engineering machine (E1.14).** Test before the employee sees it; if blocked: sign both executables, have IT allow them, or point the desktop shortcut at `start-rcs.ps1`, which runs under Microsoft-signed PowerShell |
+| E2.2 | `install.ps1` completes end to end against the laptop's PostgreSQL | **NO-GO** | run it elevated; it must reach step 10 and report healthy |
+| E2.3 | Desktop icon → browser → sign-in works for the employee | **NO-GO** | watch them do it once, including the forced password change |
+| E2.4 | Second double-click re-opens the browser instead of starting a second copy | **NO-GO** | double-click twice; check only one `Rcs.Web.exe` in Task Manager |
+| E2.5 | Case creation, document upload and download on the laptop | **NO-GO** | one real case, one real document, downloaded and compared |
+| E2.6 | Data survives an application restart and a laptop reboot | **NO-GO** | stop, reboot, open again; the case must still be there and the session must be signed out cleanly |
+| E2.7 | `backup.ps1` from the desktop shortcut produces a recovery point | **NO-GO** | run it; check `RECOVERY_POINT` and `objects.sha256` exist |
+| E2.8 | `restore-test.ps1` passes against that recovery point | **NO-GO** | run it; `verify-documents --rehash` must report 0 findings |
+| E2.9 | One recovery point copied to media kept off the laptop | **NO-GO** | copy to a USB disk; a laptop is a single point of failure |
+| E2.10 | Disk encryption, screen lock and endpoint protection are on | **NO-GO** | confirm with IT before real documents are entered |
+
+## E3. Limitations specific to this mode
+
+- **No document previews** (Linux-only converters and sandbox). Documents upload and download normally and the UI
+  says so honestly.
+- **`RequireSecureCookie` is false** — accepted because the only address is `http://127.0.0.1` on that machine.
+- **No access from any other computer**, by design: the launcher refuses a non-loopback address.
+- **The laptop is the whole system.** Its loss is the loss of the pilot data unless a recovery point is off it.

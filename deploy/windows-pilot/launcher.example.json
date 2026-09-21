@@ -1,0 +1,12 @@
+{
+  "//": [
+    "Settings for Rcs.Launcher.exe on the employee's laptop. install.ps1 copies this next to the launcher.",
+    "Nothing secret belongs here: the launcher starts the application and opens the browser, nothing else."
+  ],
+  "applicationPath": "Rcs.Web.exe",
+  "url": "http://127.0.0.1:5080",
+  "environmentName": "Pilot",
+  "logDirectory": "C:\\ProgramData\\RCS\\Pilot\\logs",
+  "readyTimeoutSeconds": 90,
+  "startPath": "/login"
+}

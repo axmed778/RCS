@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The desktop launcher for the Windows single-laptop pilot (docs/PILOT_DEPLOYMENT.md §13). The employee
+    double-clicks one icon; this starts the RCS web application on the loopback address, waits until it reports
+    healthy, and opens the browser at the sign-in page.
+
+    WinExe: no console window flashes on a double-click. It references nothing but the framework, so it builds and
+    its logic is unit-tested on any platform; the Windows-only calls are guarded at the call site.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>Rcs.Launcher</RootNamespace>
+    <AssemblyName>Rcs.Launcher</AssemblyName>
+    <!-- The employee's laptop has no .NET installed: the pilot package is published self-contained (ADR-002). -->
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rcs.UnitTests" />
+  </ItemGroup>
+
+</Project>
